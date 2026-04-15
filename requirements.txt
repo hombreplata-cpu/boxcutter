@@ -1,0 +1,2 @@
+pyrekordbox>=0.3.0
+mutagen>=1.47.0
