@@ -38,3 +38,6 @@ logs/
 # Rekordbox DB backups (never commit these)
 master_backup_*.db
 master.db
+
+# Internal Claude docs
+.claude/

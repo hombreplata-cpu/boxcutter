@@ -8,7 +8,7 @@ echo   rekordbox-tools  --  Installer
 echo  ======================================
 echo.
 
-REM ── Check for Python ──────────────────────────────────────────────────────
+REM Check for Python
 python --version >nul 2>&1
 if errorlevel 1 (
     echo  [!] Python not found.
@@ -29,65 +29,85 @@ for /f "tokens=2 delims= " %%v in ('python --version 2^>^&1') do set PYVER=%%v
 echo  [ok] Python %PYVER% found.
 echo.
 
-REM ── Upgrade pip ───────────────────────────────────────────────────────────
+REM Upgrade pip
 echo  [..] Upgrading pip...
 python -m pip install --upgrade pip --quiet
-echo  [ok] pip up to date.
+echo  [ok] pip ready.
 echo.
 
-REM ── Install dependencies ──────────────────────────────────────────────────
-echo  [..] Installing dependencies...
-echo.
-
+REM Install Flask
+echo  [..] Installing flask...
 python -m pip install flask --quiet
-if errorlevel 1 ( echo  [!] Failed to install flask. & pause & exit /b 1 )
+if errorlevel 1 (
+    echo  [!] Failed to install flask.
+    pause
+    exit /b 1
+)
 echo  [ok] flask
 
+REM Install pyrekordbox
+echo  [..] Installing pyrekordbox...
 python -m pip install pyrekordbox --quiet
-if errorlevel 1 ( echo  [!] Failed to install pyrekordbox. & pause & exit /b 1 )
+if errorlevel 1 (
+    echo  [!] Failed to install pyrekordbox.
+    pause
+    exit /b 1
+)
 echo  [ok] pyrekordbox
 
+REM Install mutagen
+echo  [..] Installing mutagen...
 python -m pip install mutagen --quiet
-if errorlevel 1 ( echo  [!] Failed to install mutagen. & pause & exit /b 1 )
+if errorlevel 1 (
+    echo  [!] Failed to install mutagen.
+    pause
+    exit /b 1
+)
 echo  [ok] mutagen
 
+REM Verify all imports
 echo.
-echo  [ok] All dependencies installed.
-echo.
+echo  [..] Verifying installation...
+python -c "import flask; import mutagen; print('  [ok] All dependencies verified.')"
+if errorlevel 1 (
+    echo  [!] Verification failed. Check errors above and try again.
+    pause
+    exit /b 1
+)
 
-REM ── pyrekordbox DB key setup ───────────────────────────────────────────────
+REM pyrekordbox DB key setup
+echo.
 echo  -------------------------------------------------------
-echo   IMPORTANT: Rekordbox database setup
+echo   Rekordbox database setup
 echo  -------------------------------------------------------
 echo.
-echo  rekordbox-tools needs access to your Rekordbox database.
-echo  pyrekordbox requires a one-time key extraction step.
+echo  rekordbox-tools needs one-time access to your Rekordbox
+echo  database key. Make sure Rekordbox is installed first.
 echo.
-echo  Run the following command to set it up:
+echo  Press any key to run the key setup now.
+echo  If you have already done this step, close this window.
 echo.
-echo      python -m pyrekordbox download-key
-echo.
-echo  This only needs to be done once. If you have already done
-echo  this step you can skip it.
-echo.
-echo  Press any key to run it now, or close this window to skip.
 pause >nul
 python -m pyrekordbox download-key
-echo.
+if errorlevel 1 (
+    echo.
+    echo  [!] Key setup failed. Make sure Rekordbox is installed
+    echo      and has been opened at least once, then run:
+    echo.
+    echo      python -m pyrekordbox download-key
+    echo.
+)
 
-REM ── Done ──────────────────────────────────────────────────────────────────
+REM Done
+echo.
 echo  ======================================
 echo   Installation complete!
 echo  ======================================
 echo.
-echo  To launch rekordbox-tools, run:
+echo  To launch rekordbox-tools anytime, run:
 echo.
 echo      start.bat
 echo.
-echo  Or from PowerShell / Command Prompt:
-echo.
-echo      python app.py
-echo.
-echo  The app will open in your browser at http://localhost:5000
+echo  The app will open automatically in your browser.
 echo.
 pause
