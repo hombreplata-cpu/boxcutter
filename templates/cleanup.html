@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Library Cleanup — rekordbox-tools{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Library Cleanup</h1>
+  <p>Find audio files on disk not referenced in Rekordbox and move them to a DELETE folder for review.</p>
+</div>
+<div class="divider"></div>
+
+<div class="info-box">
+  ⚠ Close Rekordbox before running. Files are <strong>moved</strong>, not deleted — review the DELETE folder before emptying it.
+</div>
+
+<div class="card">
+  <div class="card-label">Options</div>
+
+  <div class="path-row">
+    <label>Scan Root</label>
+    <input class="path-input" id="scan_root" type="text"
+           value="{{ cfg.music_root }}" placeholder="Root folder to scan">
+  </div>
+  <div class="path-hint">Drag a folder here, or <kbd>Right-click folder</kbd> → <kbd>Copy as path</kbd> → paste</div>
+
+  <div class="path-row">
+    <label>DELETE Folder</label>
+    <input class="path-input" id="delete_dir" type="text"
+           value="{{ cfg.delete_dir }}" placeholder="Where to move unreferenced files">
+  </div>
+
+  <div class="path-row">
+    <label>Exclude Folder <span style="color:var(--text-dim)">(optional)</span></label>
+    <input class="path-input" id="exclude" type="text"
+           placeholder="Subfolder to skip">
+  </div>
+  <div class="path-hint">Useful for excluding a FLAC folder that you don't want scanned</div>
+</div>
+
+<div class="console-wrap">
+  <div class="console-bar">
+    <span>Output</span>
+    <span class="status" id="status">Idle</span>
+  </div>
+  <div id="console"></div>
+</div>
+
+<div class="btn-row">
+  <button class="btn btn-secondary" onclick="run(true)">▷ &nbsp;Dry Run</button>
+  <button class="btn btn-primary"   onclick="run(false)">▶ &nbsp;Run Cleanup</button>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function run(dry) {
+  runScript('cleanup', {
+    scan_root:  document.getElementById('scan_root').value,
+    delete_dir: document.getElementById('delete_dir').value,
+    exclude:    document.getElementById('exclude').value,
+    dry_run:    dry ? '1' : '0',
+  }, document.getElementById('status'));
+}
+</script>
+{% endblock %}

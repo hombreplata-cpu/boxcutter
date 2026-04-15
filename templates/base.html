@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}rekordbox-tools{% endblock %}</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
+
+    :root {
+      --bg:         #0d1117;
+      --bg-panel:   #161b22;
+      --bg-input:   #1c2128;
+      --bg-hover:   #21262d;
+      --accent:     #00e5ff;
+      --accent-dim: #0097a7;
+      --text:       #e6edf3;
+      --text-dim:   #7d8590;
+      --border:     #30363d;
+      --green:      #3fb950;
+      --orange:     #d29922;
+      --red:        #f85149;
+      --mono:       'IBM Plex Mono', monospace;
+      --sans:       'IBM Plex Sans', sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      display: flex;
+      min-height: 100vh;
+    }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      width: 220px;
+      min-height: 100vh;
+      background: var(--bg-panel);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+
+    .sidebar-logo {
+      padding: 28px 20px 20px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .sidebar-logo .icon {
+      font-size: 22px;
+      color: var(--accent);
+      font-family: var(--mono);
+    }
+
+    .sidebar-logo .name {
+      font-family: var(--mono);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      margin-top: 8px;
+    }
+
+    .sidebar-logo .sub {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--text-dim);
+      margin-top: 3px;
+    }
+
+    .nav { padding: 12px 0; flex: 1; }
+
+    .nav a {
+      display: block;
+      padding: 10px 20px;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text-dim);
+      text-decoration: none;
+      transition: background 0.1s, color 0.1s;
+    }
+
+    .nav a:hover { background: var(--bg-hover); color: var(--text); }
+    .nav a.active { color: var(--accent); }
+
+    .nav .nav-section {
+      padding: 16px 20px 6px;
+      font-family: var(--mono);
+      font-size: 9px;
+      color: var(--text-dim);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .sidebar-footer {
+      padding: 16px 20px;
+      font-family: var(--mono);
+      font-size: 9px;
+      color: var(--text-dim);
+      border-top: 1px solid var(--border);
+    }
+
+    /* ── Main ── */
+    .main {
+      flex: 1;
+      padding: 40px 48px;
+      max-width: 900px;
+    }
+
+    .page-header { margin-bottom: 28px; }
+
+    .page-header h1 {
+      font-family: var(--mono);
+      font-size: 22px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .page-header p {
+      font-size: 13px;
+      color: var(--text-dim);
+      margin-top: 6px;
+    }
+
+    .divider {
+      height: 2px;
+      background: var(--accent);
+      margin: 16px 0 28px;
+    }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 20px 24px;
+      margin-bottom: 16px;
+    }
+
+    .card-label {
+      font-family: var(--mono);
+      font-size: 9px;
+      font-weight: 600;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 14px;
+    }
+
+    /* ── Path inputs ── */
+    .path-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .path-row label {
+      font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--text-dim);
+      width: 180px;
+      flex-shrink: 0;
+    }
+
+    .path-input {
+      flex: 1;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 7px 12px;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    .path-input:focus { border-color: var(--accent); }
+
+    .path-input.drag-over {
+      border-color: var(--accent);
+      background: #0d2a2e;
+    }
+
+    .path-hint {
+      font-size: 10px;
+      color: var(--text-dim);
+      margin: -6px 0 14px 190px;
+      font-family: var(--mono);
+    }
+
+    .path-hint kbd {
+      background: var(--bg-hover);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 1px 5px;
+      font-size: 10px;
+      font-family: var(--mono);
+      color: var(--text);
+    }
+
+    /* ── Checkboxes ── */
+    .option-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+
+    .option-row input[type=checkbox] {
+      accent-color: var(--accent);
+      width: 14px;
+      height: 14px;
+    }
+
+    .option-row label {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text);
+      cursor: pointer;
+    }
+
+    /* ── Buttons ── */
+    .btn-row { display: flex; gap: 10px; margin-top: 20px; align-items: center; }
+
+    .btn {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 600;
+      padding: 10px 24px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+
+    .btn-primary { background: var(--accent); color: var(--bg); }
+    .btn-primary:hover { background: var(--accent-dim); }
+
+    .btn-secondary {
+      background: var(--bg-input);
+      color: var(--accent);
+      border: 1px solid var(--border);
+    }
+    .btn-secondary:hover { color: var(--text); border-color: var(--text-dim); }
+
+    /* ── Console ── */
+    .console-wrap {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      margin-top: 20px;
+      overflow: hidden;
+    }
+
+    .console-bar {
+      background: var(--bg-hover);
+      padding: 8px 16px;
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--text-dim);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .console-bar .status { color: var(--text-dim); }
+    .console-bar .status.running { color: var(--orange); }
+    .console-bar .status.done { color: var(--green); }
+
+    #console {
+      padding: 14px 16px;
+      font-family: var(--mono);
+      font-size: 11px;
+      line-height: 1.7;
+      height: 340px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    .c-dim    { color: var(--text-dim); }
+    .c-accent { color: var(--accent); }
+    .c-green  { color: var(--green); }
+    .c-orange { color: var(--orange); }
+    .c-red    { color: var(--red); }
+
+    /* ── Dashboard cards ── */
+    .tool-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-top: 8px;
+    }
+
+    .tool-card {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 20px;
+      text-decoration: none;
+      display: block;
+      transition: border-color 0.15s, background 0.15s;
+    }
+
+    .tool-card:hover {
+      border-color: var(--accent);
+      background: var(--bg-hover);
+    }
+
+    .tool-card .tc-icon {
+      font-size: 20px;
+      margin-bottom: 10px;
+    }
+
+    .tool-card .tc-name {
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+
+    .tool-card .tc-desc {
+      font-size: 11px;
+      color: var(--text-dim);
+      line-height: 1.5;
+    }
+
+    /* ── Alert / info box ── */
+    .info-box {
+      background: #0d2a2e;
+      border: 1px solid var(--accent-dim);
+      border-radius: 4px;
+      padding: 12px 16px;
+      font-size: 12px;
+      color: var(--text-dim);
+      margin-bottom: 20px;
+      font-family: var(--mono);
+      line-height: 1.6;
+    }
+
+    .flash {
+      background: #1a2e1a;
+      border: 1px solid var(--green);
+      border-radius: 4px;
+      padding: 10px 16px;
+      font-size: 12px;
+      color: var(--green);
+      margin-bottom: 20px;
+      font-family: var(--mono);
+    }
+  </style>
+  {% block head %}{% endblock %}
+</head>
+<body>
+
+<nav class="sidebar">
+  <div class="sidebar-logo">
+    <div class="icon">◈</div>
+    <div class="name">rekordbox-tools</div>
+    <div class="sub">for Rekordbox 7</div>
+  </div>
+  <div class="nav">
+    <a href="/" class="{% if request.path == '/' %}active{% endif %}">⊞ &nbsp;Dashboard</a>
+    <div class="nav-section">Tools</div>
+    <a href="/tool/relocate"       class="{% if 'relocate' in request.path and 'remove' not in request.path %}active{% endif %}">⇄ &nbsp;Relocate Tracks</a>
+    <a href="/tool/cleanup"        class="{% if 'cleanup' in request.path %}active{% endif %}">⌫ &nbsp;Library Cleanup</a>
+    <a href="/tool/remove_missing" class="{% if 'remove_missing' in request.path %}active{% endif %}">✗ &nbsp;Remove Missing</a>
+    <a href="/tool/strip_comments" class="{% if 'strip_comments' in request.path %}active{% endif %}">⊘ &nbsp;Strip URL Comments</a>
+    <div class="nav-section">Config</div>
+    <a href="/setup" class="{% if 'setup' in request.path %}active{% endif %}">⚙ &nbsp;Setup &amp; Paths</a>
+  </div>
+  <div class="sidebar-footer">v1.0.0</div>
+</nav>
+
+<main class="main">
+  {% block content %}{% endblock %}
+</main>
+
+<script>
+  // Drag-and-drop path filling for all .path-input fields
+  document.querySelectorAll('.path-input').forEach(input => {
+    input.addEventListener('dragover', e => {
+      e.preventDefault();
+      input.classList.add('drag-over');
+    });
+    input.addEventListener('dragleave', () => input.classList.remove('drag-over'));
+    input.addEventListener('drop', e => {
+      e.preventDefault();
+      input.classList.remove('drag-over');
+      const items = e.dataTransfer.items;
+      if (items && items.length > 0) {
+        const entry = items[0].webkitGetAsEntry?.();
+        if (entry) {
+          // Chrome/Edge give us the full path via File
+        }
+      }
+      const files = e.dataTransfer.files;
+      if (files && files.length > 0) {
+        // webkitRelativePath isn't useful here; use the file path if available
+        const f = files[0];
+        // Electron-style path (not available in browser)
+        if (f.path) {
+          let p = f.path;
+          // If it's a file, use parent dir
+          if (f.type !== '') {
+            p = p.substring(0, p.lastIndexOf('\\') || p.lastIndexOf('/'));
+          }
+          input.value = p;
+        } else {
+          input.placeholder = 'Drag not supported in this browser — paste path manually';
+        }
+      }
+    });
+  });
+
+  // SSE console runner
+  function runScript(endpoint, params, statusEl) {
+    const consoleEl = document.getElementById('console');
+    consoleEl.innerHTML = '';
+    if (statusEl) { statusEl.textContent = 'Running...'; statusEl.className = 'status running'; }
+
+    const qs = new URLSearchParams(params).toString();
+    const url = `/api/run/${endpoint}?${qs}`;
+    const es = new EventSource(url);
+
+    es.onmessage = e => {
+      if (e.data === '%%DONE%%') {
+        es.close();
+        if (statusEl) { statusEl.textContent = 'Done'; statusEl.className = 'status done'; }
+        return;
+      }
+      const line = document.createElement('div');
+      const d = e.data;
+      if (d.startsWith('$'))              line.className = 'c-dim';
+      else if (d.includes('[dry-run]'))   line.className = 'c-orange';
+      else if (d.includes('->'))          line.className = 'c-green';
+      else if (/error|warn/i.test(d))     line.className = 'c-red';
+      else if (/^={3,}|SUMMARY/.test(d)) line.className = 'c-accent';
+      line.textContent = d;
+      consoleEl.appendChild(line);
+      consoleEl.scrollTop = consoleEl.scrollHeight;
+    };
+
+    es.onerror = () => {
+      es.close();
+      if (statusEl) { statusEl.textContent = 'Error'; statusEl.className = 'status'; }
+    };
+  }
+</script>
+
+{% block scripts %}{% endblock %}
+</body>
+</html>

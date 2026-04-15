@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Relocate Tracks — rekordbox-tools{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Relocate Tracks</h1>
+  <p>Re-point broken or MP3 track paths to a FLAC (or other) target folder. Cues, beatgrids, and playlists are preserved.</p>
+</div>
+<div class="divider"></div>
+
+<div class="info-box">
+  ⚠ Close Rekordbox before running. A timestamped backup of master.db is created automatically before any changes are written.
+</div>
+
+<div class="card">
+  <div class="card-label">Options</div>
+
+  <div class="path-row">
+    <label>Target Root ↗</label>
+    <input class="path-input" id="target_root" type="text"
+           value="{{ cfg.flac_root }}" placeholder="FLAC folder">
+  </div>
+  <div class="path-hint">Drag a folder here, or <kbd>Right-click folder</kbd> → <kbd>Copy as path</kbd> → paste</div>
+
+  <div class="path-row">
+    <label>Source Root ↙ <span style="color:var(--text-dim)">(optional)</span></label>
+    <input class="path-input" id="source_root" type="text"
+           value="{{ cfg.mp3_root }}" placeholder="MP3 folder to migrate away from">
+  </div>
+  <div class="path-hint">Leave blank to only fix broken/missing paths</div>
+
+  <div class="path-row" style="margin-top:8px;">
+    <label>Prefer extension</label>
+    <input class="path-input" id="prefer_ext" type="text"
+           value="flac" style="width:80px;flex:none;">
+  </div>
+
+  <div style="margin-top:14px;">
+    <div class="option-row">
+      <input type="checkbox" id="missing_only">
+      <label for="missing_only">Missing only — skip tracks that already resolve</label>
+    </div>
+    <div class="option-row">
+      <input type="checkbox" id="all_tracks">
+      <label for="all_tracks">All tracks — recheck even existing paths</label>
+    </div>
+  </div>
+</div>
+
+<div class="console-wrap">
+  <div class="console-bar">
+    <span>Output</span>
+    <span class="status" id="status">Idle</span>
+  </div>
+  <div id="console"></div>
+</div>
+
+<div class="btn-row">
+  <button class="btn btn-secondary" onclick="run(true)">▷ &nbsp;Dry Run</button>
+  <button class="btn btn-primary"   onclick="run(false)">▶ &nbsp;Run Relocate</button>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function run(dry) {
+  runScript('relocate', {
+    target_root:  document.getElementById('target_root').value,
+    source_root:  document.getElementById('source_root').value,
+    prefer_ext:   document.getElementById('prefer_ext').value || 'flac',
+    missing_only: document.getElementById('missing_only').checked ? '1' : '0',
+    all_tracks:   document.getElementById('all_tracks').checked  ? '1' : '0',
+    dry_run:      dry ? '1' : '0',
+  }, document.getElementById('status'));
+}
+</script>
+{% endblock %}

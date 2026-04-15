@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Setup — rekordbox-tools{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Setup &amp; Paths</h1>
+  <p>Configure your music library locations. Saved to <code style="font-family:var(--mono);font-size:11px;color:var(--accent)">~/.rekordbox_tools_config.json</code></p>
+</div>
+<div class="divider"></div>
+
+{% if saved %}
+<div class="flash">✓ Paths saved.</div>
+{% endif %}
+
+<div class="info-box">
+  💡 <strong>How to copy a folder path on Windows:</strong><br>
+  Open File Explorer → right-click any folder → <kbd>Copy as path</kbd> → paste below.<br>
+  Or drag a folder from File Explorer directly onto an input field.
+</div>
+
+<form method="POST">
+  <div class="card">
+    <div class="card-label">Library Roots</div>
+
+    <div class="path-row">
+      <label>Music Root</label>
+      <input class="path-input" type="text" name="music_root"
+             value="{{ cfg.music_root }}"
+             placeholder="e.g. C:\Users\You\Music">
+    </div>
+    <div class="path-hint">Root folder containing all your DJ music</div>
+
+    <div class="path-row">
+      <label>FLAC / Target Root</label>
+      <input class="path-input" type="text" name="flac_root"
+             value="{{ cfg.flac_root }}"
+             placeholder="e.g. C:\Users\You\Music\FLAC">
+    </div>
+    <div class="path-hint">High-quality folder — Relocate will point tracks here</div>
+
+    <div class="path-row">
+      <label>MP3 / Source Root <span style="color:var(--text-dim)">(optional)</span></label>
+      <input class="path-input" type="text" name="mp3_root"
+             value="{{ cfg.mp3_root }}"
+             placeholder="e.g. C:\Users\You\Music\MP3">
+    </div>
+    <div class="path-hint">Folder to migrate away from — tracks here will be re-pointed to the FLAC root if a match exists</div>
+
+    <div class="path-row">
+      <label>DELETE Folder</label>
+      <input class="path-input" type="text" name="delete_dir"
+             value="{{ cfg.delete_dir }}"
+             placeholder="e.g. C:\Users\You\Desktop\DELETE">
+    </div>
+    <div class="path-hint">Where Library Cleanup moves unreferenced files for review</div>
+  </div>
+
+  <div class="card" style="margin-top:0;">
+    <div class="card-label">Where to find Rekordbox files</div>
+    <div style="font-family:var(--mono);font-size:11px;line-height:2;color:var(--text-dim);">
+      <div><span style="color:var(--text)">DB (Windows)&nbsp;&nbsp;</span> %APPDATA%\Pioneer\rekordbox\master.db</div>
+      <div><span style="color:var(--text)">DB (macOS)&nbsp;&nbsp;&nbsp;&nbsp;</span> ~/Library/Pioneer/rekordbox/master.db</div>
+      <div><span style="color:var(--text)">Backups&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span> Same folder as master.db — timestamped automatically</div>
+    </div>
+  </div>
+
+  <div class="btn-row">
+    <button type="submit" class="btn btn-primary">Save Paths</button>
+    {% if cfg.music_root and cfg.flac_root %}
+    <a href="/" style="font-family:var(--mono);font-size:11px;color:var(--text-dim);text-decoration:none;padding:10px 0;">← Back to dashboard</a>
+    {% endif %}
+  </div>
+</form>
+{% endblock %}

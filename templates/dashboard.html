@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — rekordbox-tools{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Dashboard</h1>
+  <p>Select a tool to get started. All paths are loaded from your saved config.</p>
+</div>
+<div class="divider"></div>
+
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-label">Saved Paths</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-family:var(--mono);font-size:11px;">
+    <div><span style="color:var(--text-dim)">Music Root &nbsp;</span><span style="color:var(--text)">{{ cfg.music_root or '—' }}</span></div>
+    <div><span style="color:var(--text-dim)">FLAC Root &nbsp;&nbsp;</span><span style="color:var(--text)">{{ cfg.flac_root or '—' }}</span></div>
+    <div><span style="color:var(--text-dim)">MP3 Root &nbsp;&nbsp;&nbsp;</span><span style="color:var(--text)">{{ cfg.mp3_root or '—' }}</span></div>
+    <div><span style="color:var(--text-dim)">DELETE Folder </span><span style="color:var(--text)">{{ cfg.delete_dir or '—' }}</span></div>
+  </div>
+  <div style="margin-top:12px;">
+    <a href="/setup" style="font-family:var(--mono);font-size:10px;color:var(--accent);text-decoration:none;">⚙ Edit paths →</a>
+  </div>
+</div>
+
+<div class="tool-grid">
+  <a href="/tool/relocate" class="tool-card">
+    <div class="tc-icon">⇄</div>
+    <div class="tc-name">Relocate Tracks</div>
+    <div class="tc-desc">Re-point broken or MP3 track paths to a FLAC target folder. Preserves all cues, beatgrids, and playlists.</div>
+  </a>
+  <a href="/tool/cleanup" class="tool-card">
+    <div class="tc-icon">⌫</div>
+    <div class="tc-name">Library Cleanup</div>
+    <div class="tc-desc">Find audio files on disk not referenced in Rekordbox and move them to a DELETE folder for review.</div>
+  </a>
+  <a href="/tool/remove_missing" class="tool-card">
+    <div class="tc-icon">✗</div>
+    <div class="tc-name">Remove Missing</div>
+    <div class="tc-desc">Soft-delete tracks from the Rekordbox DB whose files no longer exist on disk.</div>
+  </a>
+  <a href="/tool/strip_comments" class="tool-card">
+    <div class="tc-icon">⊘</div>
+    <div class="tc-name">Strip URL Comments</div>
+    <div class="tc-desc">Remove URLs injected into MP3/FLAC comment tags by download services, leaving all other content intact.</div>
+  </a>
+</div>
+{% endblock %}

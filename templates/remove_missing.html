@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Remove Missing — rekordbox-tools{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Remove Missing Tracks</h1>
+  <p>Soft-delete tracks from the Rekordbox DB whose files no longer exist on disk.</p>
+</div>
+<div class="divider"></div>
+
+<div class="info-box">
+  ⚠ Close Rekordbox before running.<br><br>
+  This performs a <strong>soft delete</strong> (sets <code style="font-family:var(--mono);color:var(--accent)">rb_local_deleted=1</code>) — identical to how Rekordbox itself removes tracks. No rows are destroyed and a timestamped backup is created automatically before any changes.
+</div>
+
+<div class="console-wrap">
+  <div class="console-bar">
+    <span>Output</span>
+    <span class="status" id="status">Idle</span>
+  </div>
+  <div id="console"></div>
+</div>
+
+<div class="btn-row">
+  <button class="btn btn-secondary" onclick="run(true)">▷ &nbsp;Dry Run</button>
+  <button class="btn btn-primary"   onclick="confirm('This will soft-delete missing tracks from the Rekordbox database. A backup will be created first. Continue?') && run(false)">▶ &nbsp;Run Remove Missing</button>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function run(dry) {
+  runScript('remove_missing', {
+    dry_run: dry ? '1' : '0',
+  }, document.getElementById('status'));
+}
+</script>
+{% endblock %}
