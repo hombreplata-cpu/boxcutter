@@ -4,7 +4,8 @@
 {% block content %}
 <div class="page-header">
   <h1>Add New Tracks</h1>
-  <p>Scan a watch folder for audio files not yet in Rekordbox and add them to a chosen playlist. Open Rekordbox afterwards and run Analyze Tracks.</p>
+  <p>Scan a watch folder for audio files <strong>not yet in Rekordbox</strong> and add them to a chosen playlist. Open Rekordbox afterwards and run Analyze Tracks.</p>
+  <p style="margin-top:6px;font-size:14px;color:var(--text-dim)">⚑ Replacing existing files with better-quality versions (e.g. MP3 → FLAC or WAV)? Use <a href="/tool/relocate" style="color:var(--accent)">Repath Tracks</a> instead — that tool re-points your existing library entries. This tool is for <em>net-new</em> tracks only.</p>
 </div>
 <div class="divider"></div>
 
@@ -12,27 +13,36 @@
   ⚠ Close Rekordbox before running. A timestamped backup of master.db is created automatically before any changes are written.
 </div>
 
-<div class="card">
-  <div class="card-label">Options</div>
+<div class="tool-body">
+  <div class="card">
+    <div class="card-label">Options</div>
 
-  <div class="path-row">
-    <label>Watch Directory</label>
-    <input class="path-input" id="watch_dir" type="text"
-           value="{{ cfg.watch_dir }}"
-           placeholder="Folder to scan for new audio files">
-  </div>
-  <div class="path-hint">Drag a folder here, or <kbd>Right-click folder</kbd> → <kbd>Copy as path</kbd> → paste. Subfolders are included.</div>
-
-  <div class="path-row" style="margin-top:14px;align-items:center;">
-    <label>Target Playlist</label>
-    <div style="flex:1;display:flex;gap:8px;align-items:center;">
-      <select id="playlist_id" style="flex:1;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);color:var(--text);font-family:var(--mono);font-size:14px;border-radius:4px;">
-        <option value="">— select a playlist —</option>
-      </select>
-      <button class="btn btn-secondary" onclick="loadPlaylists()" style="padding:8px 14px;white-space:nowrap;">↺ Refresh</button>
+    <div class="path-row">
+      <label>Watch Directory</label>
+      <input class="path-input" id="watch_dir" type="text"
+             value="{{ cfg.watch_dir }}"
+             placeholder="Folder to scan for new audio files">
     </div>
+    <div class="path-hint">Drag a folder here, or <kbd>Right-click folder</kbd> → <kbd>Copy as path</kbd> → paste. Subfolders are included.</div>
+
+    <div class="path-row" style="margin-top:14px;align-items:center;">
+      <label>Target Playlist</label>
+      <div style="flex:1;display:flex;gap:8px;align-items:center;">
+        <select id="playlist_id"
+                data-saved="{{ cfg.get('target_playlist_id', '') }}"
+                style="flex:1;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);color:var(--text);font-family:var(--mono);font-size:14px;border-radius:4px;">
+          <option value="">— select a playlist —</option>
+        </select>
+        <button class="btn btn-secondary" onclick="loadPlaylists()" style="padding:8px 14px;white-space:nowrap;">↺ Refresh</button>
+      </div>
+    </div>
+    <div class="path-hint" id="playlist-status">Loading playlists from Rekordbox…</div>
   </div>
-  <div class="path-hint" id="playlist-status">Loading playlists from Rekordbox…</div>
+
+  <div class="btn-col">
+    <button class="btn btn-secondary" onclick="run(true)">▷ &nbsp;Dry Run</button>
+    <button class="btn btn-primary"   onclick="run(false)">▶ &nbsp;Add to Playlist</button>
+  </div>
 </div>
 
 <div class="console-wrap">
@@ -44,11 +54,6 @@
 </div>
 
 <div id="report-panel"></div>
-
-<div class="btn-row">
-  <button class="btn btn-secondary" onclick="run(true)">▷ &nbsp;Dry Run</button>
-  <button class="btn btn-primary"   onclick="run(false)">▶ &nbsp;Add to Playlist</button>
-</div>
 
 <div class="restore-panel">
   <button class="restore-toggle" onclick="toggleRestore()">
@@ -78,7 +83,7 @@
 function loadPlaylists() {
   const select = document.getElementById('playlist_id');
   const hint   = document.getElementById('playlist-status');
-  const saved  = select.value;
+  const saved  = select.dataset.saved || '';
   hint.textContent = 'Loading…';
   hint.style.color = 'var(--text-dim)';
 
@@ -95,7 +100,7 @@ function loadPlaylists() {
         const opt = document.createElement('option');
         opt.value = p.id;
         opt.textContent = p.name;
-        if (p.id === saved) opt.selected = true;
+        if (String(p.id) === String(saved)) opt.selected = true;
         select.appendChild(opt);
       });
       hint.textContent = data.length + ' playlist' + (data.length !== 1 ? 's' : '') + ' loaded.';
@@ -106,6 +111,14 @@ function loadPlaylists() {
       hint.style.color = 'var(--red)';
     });
 }
+
+document.getElementById('playlist_id').addEventListener('change', function() {
+  fetch('/api/config', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({target_playlist_id: this.value}),
+  });
+});
 
 function run(dry) {
   const playlistId = document.getElementById('playlist_id').value;

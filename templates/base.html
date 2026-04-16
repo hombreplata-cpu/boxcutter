@@ -229,6 +229,59 @@
     /* ── Buttons ── */
     .btn-row { display: flex; gap: 10px; margin-top: 20px; align-items: center; }
 
+    /* ── Side-by-side options + buttons layout ── */
+    .tool-body { display: flex; gap: 16px; align-items: flex-start; }
+    .tool-body .card { flex: 1; margin-bottom: 0; }
+    .btn-col {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      flex-shrink: 0;
+      min-width: 160px;
+      padding-top: 20px;
+    }
+    .btn-col .btn { width: 100%; }
+
+    /* ── Archived run banners (dry run / previous run) ── */
+    #prev-runs-container { margin-bottom: 12px; }
+    .prev-run {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+      margin-bottom: 8px;
+      background: var(--bg-panel);
+    }
+    .prev-run-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 16px;
+      cursor: pointer;
+      background: var(--bg-hover);
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--text-dim);
+      user-select: none;
+    }
+    .prev-run-header:hover { color: var(--text); }
+    .prev-run-arrow { transition: transform 0.2s; }
+    .prev-run.collapsed .prev-run-arrow { transform: rotate(-90deg); }
+    .prev-run.collapsed .prev-run-content { display: none; }
+    .prev-run-console {
+      padding: 10px 16px;
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--text-dim);
+      max-height: 180px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    .prev-run-report {
+      padding: 12px 16px;
+      border-top: 1px solid var(--border);
+    }
+
     .btn {
       font-family: var(--mono);
       font-size: 13px;
@@ -1158,9 +1211,52 @@
 
   // ── SSE console runner ───────────────────────────────────────────────────
 
+  let _prevRunWasDry = null;
+
+  function archivePreviousRun(consoleHtml, reportHtml, reportVisible, wasDry) {
+    const consoleWrap = document.querySelector('.console-wrap');
+    if (!consoleWrap) return;
+
+    let container = document.getElementById('prev-runs-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'prev-runs-container';
+      consoleWrap.parentNode.insertBefore(container, consoleWrap);
+    }
+
+    const label = wasDry === null ? 'Previous Run'
+                : wasDry ? 'Dry Run Preview' : 'Previous Run';
+    const time = new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+
+    const el = document.createElement('div');
+    el.className = 'prev-run collapsed';
+    el.innerHTML =
+      '<div class="prev-run-header" onclick="this.parentElement.classList.toggle(\'collapsed\')">' +
+        '<span class="prev-run-label">' + label + ' \u2014 ' + time + '</span>' +
+        '<span class="prev-run-arrow">\u25be</span>' +
+      '</div>' +
+      '<div class="prev-run-content">' +
+        '<div class="prev-run-console">' + consoleHtml + '</div>' +
+        (reportVisible && reportHtml
+          ? '<div class="prev-run-report">' + reportHtml + '</div>'
+          : '') +
+      '</div>';
+    container.appendChild(el);
+  }
+
   function runScript(endpoint, params, statusEl) {
     const consoleEl = document.getElementById('console');
     const reportPanel = document.getElementById('report-panel');
+
+    // Archive any existing run results before clearing
+    const existingConsoleHtml = consoleEl.innerHTML.trim();
+    const reportVisible = reportPanel && reportPanel.style.display !== 'none';
+    const existingReportHtml = reportVisible ? reportPanel.innerHTML.trim() : '';
+    if (existingConsoleHtml || reportVisible) {
+      archivePreviousRun(existingConsoleHtml, existingReportHtml, reportVisible, _prevRunWasDry);
+    }
+    _prevRunWasDry = params.dry_run === '1';
+
     consoleEl.innerHTML = '';
     if (reportPanel) reportPanel.style.display = 'none';
     if (statusEl) { statusEl.textContent = 'Running...'; statusEl.className = 'status running'; }
