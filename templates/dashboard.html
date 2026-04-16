@@ -1,12 +1,117 @@
 {% extends "base.html" %}
 {% block title %}Dashboard — rekordbox-tools{% endblock %}
 
+{% block head %}
+<style>
+  .stats-bar {
+    display: grid;
+    grid-template-columns: auto auto 1fr;
+    gap: 16px;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+  .stat-tile {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 16px 20px;
+    min-width: 140px;
+  }
+  .stat-tile-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 6px;
+  }
+  .stat-tile-value {
+    font-family: var(--mono);
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--accent);
+    line-height: 1;
+  }
+  .stat-tile-value.loading {
+    font-size: 14px;
+    color: var(--text-dim);
+    font-weight: 400;
+  }
+  .stat-tile-value.error {
+    font-size: 12px;
+    color: var(--red);
+    font-weight: 400;
+  }
+  .stat-tile-sub {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 4px;
+  }
+  .chart-tile {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+  .chart-tile-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 10px;
+  }
+  .chart-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+  .chart-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .legend-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="page-header">
   <h1>Dashboard</h1>
   <p>Select a tool to get started. All paths are loaded from your saved config.</p>
 </div>
 <div class="divider"></div>
+
+<div class="stats-bar" id="stats-bar">
+  <div class="stat-tile">
+    <div class="stat-tile-label">Tracks in library</div>
+    <div class="stat-tile-value loading" id="stat-tracks">Loading…</div>
+  </div>
+  <div class="stat-tile">
+    <div class="stat-tile-label">Library size</div>
+    <div class="stat-tile-value loading" id="stat-size">Loading…</div>
+    <div class="stat-tile-sub" id="stat-size-sub"></div>
+  </div>
+  <div class="chart-tile">
+    <div>
+      <div class="chart-tile-label">File types</div>
+      <div class="chart-legend" id="chart-legend">—</div>
+    </div>
+    <svg id="pie-chart" width="80" height="80" viewBox="0 0 80 80" style="flex-shrink:0;display:none"></svg>
+  </div>
+</div>
 
 <div class="card" style="margin-bottom:20px;">
   <div class="card-label">Saved Paths</div>
@@ -23,35 +128,139 @@
 </div>
 
 <div class="tool-grid">
-  <a href="/tool/relocate" class="tool-card">
-    <div class="tc-icon">⇄</div>
-    <div class="tc-name">Relocate Tracks</div>
-    <div class="tc-desc">Re-point broken or MP3 track paths to a FLAC target folder. Preserves all cues, beatgrids, and playlists.</div>
-  </a>
-  <a href="/tool/cleanup" class="tool-card">
-    <div class="tc-icon">⌫</div>
-    <div class="tc-name">Library Cleanup</div>
-    <div class="tc-desc">Find audio files on disk not referenced in Rekordbox and move them to a DELETE folder for review.</div>
-  </a>
-  <a href="/tool/remove_missing" class="tool-card">
-    <div class="tc-icon">✗</div>
-    <div class="tc-name">Remove Missing</div>
-    <div class="tc-desc">Soft-delete tracks from the Rekordbox DB whose files no longer exist on disk.</div>
+  <a href="/tool/add_new" class="tool-card">
+    <div class="tc-icon">＋</div>
+    <div class="tc-name">Add New Tracks</div>
+    <div class="tc-desc">Scan a watch folder for audio files not yet in Rekordbox and add them to a chosen playlist, ready for analysis.</div>
   </a>
   <a href="/tool/strip_comments" class="tool-card">
     <div class="tc-icon">⊘</div>
     <div class="tc-name">Strip URL Comments</div>
     <div class="tc-desc">Remove URLs injected into MP3/FLAC comment tags by download services, leaving all other content intact.</div>
   </a>
+  <a href="/tool/cleanup" class="tool-card">
+    <div class="tc-icon">⌫</div>
+    <div class="tc-name">Library Cleanup</div>
+    <div class="tc-desc">Find audio files on disk not referenced in Rekordbox and move them to a DELETE folder for review.</div>
+  </a>
+  <a href="/tool/relocate" class="tool-card">
+    <div class="tc-icon">⇄</div>
+    <div class="tc-name">Repath Tracks</div>
+    <div class="tc-desc">Re-point track paths in the Rekordbox database to a new folder. Replaces identical paths in bulk — does not move files. Preserves all cues, beatgrids, and playlists.</div>
+  </a>
   <a href="/tool/fix_metadata" class="tool-card">
     <div class="tc-icon">⚕</div>
     <div class="tc-name">Fix Metadata</div>
-    <div class="tc-desc">Correct stale FileType and FileSize in the Rekordbox database for tracks whose file path is correct but whose metadata doesn't match the file on disk.</div>
+    <div class="tc-desc">Repairs Rekordbox's cached FileType and FileSize when they don't match the file on disk — common after converting formats (e.g. MP3 → FLAC) or re-encoding files in place. File paths must already be correct. Requires 'Analyze Tracks' in Rekordbox after running.</div>
   </a>
-  <a href="/tool/add_new" class="tool-card">
-    <div class="tc-icon">＋</div>
-    <div class="tc-name">Add New Tracks</div>
-    <div class="tc-desc">Scan a watch folder for audio files not yet in Rekordbox and add them to a chosen playlist, ready for analysis.</div>
+  <a href="/tool/remove_missing" class="tool-card">
+    <div class="tc-icon">✗</div>
+    <div class="tc-name">Remove Missing</div>
+    <div class="tc-desc">Soft-delete tracks from the Rekordbox DB whose files no longer exist on disk.</div>
   </a>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const PIE_COLORS = [
+    '#5b8dee', '#4ecdc4', '#f7b731', '#fc5c65', '#a55eea',
+    '#26de81', '#fd9644', '#45aaf2', '#2bcbba', '#eb3b5a',
+  ];
+
+  function fmtNum(n) {
+    return n.toLocaleString();
+  }
+
+  function fmtBytes(bytes) {
+    if (bytes >= 1e12) return (bytes / 1e12).toFixed(2) + ' TB';
+    if (bytes >= 1e9)  return (bytes / 1e9).toFixed(2) + ' GB';
+    if (bytes >= 1e6)  return (bytes / 1e6).toFixed(1) + ' MB';
+    return bytes + ' B';
+  }
+
+  function drawPie(svgEl, slices) {
+    // slices: [{label, value, color}]
+    const total = slices.reduce((s, sl) => s + sl.value, 0);
+    if (total === 0) return;
+
+    const cx = 40, cy = 40, r = 38;
+    let startAngle = -Math.PI / 2;
+    let paths = '';
+
+    for (const sl of slices) {
+      const frac = sl.value / total;
+      const angle = frac * 2 * Math.PI;
+      const endAngle = startAngle + angle;
+      const x1 = cx + r * Math.cos(startAngle);
+      const y1 = cy + r * Math.sin(startAngle);
+      const x2 = cx + r * Math.cos(endAngle);
+      const y2 = cy + r * Math.sin(endAngle);
+      const large = angle > Math.PI ? 1 : 0;
+      if (frac >= 1) {
+        paths += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${sl.color}" />`;
+      } else {
+        paths += `<path d="M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${large},1 ${x2},${y2} Z" fill="${sl.color}" />`;
+      }
+      startAngle = endAngle;
+    }
+
+    svgEl.innerHTML = paths;
+    svgEl.style.display = 'block';
+  }
+
+  function renderStats(data) {
+    const tracksEl = document.getElementById('stat-tracks');
+    tracksEl.textContent = fmtNum(data.track_count);
+    tracksEl.classList.remove('loading', 'error');
+
+    const sizeEl = document.getElementById('stat-size');
+    sizeEl.textContent = fmtBytes(data.library_size_bytes);
+    sizeEl.classList.remove('loading', 'error');
+
+    const legendEl = document.getElementById('chart-legend');
+    const svgEl    = document.getElementById('pie-chart');
+
+    const types = data.file_types || {};
+    const entries = Object.entries(types).sort((a, b) => b[1] - a[1]);
+
+    if (entries.length === 0) {
+      legendEl.textContent = '—';
+      return;
+    }
+
+    const slices = entries.map(([label, value], i) => ({
+      label, value, color: PIE_COLORS[i % PIE_COLORS.length],
+    }));
+
+    drawPie(svgEl, slices);
+
+    legendEl.innerHTML = slices.map(sl =>
+      `<span class="chart-legend-item">
+        <span class="legend-dot" style="background:${sl.color}"></span>
+        ${sl.label} <span style="color:var(--text)">${fmtNum(sl.value)}</span>
+      </span>`
+    ).join('');
+  }
+
+  function renderError(msg) {
+    ['stat-tracks', 'stat-size'].forEach(id => {
+      const el = document.getElementById(id);
+      el.textContent = 'Unavailable';
+      el.classList.remove('loading');
+      el.classList.add('error');
+    });
+    document.getElementById('chart-legend').textContent = msg || 'Could not load stats';
+  }
+
+  fetch('/api/stats')
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) { renderError(data.error); return; }
+      renderStats(data);
+    })
+    .catch(() => renderError('Could not reach server'));
+})();
+</script>
 {% endblock %}

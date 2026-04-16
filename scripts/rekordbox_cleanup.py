@@ -87,6 +87,30 @@ def run(args):
             active_paths.add(os.path.normcase(plain))
     print(f"[db] Found {len(active_paths):,} active track paths in Rekordbox.")
 
+    # Dry-run only: surface soft-deleted DB tracks whose files still exist on disk
+    # within the scan root — helps identify tracks removed from RB that weren't cleaned up.
+    ghost_tracks = []
+    if args.dry_run:
+        scan_root_norm = os.path.normcase(str(scan_root))
+        deleted_contents = db.get_content().filter_by(rb_local_deleted=1).all()
+        for c in deleted_contents:
+            raw = c.FolderPath or ""
+            plain = normalize_path(raw)
+            if not plain:
+                continue
+            norm = os.path.normcase(plain)
+            if not norm.startswith(scan_root_norm):
+                continue
+            if os.path.isfile(plain):
+                ghost_tracks.append(
+                    {
+                        "path": plain,
+                        "title": c.Title or "",
+                        "artist": c.ArtistName or "",
+                    }
+                )
+        print(f"[db] {len(ghost_tracks):,} tracks removed from Rekordbox but file still on disk.")
+
     print(f"[scan] Scanning: {scan_root}")
     for exc in excludes:
         print(f"[scan] Excluding: {exc}")
@@ -162,6 +186,10 @@ def run(args):
     print(f"  Unreferenced found           : {len(unreferenced):,}")
     if args.dry_run:
         print(f"  Would be moved to DELETE     : {len(unreferenced):,}{dry_tag}")
+        if ghost_tracks:
+            print(
+                f"  Removed from RB, file exists : {len(ghost_tracks):,}  (file on disk, not in library)"
+            )
     else:
         print(f"  Moved to DELETE              : {moved:,}")
         print(f"  Skipped (errors)             : {skipped:,}")
@@ -173,25 +201,26 @@ def run(args):
             print(f"\nFiles moved to: {delete_dir}")
             print("Review and delete manually when ready.")
 
+    report = {
+        "tool": "cleanup",
+        "dry_run": args.dry_run,
+        "summary": {
+            "total_scanned": total_scanned,
+            "active_in_rekordbox": total_scanned - len(unreferenced),
+            "unreferenced": len(unreferenced),
+            "moved": moved,
+            "would_move": len(unreferenced) if args.dry_run else 0,
+            "skipped_errors": skipped,
+        },
+        "unreferenced_files": report_files,
+        "errors": errors,
+    }
+    if args.dry_run:
+        report["ghost_tracks"] = ghost_tracks
+        report["summary"]["ghost_count"] = len(ghost_tracks)
+
     print("%%REPORT_START%%")
-    print(
-        json.dumps(
-            {
-                "tool": "cleanup",
-                "dry_run": args.dry_run,
-                "summary": {
-                    "total_scanned": total_scanned,
-                    "active_in_rekordbox": total_scanned - len(unreferenced),
-                    "unreferenced": len(unreferenced),
-                    "moved": moved,
-                    "would_move": len(unreferenced) if args.dry_run else 0,
-                    "skipped_errors": skipped,
-                },
-                "unreferenced_files": report_files,
-                "errors": errors,
-            }
-        )
-    )
+    print(json.dumps(report))
     print("%%REPORT_END%%")
 
 
