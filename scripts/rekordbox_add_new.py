@@ -22,21 +22,15 @@ from pyrekordbox import Rekordbox6Database as MasterDatabase
 
 AUDIO_EXTENSIONS = {
     ".mp3",
-    ".m4a",
     ".wav",
     ".flac",
-    ".aif",
     ".aiff",
-    ".ogg",
-    ".wma",
-    ".mp4",
-    ".alac",
 }
 
 
 def normalize_path(p):
-    """Normalise to forward slashes for cross-format comparison."""
-    return str(p).replace("\\", "/")
+    """Normalise to forward slashes + lowercase for Windows case-insensitive comparison."""
+    return str(p).replace("\\", "/").lower()
 
 
 def scan_directory(watch_dir):

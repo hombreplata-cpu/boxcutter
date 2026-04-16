@@ -661,12 +661,12 @@
   <div class="nav">
     <a href="/" class="{% if request.path == '/' %}active{% endif %}">⊞ &nbsp;Dashboard</a>
     <div class="nav-section">Tools</div>
-    <a href="/tool/relocate"       class="{% if 'relocate' in request.path and 'remove' not in request.path %}active{% endif %}">⇄ &nbsp;Relocate Tracks</a>
-    <a href="/tool/cleanup"        class="{% if 'cleanup' in request.path %}active{% endif %}">⌫ &nbsp;Library Cleanup</a>
-    <a href="/tool/remove_missing" class="{% if 'remove_missing' in request.path %}active{% endif %}">✗ &nbsp;Remove Missing</a>
-    <a href="/tool/strip_comments" class="{% if 'strip_comments' in request.path %}active{% endif %}">⊘ &nbsp;Strip URL Comments</a>
-    <a href="/tool/fix_metadata"   class="{% if 'fix_metadata' in request.path %}active{% endif %}">⚕ &nbsp;Fix Metadata</a>
     <a href="/tool/add_new"        class="{% if 'add_new' in request.path %}active{% endif %}">＋ &nbsp;Add New Tracks</a>
+    <a href="/tool/strip_comments" class="{% if 'strip_comments' in request.path %}active{% endif %}">⊘ &nbsp;Strip URL Comments</a>
+    <a href="/tool/cleanup"        class="{% if 'cleanup' in request.path %}active{% endif %}">⌫ &nbsp;Library Cleanup</a>
+    <a href="/tool/relocate"       class="{% if 'relocate' in request.path and 'remove' not in request.path %}active{% endif %}">⇄ &nbsp;Repath Tracks</a>
+    <a href="/tool/fix_metadata"   class="{% if 'fix_metadata' in request.path %}active{% endif %}">⚕ &nbsp;Fix Metadata</a>
+    <a href="/tool/remove_missing" class="{% if 'remove_missing' in request.path %}active{% endif %}">✗ &nbsp;Remove Missing</a>
     <div class="nav-section">Config</div>
     <a href="/setup"          class="{% if 'setup'          in request.path %}active{% endif %}">⚙ &nbsp;Setup &amp; Paths</a>
     <a href="/history"        class="{% if 'history'        in request.path %}active{% endif %}">◷ &nbsp;History</a>
@@ -910,6 +910,9 @@
     html += statCard('Unreferenced',        s.unreferenced,        s.unreferenced > 0 ? 'orange' : 'green');
     if (isDry) {
       html += statCard('Would move to DELETE', s.would_move, s.would_move > 0 ? 'orange' : 'accent');
+      if (s.ghost_count > 0) {
+        html += statCard('Removed from RB, file on disk', s.ghost_count, 'accent');
+      }
     } else {
       html += statCard('Moved to DELETE',   s.moved,           s.moved > 0 ? 'orange' : 'accent');
       html += statCard('Errors',            s.skipped_errors,  s.skipped_errors > 0 ? 'red' : 'accent');
@@ -937,6 +940,28 @@
       html += '</div></div>';
     } else {
       html += '<div class="report-empty">✓ No unreferenced files found. Your library folder matches your Rekordbox collection.</div>';
+    }
+
+    if (isDry && data.ghost_tracks && data.ghost_tracks.length > 0) {
+      html += `<div class="report-section">
+        <div class="report-section-title" style="color:var(--text-dim)">
+          <span>Removed from Rekordbox — file still on disk</span>
+          <span class="section-count">${data.ghost_tracks.length} track${data.ghost_tracks.length !== 1 ? 's' : ''}</span>
+        </div>
+        <p style="font-family:var(--mono);font-size:13px;color:var(--text-dim);margin-bottom:12px">
+          These tracks were removed from your Rekordbox library (soft-deleted) but their audio files
+          still exist on disk inside the scan root. You may want to re-add them via Add New Tracks,
+          or manually delete the files if they are no longer needed.
+        </p>
+        <div class="track-list">`;
+      for (const t of data.ghost_tracks) {
+        const meta = [t.title, t.artist].filter(Boolean).join(' — ');
+        html += `<div class="track-row">
+          <div class="track-path" style="color:var(--text-dim)">${esc(t.path)}</div>
+          ${meta ? `<div class="track-new-path" style="color:var(--text-dim)">${esc(meta)}</div>` : ''}
+        </div>`;
+      }
+      html += '</div></div>';
     }
 
     if (data.errors && data.errors.length > 0) {
