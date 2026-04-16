@@ -15,6 +15,7 @@
 #   - Rekordbox must be CLOSED
 
 import argparse
+import json
 import os
 import shutil
 from datetime import datetime
@@ -72,6 +73,30 @@ def run(args):
         print("\n-- WOULD REMOVE --")
         for tid, title, path in removed:
             print(f"  [id={tid}] {title} -> {path}")
+
+    print("%%REPORT_START%%")
+    print(
+        json.dumps(
+            {
+                "tool": "remove_missing",
+                "dry_run": args.dry_run,
+                "summary": {
+                    "total": len(contents),
+                    "kept": kept,
+                    "removed": len(removed),
+                },
+                "removed_tracks": [
+                    {
+                        "title": title,
+                        "path": normalize_path(path),
+                        "reason": "file not found on disk",
+                    }
+                    for _id, title, path in removed
+                ],
+            }
+        )
+    )
+    print("%%REPORT_END%%")
 
 
 def main():

@@ -292,7 +292,7 @@ def api_run(script_name):
             line = line.rstrip()
 
             # Capture backup path printed by DB scripts
-            if line.startswith("[backup] ") and "WARNING" not in line:
+            if line.startswith("[backup] ") and not line.startswith("[backup] WARNING"):
                 backup_path = line[len("[backup] ") :]
 
             if line == "%%REPORT_START%%":

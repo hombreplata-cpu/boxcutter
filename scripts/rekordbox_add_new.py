@@ -65,7 +65,7 @@ def run(args):
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         backup_path = db_path.with_name(f"master_backup_{ts}.db")
         shutil.copy2(db_path, backup_path)
-        print(f"[backup] Saved to: {backup_path}")
+        print(f"[backup] {backup_path}")
 
     # Build set of all paths already in the DB (normalised to forward slashes)
     # Filter to active tracks only (rb_local_deleted=0) — soft-deleted tracks are

@@ -27,6 +27,7 @@
 #   - Only active tracks (not soft-deleted from Rekordbox) are checked
 
 import argparse
+import json
 import os
 import platform
 import shutil
@@ -122,6 +123,7 @@ def run(args):
     moved = 0
     skipped = 0
     errors = []
+    report_files = []
 
     for src in unreferenced:
         try:
@@ -133,6 +135,7 @@ def run(args):
 
         if args.dry_run:
             print(f"[dry-run]\n  {src}\n  -> {dst}")
+            report_files.append({"src": src, "dst": str(dst)})
         else:
             try:
                 os.makedirs(dst.parent, exist_ok=True)
@@ -145,8 +148,9 @@ def run(args):
                         i += 1
                 shutil.move(src, dst)
                 moved += 1
+                report_files.append({"src": src, "dst": str(dst)})
             except Exception as e:
-                errors.append((src, str(e)))
+                errors.append({"src": src, "error": str(e)})
                 skipped += 1
 
     dry_tag = "  (dry-run)" if args.dry_run else ""
@@ -163,11 +167,32 @@ def run(args):
         print(f"  Skipped (errors)             : {skipped:,}")
         if errors:
             print("\n-- ERRORS --")
-            for src, err in errors:
-                print(f"  {src} : {err}")
+            for e in errors:
+                print(f"  {e['src']} : {e['error']}")
         if moved > 0:
             print(f"\nFiles moved to: {delete_dir}")
             print("Review and delete manually when ready.")
+
+    print("%%REPORT_START%%")
+    print(
+        json.dumps(
+            {
+                "tool": "cleanup",
+                "dry_run": args.dry_run,
+                "summary": {
+                    "total_scanned": total_scanned,
+                    "active_in_rekordbox": total_scanned - len(unreferenced),
+                    "unreferenced": len(unreferenced),
+                    "moved": moved,
+                    "would_move": len(unreferenced) if args.dry_run else 0,
+                    "skipped_errors": skipped,
+                },
+                "unreferenced_files": report_files,
+                "errors": errors,
+            }
+        )
+    )
+    print("%%REPORT_END%%")
 
 
 def main():
