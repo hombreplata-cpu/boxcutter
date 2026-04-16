@@ -274,6 +274,8 @@ def api_run(script_name):
 
         yield f"data: $ {' '.join(cmd)}\n\n"
         yield "data: \n\n"
+        env = os.environ.copy()
+        env["PYTHONIOENCODING"] = "utf-8"
         proc = subprocess.Popen(
             cmd,
             stdout=subprocess.PIPE,
@@ -281,6 +283,7 @@ def api_run(script_name):
             text=True,
             encoding="utf-8",
             errors="replace",
+            env=env,
         )
         report_lines = []
         in_report = False
