@@ -12,28 +12,36 @@
   ⚠ Close Rekordbox before running. Files are <strong>moved</strong>, not deleted — review the DELETE folder before emptying it.
 </div>
 
-<div class="card">
-  <div class="card-label">Options</div>
+<div class="tool-body">
+  <div class="card">
+    <div class="card-label">Options</div>
 
-  <div class="path-row">
-    <label>Scan Root</label>
-    <input class="path-input" id="scan_root" type="text"
-           value="{{ cfg.music_root }}" placeholder="Root folder to scan">
-  </div>
-  <div class="path-hint">Drag a folder here, or <kbd>Right-click folder</kbd> → <kbd>Copy as path</kbd> → paste</div>
+    <div class="path-row">
+      <label>Scan Root</label>
+      <input class="path-input" id="scan_root" type="text"
+             value="{{ cfg.music_root }}" placeholder="Root folder to scan">
+    </div>
+    <div class="path-hint">Drag a folder here, or <kbd>Right-click folder</kbd> → <kbd>Copy as path</kbd> → paste</div>
 
-  <div class="path-row">
-    <label>DELETE Folder</label>
-    <input class="path-input" id="delete_dir" type="text"
-           value="{{ cfg.delete_dir }}" placeholder="Where to move unreferenced files">
+    <div class="path-row">
+      <label>DELETE Folder</label>
+      <input class="path-input" id="delete_dir" type="text"
+             value="{{ cfg.delete_dir }}" placeholder="Where to move unreferenced files">
+    </div>
+
+    <div class="path-row">
+      <label>Exclude Folder <span style="color:var(--text-dim)">(optional)</span></label>
+      <input class="path-input" id="exclude" type="text"
+             value="{{ cfg.get('cleanup_exclude', '') }}"
+             placeholder="Subfolder to skip">
+    </div>
+    <div class="path-hint">Useful for excluding a folder you don't want scanned. Saved automatically when you run.</div>
   </div>
 
-  <div class="path-row">
-    <label>Exclude Folder <span style="color:var(--text-dim)">(optional)</span></label>
-    <input class="path-input" id="exclude" type="text"
-           placeholder="Subfolder to skip">
+  <div class="btn-col">
+    <button class="btn btn-secondary" onclick="run(true)">▷ &nbsp;Dry Run</button>
+    <button class="btn btn-primary"   onclick="run(false)">▶ &nbsp;Run Cleanup</button>
   </div>
-  <div class="path-hint">Useful for excluding a folder you don't want scanned</div>
 </div>
 
 <div class="console-wrap">
@@ -45,11 +53,6 @@
 </div>
 
 <div id="report-panel"></div>
-
-<div class="btn-row">
-  <button class="btn btn-secondary" onclick="run(true)">▷ &nbsp;Dry Run</button>
-  <button class="btn btn-primary"   onclick="run(false)">▶ &nbsp;Run Cleanup</button>
-</div>
 
 <div class="restore-panel">
   <button class="restore-toggle" onclick="toggleRestore()">
@@ -77,10 +80,16 @@
 {% block scripts %}
 <script>
 function run(dry) {
+  const excludeVal = document.getElementById('exclude').value;
+  fetch('/api/config', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({cleanup_exclude: excludeVal}),
+  });
   runScript('cleanup', {
     scan_root:  document.getElementById('scan_root').value,
     delete_dir: document.getElementById('delete_dir').value,
-    exclude:    document.getElementById('exclude').value,
+    exclude:    excludeVal,
     dry_run:    dry ? '1' : '0',
   }, document.getElementById('status'));
 }

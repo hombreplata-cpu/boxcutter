@@ -12,19 +12,26 @@
   Scans MP3 (ID3 COMM frames) and FLAC (Vorbis COMMENT/DESCRIPTION fields). URLs injected by download services like Beatport, Bandcamp, and Traxsource are removed — artist, label, and other notes are left untouched.
 </div>
 
-<div class="card">
-  <div class="card-label">Directories to Scan</div>
+<div class="tool-body">
+  <div class="card">
+    <div class="card-label">Directories to Scan</div>
 
-  <div class="path-row">
-    <label>Directory 1</label>
-    <input class="path-input" id="dir1" type="text"
-           value="{{ cfg.music_root }}" placeholder="e.g. C:\Users\You\Music">
+    <div class="path-row">
+      <label>Directory 1</label>
+      <input class="path-input" id="dir1" type="text"
+             value="{{ cfg.music_root }}" placeholder="e.g. C:\Users\You\Music">
+    </div>
+    <div class="path-hint">Drag a folder here, or <kbd>Right-click folder</kbd> → <kbd>Copy as path</kbd> → paste</div>
+
+    <div class="path-row">
+      <label>Directory 2 <span style="color:var(--text-dim)">(optional)</span></label>
+      <input class="path-input" id="dir2" type="text" placeholder="Additional folder">
+    </div>
   </div>
-  <div class="path-hint">Drag a folder here, or <kbd>Right-click folder</kbd> → <kbd>Copy as path</kbd> → paste</div>
 
-  <div class="path-row">
-    <label>Directory 2 <span style="color:var(--text-dim)">(optional)</span></label>
-    <input class="path-input" id="dir2" type="text" placeholder="Additional folder">
+  <div class="btn-col">
+    <button class="btn btn-secondary" onclick="run(true)">▷ &nbsp;Dry Run</button>
+    <button class="btn btn-primary"   onclick="run(false)">▶ &nbsp;Strip URL Comments</button>
   </div>
 </div>
 
@@ -34,11 +41,6 @@
     <span class="status" id="status">Idle</span>
   </div>
   <div id="console"></div>
-</div>
-
-<div class="btn-row">
-  <button class="btn btn-secondary" onclick="run(true)">▷ &nbsp;Dry Run</button>
-  <button class="btn btn-primary"   onclick="run(false)">▶ &nbsp;Strip URL Comments</button>
 </div>
 {% endblock %}
 

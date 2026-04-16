@@ -73,7 +73,7 @@ def run(args):
     print("[db]   Loading existing track paths…")
     all_content = db.get_content().filter_by(rb_local_deleted=0).all()
     existing_paths = {normalize_path(c.FolderPath) for c in all_content if c.FolderPath}
-    print(f"[db]   {len(existing_paths):,} active tracks in database")
+    print(f"[db]   {len(all_content):,} active tracks in database")
 
     # Find the target playlist
 

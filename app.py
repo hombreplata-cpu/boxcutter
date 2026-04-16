@@ -30,6 +30,8 @@ DEFAULT_CONFIG = {
     "delete_dir": str(Path.home() / "Desktop" / "DELETE"),
     "watch_dir": "",
     "db_path": "",
+    "target_playlist_id": "",  # Add New Tracks: last-used playlist
+    "cleanup_exclude": "",  # Library Cleanup: last-used exclude folder
 }
 
 HISTORY_FILE = Path.home() / ".rekordbox_tools_history.json"
@@ -223,7 +225,7 @@ def api_run(script_name):
     elif script_name == "cleanup":
         scan = clean_path(request.args.get("scan_root") or cfg.get("music_root", ""))
         delete_dir = clean_path(request.args.get("delete_dir") or cfg.get("delete_dir", ""))
-        exclude = clean_path(request.args.get("exclude", ""))
+        exclude = clean_path(request.args.get("exclude") or cfg.get("cleanup_exclude", ""))
         if not scan:
             return jsonify({"error": "scan_root required"}), 400
         args += ["--scan-root", scan]

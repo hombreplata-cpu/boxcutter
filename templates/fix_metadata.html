@@ -22,6 +22,11 @@
   Re-analysis time depends on library size — expect roughly 1–3 minutes per 100 tracks on a modern machine.
 </div>
 
+<div class="btn-row">
+  <button class="btn btn-secondary" onclick="run(true)">▷ &nbsp;Dry Run</button>
+  <button class="btn btn-primary"   onclick="run(false)">▶ &nbsp;Run Fix Metadata</button>
+</div>
+
 <div class="console-wrap">
   <div class="console-bar">
     <span>Output</span>
@@ -31,11 +36,6 @@
 </div>
 
 <div id="report-panel"></div>
-
-<div class="btn-row">
-  <button class="btn btn-secondary" onclick="run(true)">▷ &nbsp;Dry Run</button>
-  <button class="btn btn-primary"   onclick="run(false)">▶ &nbsp;Run Fix Metadata</button>
-</div>
 
 <div class="restore-panel">
   <button class="restore-toggle" onclick="toggleRestore()">

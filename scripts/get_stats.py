@@ -11,9 +11,11 @@ Errors: non-zero exit code + error message on stderr.
 
 import json
 import sys
+from pathlib import Path
 
 from pyrekordbox import Rekordbox6Database as MasterDatabase
 
+# Fallback map used when FolderPath is absent
 FILETYPE_NAMES = {
     1: "MP3",
     4: "AAC",
@@ -24,6 +26,21 @@ FILETYPE_NAMES = {
     9: "WMA",
     10: "MP4",
     11: "ALAC",
+}
+
+# Primary map: derive label from the actual file extension in FolderPath.
+# This is more reliable than FileType, which can be stale after a format conversion.
+EXT_TO_LABEL = {
+    ".mp3": "MP3",
+    ".m4a": "AAC",
+    ".wav": "WAV",
+    ".flac": "FLAC",
+    ".aif": "AIFF",
+    ".aiff": "AIFF",
+    ".ogg": "OGG",
+    ".wma": "WMA",
+    ".mp4": "MP4",
+    ".alac": "ALAC",
 }
 
 
@@ -40,7 +57,11 @@ def main():
         library_size_bytes = 0
 
         for c in contents:
-            name = FILETYPE_NAMES.get(c.FileType, f"Type {c.FileType}")
+            if c.FolderPath:
+                ext = Path(c.FolderPath).suffix.lower()
+                name = EXT_TO_LABEL.get(ext, ext.lstrip(".").upper() or f"Type {c.FileType}")
+            else:
+                name = FILETYPE_NAMES.get(c.FileType, f"Type {c.FileType}")
             file_types[name] = file_types.get(name, 0) + 1
             if c.FileSize:
                 library_size_bytes += c.FileSize

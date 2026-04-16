@@ -12,40 +12,47 @@
   ⚠ Close Rekordbox before running. A timestamped backup of master.db is created automatically before any changes are written.
 </div>
 
-<div class="card">
-  <div class="card-label">Options</div>
+<div class="tool-body">
+  <div class="card">
+    <div class="card-label">Options</div>
 
-  <div class="path-row">
-    <label>Target Folder ↗</label>
-    <input class="path-input" id="target_root" type="text"
-           value="{{ cfg.flac_root }}" placeholder="Folder containing your target files (e.g. FLAC, WAV, AIFF)">
-  </div>
-  <div class="path-hint">Drag a folder here, or <kbd>Right-click folder</kbd> → <kbd>Copy as path</kbd> → paste</div>
-
-  <div class="path-row">
-    <label>Source Folder ↙ <span style="color:var(--text-dim)">(optional)</span></label>
-    <input class="path-input" id="source_root" type="text"
-           value="{{ cfg.mp3_root }}" placeholder="Folder to migrate away from — can be same root as target">
-  </div>
-  <div class="path-hint">Leave blank to only fix broken/missing paths. Source can be a subfolder of, or the same folder as, your target.</div>
-
-  <div class="path-row" style="margin-top:8px;">
-    <label>Prefer extension</label>
-    <input class="path-input" id="prefer_ext" type="text"
-           value="flac" style="width:100px;flex:none;"
-           placeholder="flac, wav, aiff, mp3…">
-  </div>
-  <div class="path-hint" style="margin-left:0">Preferred format when multiple matches exist. Change to <kbd>wav</kbd> or <kbd>aiff</kbd> as needed.</div>
-
-  <div style="margin-top:14px;">
-    <div class="option-row">
-      <input type="checkbox" id="missing_only">
-      <label for="missing_only">Missing only — skip tracks that already resolve</label>
+    <div class="path-row">
+      <label>Target Folder ↗</label>
+      <input class="path-input" id="target_root" type="text"
+             value="{{ cfg.flac_root }}" placeholder="Folder containing your target files (e.g. FLAC, WAV, AIFF)">
     </div>
-    <div class="option-row">
-      <input type="checkbox" id="all_tracks">
-      <label for="all_tracks">All tracks — recheck even existing paths</label>
+    <div class="path-hint">Drag a folder here, or <kbd>Right-click folder</kbd> → <kbd>Copy as path</kbd> → paste</div>
+
+    <div class="path-row">
+      <label>Source Folder ↙ <span style="color:var(--text-dim)">(optional)</span></label>
+      <input class="path-input" id="source_root" type="text"
+             value="{{ cfg.mp3_root }}" placeholder="Folder to migrate away from — can be same root as target">
     </div>
+    <div class="path-hint">Leave blank to only fix broken/missing paths. Source can be a subfolder of, or the same folder as, your target.</div>
+
+    <div class="path-row" style="margin-top:8px;">
+      <label>Prefer extension</label>
+      <input class="path-input" id="prefer_ext" type="text"
+             value="flac" style="width:100px;flex:none;"
+             placeholder="flac, wav, aiff, mp3…">
+    </div>
+    <div class="path-hint" style="margin-left:0">Preferred format when multiple matches exist. Change to <kbd>wav</kbd> or <kbd>aiff</kbd> as needed.</div>
+
+    <div style="margin-top:14px;">
+      <div class="option-row">
+        <input type="checkbox" id="missing_only">
+        <label for="missing_only">Missing only — skip tracks that already resolve</label>
+      </div>
+      <div class="option-row">
+        <input type="checkbox" id="all_tracks">
+        <label for="all_tracks">All tracks — recheck even existing paths</label>
+      </div>
+    </div>
+  </div>
+
+  <div class="btn-col">
+    <button class="btn btn-secondary" onclick="run(true)">▷ &nbsp;Dry Run</button>
+    <button class="btn btn-primary"   onclick="run(false)">▶ &nbsp;Run Relocate</button>
   </div>
 </div>
 
@@ -58,11 +65,6 @@
 </div>
 
 <div id="report-panel"></div>
-
-<div class="btn-row">
-  <button class="btn btn-secondary" onclick="run(true)">▷ &nbsp;Dry Run</button>
-  <button class="btn btn-primary"   onclick="run(false)">▶ &nbsp;Run Relocate</button>
-</div>
 
 <div class="restore-panel">
   <button class="restore-toggle" onclick="toggleRestore()">
