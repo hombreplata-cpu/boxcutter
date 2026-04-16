@@ -85,7 +85,9 @@ def run(args):
         plain = normalize_path(raw)
         if plain:
             active_paths.add(os.path.normcase(plain))
-    print(f"[db] Found {len(active_paths):,} active track paths in Rekordbox.")
+    print(
+        f"[db] Found {len(contents):,} active tracks in Rekordbox ({len(active_paths):,} with valid paths)."
+    )
 
     # Dry-run only: surface soft-deleted DB tracks whose files still exist on disk
     # within the scan root — helps identify tracks removed from RB that weren't cleaned up.
@@ -206,7 +208,7 @@ def run(args):
         "dry_run": args.dry_run,
         "summary": {
             "total_scanned": total_scanned,
-            "total_in_db": len(active_paths),
+            "total_in_db": len(contents),
             "active_in_rekordbox": total_scanned - len(unreferenced),
             "unreferenced": len(unreferenced),
             "moved": moved,
