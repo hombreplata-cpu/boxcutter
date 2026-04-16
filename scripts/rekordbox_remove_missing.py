@@ -35,14 +35,14 @@ def run(args):
         try:
             db_path = Path(db.engine.url.database)
             ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-            backup = db_path.with_name("master_backup_{}.db".format(ts))
+            backup = db_path.with_name(f"master_backup_{ts}.db")
             shutil.copy2(db_path, backup)
-            print("[backup] {}".format(backup))
+            print(f"[backup] {backup}")
         except Exception as e:
-            print("[backup] WARNING: {}".format(e))
+            print(f"[backup] WARNING: {e}")
 
     contents = db.get_content().filter_by(rb_local_deleted=0).all()
-    print("[db] Loaded {:,} track rows.".format(len(contents)))
+    print(f"[db] Loaded {len(contents):,} track rows.")
 
     removed = []
     kept = 0
@@ -65,21 +65,24 @@ def run(args):
 
     dry_tag = " (dry-run)" if args.dry_run else ""
     print("\n" + "=" * 50)
-    print("  Kept                  : {:,}".format(kept))
-    print("  Removed{}             : {:,}".format(dry_tag, len(removed)))
+    print(f"  Kept                  : {kept:,}")
+    print(f"  Removed{dry_tag}             : {len(removed):,}")
 
     if removed and args.dry_run:
         print("\n-- WOULD REMOVE --")
         for tid, title, path in removed:
-            print("  [id={}] {} -> {}".format(tid, title, path))
+            print(f"  [id={tid}] {title} -> {path}")
 
 
 def main():
     parser = argparse.ArgumentParser(
         description="Remove missing tracks from Rekordbox collection (soft delete)."
     )
-    parser.add_argument("--dry-run", action="store_true",
-                        help="Show what would be removed without modifying the database")
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show what would be removed without modifying the database",
+    )
     args = parser.parse_args()
     run(args)
 

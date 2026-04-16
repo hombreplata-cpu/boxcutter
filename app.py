@@ -8,14 +8,13 @@ Then open http://localhost:5000 in your browser.
 """
 
 import json
-import os
 import subprocess
 import sys
 import threading
 import webbrowser
 from pathlib import Path
 
-from flask import Flask, jsonify, redirect, render_template, request, url_for, Response
+from flask import Flask, Response, jsonify, redirect, render_template, request, url_for
 
 app = Flask(__name__)
 
@@ -23,10 +22,10 @@ CONFIG_FILE = Path.home() / ".rekordbox_tools_config.json"
 SCRIPTS_DIR = Path(__file__).parent / "scripts"
 
 DEFAULT_CONFIG = {
-    "music_root":   "",
-    "flac_root":    "",
-    "mp3_root":     "",
-    "delete_dir":   str(Path.home() / "Desktop" / "DELETE"),
+    "music_root": "",
+    "flac_root": "",
+    "mp3_root": "",
+    "delete_dir": str(Path.home() / "Desktop" / "DELETE"),
 }
 
 
@@ -38,7 +37,7 @@ def load_config():
             cfg = DEFAULT_CONFIG.copy()
             cfg.update(data)
             return cfg
-        except Exception:
+        except Exception:  # noqa: S110 — config load failure is expected; fall back to defaults
             pass
     return DEFAULT_CONFIG.copy()
 
@@ -79,6 +78,7 @@ def rekordbox_is_running():
 
 # ── Routes ───────────────────────────────────────────────────────────────────
 
+
 @app.route("/")
 def index():
     cfg = load_config()
@@ -92,12 +92,14 @@ def setup():
     cfg = load_config()
     saved = False
     if request.method == "POST":
-        cfg = save_config({
-            "music_root":  clean_path(request.form.get("music_root", "")),
-            "flac_root":   clean_path(request.form.get("flac_root", "")),
-            "mp3_root":    clean_path(request.form.get("mp3_root", "")),
-            "delete_dir":  clean_path(request.form.get("delete_dir", "")),
-        })
+        cfg = save_config(
+            {
+                "music_root": clean_path(request.form.get("music_root", "")),
+                "flac_root": clean_path(request.form.get("flac_root", "")),
+                "mp3_root": clean_path(request.form.get("mp3_root", "")),
+                "delete_dir": clean_path(request.form.get("delete_dir", "")),
+            }
+        )
         saved = True
         if config_is_complete(cfg):
             return redirect(url_for("index"))
@@ -108,11 +110,11 @@ def setup():
 def tool(n):
     cfg = load_config()
     tools = {
-        "relocate":       ("Relocate Tracks",       "relocate.html"),
-        "cleanup":        ("Library Cleanup",        "cleanup.html"),
-        "remove_missing": ("Remove Missing Tracks",  "remove_missing.html"),
-        "strip_comments": ("Strip URL Comments",     "strip_comments.html"),
-        "fix_metadata":   ("Fix Metadata",           "fix_metadata.html"),
+        "relocate": ("Relocate Tracks", "relocate.html"),
+        "cleanup": ("Library Cleanup", "cleanup.html"),
+        "remove_missing": ("Remove Missing Tracks", "remove_missing.html"),
+        "strip_comments": ("Strip URL Comments", "strip_comments.html"),
+        "fix_metadata": ("Fix Metadata", "fix_metadata.html"),
     }
     if n not in tools:
         return redirect(url_for("index"))
@@ -137,11 +139,11 @@ def api_rekordbox_status():
 def api_run(script_name):
     """Stream script output as server-sent events."""
     allowed = {
-        "relocate":       "rekordbox_relocate.py",
-        "cleanup":        "rekordbox_cleanup.py",
+        "relocate": "rekordbox_relocate.py",
+        "cleanup": "rekordbox_cleanup.py",
         "remove_missing": "rekordbox_remove_missing.py",
         "strip_comments": "strip_comment_urls.py",
-        "fix_metadata":   "rekordbox_fix_metadata.py",
+        "fix_metadata": "rekordbox_fix_metadata.py",
     }
     if script_name not in allowed:
         return jsonify({"error": "unknown script"}), 400
@@ -168,9 +170,9 @@ def api_run(script_name):
         args += ["--prefer-ext", pref]
 
     elif script_name == "cleanup":
-        scan       = clean_path(request.args.get("scan_root") or cfg.get("music_root", ""))
+        scan = clean_path(request.args.get("scan_root") or cfg.get("music_root", ""))
         delete_dir = clean_path(request.args.get("delete_dir") or cfg.get("delete_dir", ""))
-        exclude    = clean_path(request.args.get("exclude", ""))
+        exclude = clean_path(request.args.get("exclude", ""))
         if not scan:
             return jsonify({"error": "scan_root required"}), 400
         args += ["--scan-root", scan]
@@ -214,7 +216,7 @@ def api_run(script_name):
             errors="replace",
         )
         report_lines = []
-        in_report    = False
+        in_report = False
 
         for line in iter(proc.stdout.readline, ""):
             line = line.rstrip()
@@ -239,8 +241,11 @@ def api_run(script_name):
         proc.wait()
         yield "data: %%DONE%%\n\n"
 
-    return Response(generate(), mimetype="text/event-stream",
-                    headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+    return Response(
+        generate(),
+        mimetype="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────
