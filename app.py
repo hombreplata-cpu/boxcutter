@@ -75,8 +75,14 @@ def clean_path(raw):
     return raw.strip().strip('"').strip("'").strip()
 
 
-def get_rekordbox_backup_dir():
-    """Return the Pioneer rekordbox data directory (where master.db and backups live)."""
+def get_rekordbox_backup_dir(db_path=""):
+    """Return the directory that contains master.db and its backups.
+
+    If db_path is configured, backups live alongside that file.
+    Otherwise fall back to the default Pioneer\\rekordbox folder.
+    """
+    if db_path:
+        return Path(db_path).parent
     appdata = os.environ.get("APPDATA", "")
     return Path(appdata) / "Pioneer" / "rekordbox"
 
@@ -397,7 +403,9 @@ def api_history_clear():
 
 @app.route("/api/backups")
 def api_backups():
-    backup_dir = get_rekordbox_backup_dir()
+    cfg = load_config()
+    db_path = clean_path(cfg.get("db_path", ""))
+    backup_dir = get_rekordbox_backup_dir(db_path)
     if not backup_dir.exists():
         return jsonify({"error": f"Directory not found: {backup_dir}"}), 404
     now = datetime.now()
@@ -430,7 +438,9 @@ def api_backups_clean():
     except (TypeError, ValueError):
         return jsonify({"error": "keep_days must be a positive integer"}), 400
     dry_run = bool(data.get("dry_run", False))
-    backup_dir = get_rekordbox_backup_dir()
+    cfg = load_config()
+    db_path = clean_path(cfg.get("db_path", ""))
+    backup_dir = get_rekordbox_backup_dir(db_path)
     if not backup_dir.exists():
         return jsonify({"error": f"Directory not found: {backup_dir}"}), 404
     now = datetime.now()
