@@ -9,6 +9,7 @@ Then open http://localhost:5000 in your browser.
 
 import json
 import os
+import socket
 import subprocess
 import sys
 import threading
@@ -522,12 +523,75 @@ def api_backups_clean():
     )
 
 
+def _port_pid(port: int) -> int | None:
+    """Return the PID listening on *port*, or None if the port is free."""
+    try:
+        result = subprocess.run(
+            ["netstat", "-ano"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        for line in result.stdout.splitlines():
+            if f":{port}" in line and "LISTENING" in line:
+                pid = int(line.split()[-1])
+                return pid if pid != 0 else None
+    except Exception:  # noqa: S110
+        pass
+    return None
+
+
+def _is_our_app(pid: int) -> bool:
+    """Return True if *pid*'s command line contains app.py (rekordbox-tools)."""
+    try:
+        result = subprocess.run(
+            ["wmic", "process", "where", f"processid={pid}", "get", "commandline"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        return "app.py" in result.stdout
+    except Exception:  # noqa: S110
+        return False
+
+
+def _find_free_port(start: int) -> int:
+    """Return the first free TCP port at or above *start*."""
+    for port in range(start, start + 20):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            try:
+                s.bind(("127.0.0.1", port))
+                return port
+            except OSError:
+                continue
+    raise RuntimeError("No free port found in range")
+
+
+def resolve_server_port(preferred: int = 5000) -> int:
+    """
+    Return the port Flask should bind to:
+    - Preferred port is free → use it.
+    - Preferred port is our app → kill that instance, reuse it.
+    - Preferred port is another app → find the next free port.
+    """
+    pid = _port_pid(preferred)
+    if pid is None:
+        return preferred
+    if _is_our_app(pid):
+        subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True, timeout=5)
+        print(f"  Stopped previous instance (PID {pid})")
+        return preferred
+    print(f"  Port {preferred} in use by another app — finding a free port")
+    return _find_free_port(preferred + 1)
+
+
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
     print("\n  rekordbox-tools")
-    print("  ───────────────────────────────")
-    print("  Starting server at http://localhost:5000")
+    print("  -------------------------------")
+    _port = resolve_server_port()
+    print(f"  Starting server at http://localhost:{_port}")
     print("  Press Ctrl+C to stop\n")
-    threading.Timer(1.2, lambda: webbrowser.open("http://localhost:5000")).start()
-    app.run(debug=False, port=5000)
+    threading.Timer(1.2, lambda: webbrowser.open(f"http://localhost:{_port}")).start()
+    app.run(debug=False, port=_port)
