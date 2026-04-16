@@ -958,17 +958,16 @@
     const verb = isDry ? 'Would move' : 'Moved';
 
     let html = '<div class="report-stats">';
-    html += statCard('Files scanned',      s.total_scanned,      'accent');
-    html += statCard('Active in Rekordbox', s.active_in_rekordbox, 'green');
-    html += statCard('Unreferenced',        s.unreferenced,        s.unreferenced > 0 ? 'orange' : 'green');
+    html += statCard('Total in Rekordbox', s.total_in_db,    'accent');
+    html += statCard('Unreferenced',       s.unreferenced,   s.unreferenced > 0 ? 'orange' : 'green');
     if (isDry) {
-      html += statCard('Would move to DELETE', s.would_move, s.would_move > 0 ? 'orange' : 'accent');
+      html += statCard('Would move to DELETE', s.would_move, s.would_move > 0 ? 'red' : 'accent');
       if (s.ghost_count > 0) {
         html += statCard('Removed from RB, file on disk', s.ghost_count, 'accent');
       }
     } else {
-      html += statCard('Moved to DELETE',   s.moved,           s.moved > 0 ? 'orange' : 'accent');
-      html += statCard('Errors',            s.skipped_errors,  s.skipped_errors > 0 ? 'red' : 'accent');
+      html += statCard('Moved to DELETE', s.moved,          s.moved > 0 ? 'red' : 'accent');
+      html += statCard('Errors',          s.skipped_errors, s.skipped_errors > 0 ? 'red' : 'accent');
     }
     html += '</div>';
 
