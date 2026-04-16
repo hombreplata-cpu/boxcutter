@@ -737,6 +737,8 @@
       html += renderRemoveMissingReport(data, isDry);
     } else if (data.tool === 'fix_metadata') {
       html += renderFixMetadataReport(data, isDry);
+    } else if (data.tool === 'add_new') {
+      html += renderAddNewReport(data, isDry);
     }
 
     html += '</div>';
@@ -1074,6 +1076,56 @@
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;');
+  }
+
+  // ── Add New Tracks report ─────────────────────────────────────────────────
+
+  function renderAddNewReport(data, isDry) {
+    const s = data.summary;
+    const verb = isDry ? 'Would add' : 'Added';
+
+    let html = '<div class="report-stats">';
+    html += statCard('Scanned',      s.scanned,      'accent');
+    html += statCard('Already in DB', s.already_in_db, s.already_in_db > 0 ? 'green' : 'accent');
+    html += statCard(verb,           s.added,         s.added > 0 ? 'green' : 'accent');
+    if (s.errors > 0) {
+      html += statCard('Errors', s.errors, 'red');
+    }
+    html += '</div>';
+
+    if (data.added && data.added.length > 0) {
+      html += `<div class="report-section">
+        <div class="report-section-title">
+          <span>${verb} to <em>${esc(data.playlist_name)}</em></span>
+          <span class="section-count">${data.added.length} track${data.added.length !== 1 ? 's' : ''}</span>
+        </div>
+        <div class="track-list">`;
+      for (const t of data.added) {
+        html += `<div class="track-row">
+          <div class="track-title">${esc(t.title)}</div>
+          <div class="track-path">${esc(t.path)}</div>
+        </div>`;
+      }
+      html += '</div></div>';
+    }
+
+    if (data.errors && data.errors.length > 0) {
+      html += `<div class="report-section">
+        <div class="report-section-title">
+          <span style="color:var(--red)">⚠ Errors</span>
+          <span class="section-count">${data.errors.length} file${data.errors.length !== 1 ? 's' : ''}</span>
+        </div>
+        <div class="track-list">`;
+      for (const e of data.errors) {
+        html += `<div class="track-row">
+          <div class="track-path">${esc(e.path)}</div>
+          <div style="color:var(--red);font-size:12px;">${esc(e.reason)}</div>
+        </div>`;
+      }
+      html += '</div></div>';
+    }
+
+    return html;
   }
 
   // ── SSE console runner ───────────────────────────────────────────────────

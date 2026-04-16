@@ -26,6 +26,7 @@ DEFAULT_CONFIG = {
     "flac_root": "",
     "mp3_root": "",
     "delete_dir": str(Path.home() / "Desktop" / "DELETE"),
+    "watch_dir": "",
 }
 
 
@@ -98,6 +99,7 @@ def setup():
                 "flac_root": clean_path(request.form.get("flac_root", "")),
                 "mp3_root": clean_path(request.form.get("mp3_root", "")),
                 "delete_dir": clean_path(request.form.get("delete_dir", "")),
+                "watch_dir": clean_path(request.form.get("watch_dir", "")),
             }
         )
         saved = True
@@ -115,6 +117,7 @@ def tool(n):
         "remove_missing": ("Remove Missing Tracks", "remove_missing.html"),
         "strip_comments": ("Strip URL Comments", "strip_comments.html"),
         "fix_metadata": ("Fix Metadata", "fix_metadata.html"),
+        "add_new": ("Add New Tracks", "add_new.html"),
     }
     if n not in tools:
         return redirect(url_for("index"))
@@ -144,6 +147,7 @@ def api_run(script_name):
         "remove_missing": "rekordbox_remove_missing.py",
         "strip_comments": "strip_comment_urls.py",
         "fix_metadata": "rekordbox_fix_metadata.py",
+        "add_new": "rekordbox_add_new.py",
     }
     if script_name not in allowed:
         return jsonify({"error": "unknown script"}), 400
@@ -199,6 +203,15 @@ def api_run(script_name):
         if ids:
             args += ["--ids", ids]
 
+    elif script_name == "add_new":
+        watch_dir = clean_path(request.args.get("watch_dir") or cfg.get("watch_dir", ""))
+        playlist_id = request.args.get("playlist_id", "")
+        if not watch_dir:
+            return jsonify({"error": "watch_dir required"}), 400
+        if not playlist_id:
+            return jsonify({"error": "playlist_id required"}), 400
+        args += ["--watch-dir", watch_dir, "--playlist-id", playlist_id]
+
     if dry_run:
         args.append("--dry-run")
 
@@ -246,6 +259,22 @@ def api_run(script_name):
         mimetype="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+@app.route("/api/playlists")
+def api_playlists():
+    """Return all normal (non-folder, non-smart) Rekordbox playlists as JSON."""
+    try:
+        from pyrekordbox import Rekordbox6Database as MasterDatabase  # noqa: PLC0415
+
+        db = MasterDatabase()
+        # Attribute 0 = normal playlist; 1 = folder; 4 = smart playlist
+        playlists = (
+            db.get_playlist().filter_by(Attribute=0, rb_local_deleted=0).order_by("Name").all()
+        )
+        return jsonify([{"id": str(p.ID), "name": p.Name} for p in playlists])
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────

@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}Add New Tracks — rekordbox-tools{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Add New Tracks</h1>
+  <p>Scan a watch folder for audio files not yet in Rekordbox and add them to a chosen playlist. Open Rekordbox afterwards and run Analyze Tracks.</p>
+</div>
+<div class="divider"></div>
+
+<div class="info-box">
+  ⚠ Close Rekordbox before running. A timestamped backup of master.db is created automatically before any changes are written.
+</div>
+
+<div class="card">
+  <div class="card-label">Options</div>
+
+  <div class="path-row">
+    <label>Watch Directory</label>
+    <input class="path-input" id="watch_dir" type="text"
+           value="{{ cfg.watch_dir }}"
+           placeholder="Folder to scan for new audio files">
+  </div>
+  <div class="path-hint">Drag a folder here, or <kbd>Right-click folder</kbd> → <kbd>Copy as path</kbd> → paste. Subfolders are included.</div>
+
+  <div class="path-row" style="margin-top:14px;align-items:center;">
+    <label>Target Playlist</label>
+    <div style="flex:1;display:flex;gap:8px;align-items:center;">
+      <select id="playlist_id" style="flex:1;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);color:var(--text);font-family:var(--mono);font-size:14px;border-radius:4px;">
+        <option value="">— select a playlist —</option>
+      </select>
+      <button class="btn btn-secondary" onclick="loadPlaylists()" style="padding:8px 14px;white-space:nowrap;">↺ Refresh</button>
+    </div>
+  </div>
+  <div class="path-hint" id="playlist-status">Loading playlists from Rekordbox…</div>
+</div>
+
+<div class="console-wrap">
+  <div class="console-bar">
+    <span>Output</span>
+    <span class="status" id="status">Idle</span>
+  </div>
+  <div id="console"></div>
+</div>
+
+<div id="report-panel"></div>
+
+<div class="btn-row">
+  <button class="btn btn-secondary" onclick="run(true)">▷ &nbsp;Dry Run</button>
+  <button class="btn btn-primary"   onclick="run(false)">▶ &nbsp;Add to Playlist</button>
+</div>
+
+<div class="restore-panel">
+  <button class="restore-toggle" onclick="toggleRestore()">
+    <span>🔴 &nbsp;Something broke? — How to restore your database backup</span>
+    <span class="arrow">▾</span>
+  </button>
+  <div class="restore-body">
+    <h3>How to restore a Rekordbox database backup</h3>
+    <p>Every tool that modifies the database creates a timestamped backup before writing anything. Here's how to restore if something went wrong.</p>
+    <ol>
+      <li><strong>Close Rekordbox completely</strong> before touching any database files.</li>
+      <li>Open File Explorer and paste this into the address bar:<br>
+        <code class="restore-path">%APPDATA%\Pioneer\rekordbox\</code>
+      </li>
+      <li>You'll see <code>master.db</code> (live) and timestamped backups like <code>master_backup_20250415_143022.db</code>.</li>
+      <li>Rename <code>master.db</code> → <code>master_broken.db</code> to keep it as a reference.</li>
+      <li>Rename the backup you want to restore → <code>master.db</code>.</li>
+      <li>Open Rekordbox — it loads from the restored file.</li>
+    </ol>
+    <p style="color:var(--orange)">⚑ Delete old backups periodically to save disk space.</p>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function loadPlaylists() {
+  const select = document.getElementById('playlist_id');
+  const hint   = document.getElementById('playlist-status');
+  const saved  = select.value;
+  hint.textContent = 'Loading…';
+  hint.style.color = 'var(--text-dim)';
+
+  fetch('/api/playlists')
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) {
+        hint.textContent = '⚠ Could not read playlists: ' + data.error;
+        hint.style.color = 'var(--orange)';
+        return;
+      }
+      select.innerHTML = '<option value="">— select a playlist —</option>';
+      data.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.textContent = p.name;
+        if (p.id === saved) opt.selected = true;
+        select.appendChild(opt);
+      });
+      hint.textContent = data.length + ' playlist' + (data.length !== 1 ? 's' : '') + ' loaded.';
+      hint.style.color = 'var(--text-dim)';
+    })
+    .catch(err => {
+      hint.textContent = '⚠ Request failed: ' + err;
+      hint.style.color = 'var(--red)';
+    });
+}
+
+function run(dry) {
+  const playlistId = document.getElementById('playlist_id').value;
+  if (!playlistId) {
+    alert('Please select a target playlist first.');
+    return;
+  }
+  runScript('add_new', {
+    watch_dir:   document.getElementById('watch_dir').value,
+    playlist_id: playlistId,
+    dry_run:     dry ? '1' : '0',
+  }, document.getElementById('status'));
+}
+
+loadPlaylists();
+</script>
+{% endblock %}
