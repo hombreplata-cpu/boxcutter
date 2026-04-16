@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+{% block title %}Run History — rekordbocks{% endblock %}
+
+{% block content %}
+<div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-start;">
+  <div>
+    <h1>Run History</h1>
+    <p>Every tool run — results summary, stats, and backup file status.</p>
+  </div>
+  <button class="btn btn-secondary" style="margin-top:4px;flex-shrink:0;" onclick="clearHistory()">Clear All</button>
+</div>
+<div class="divider"></div>
+
+<div id="history-loading" style="font-family:var(--mono);font-size:13px;color:var(--text-dim);padding:12px 0;">
+  Loading history...
+</div>
+
+<div id="history-empty" style="display:none;font-family:var(--mono);font-size:14px;color:var(--text-dim);padding:12px 0;">
+  No runs recorded yet. Run any tool to see its history here.
+</div>
+
+<div id="history-list"></div>
+<div id="history-pagination"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const TOOL_ICONS = {
+    relocate:       '⇄',
+    cleanup:        '⌫',
+    remove_missing: '✗',
+    strip_comments: '⊘',
+    fix_metadata:   '⚕',
+    add_new:        '＋',
+  };
+
+  const PER_PAGE = 20;
+  let currentPage = 1;
+
+  // ── Entry point ─────────────────────────────────────────────────────────────
+
+  function loadHistory(page) {
+    currentPage = page;
+    document.getElementById('history-loading').style.display = 'block';
+    document.getElementById('history-loading').textContent = 'Loading history...';
+    document.getElementById('history-list').innerHTML = '';
+    document.getElementById('history-pagination').innerHTML = '';
+    document.getElementById('history-empty').style.display = 'none';
+
+    fetch(`/api/history?page=${page}&per_page=${PER_PAGE}`)
+      .then(r => r.json())
+      .then(data => {
+        document.getElementById('history-loading').style.display = 'none';
+        if (data.total === 0) {
+          document.getElementById('history-empty').style.display = 'block';
+          return;
+        }
+        document.getElementById('history-list').innerHTML = data.entries.map(renderEntry).join('');
+        renderPagination(data.page, data.pages, data.total);
+      })
+      .catch(() => {
+        document.getElementById('history-loading').textContent = 'Failed to load history.';
+      });
+  }
+
+  // ── Entry card ───────────────────────────────────────────────────────────────
+
+  function renderEntry(e) {
+    const icon = TOOL_ICONS[e.tool] || '○';
+
+    const ts = new Date(e.timestamp).toLocaleString(undefined, {
+      year: 'numeric', month: 'short', day: 'numeric',
+      hour: '2-digit', minute: '2-digit',
+    });
+
+    const modeBadge = e.dry_run
+      ? '<span style="font-family:var(--mono);font-size:11px;color:var(--orange);background:#2e1a00;border:1px solid var(--orange);border-radius:3px;padding:2px 8px;white-space:nowrap;">⚑ DRY RUN</span>'
+      : '<span style="font-family:var(--mono);font-size:11px;color:var(--green);background:#0d1f0d;border:1px solid var(--green);border-radius:3px;padding:2px 8px;white-space:nowrap;">✓ LIVE</span>';
+
+    const summaryHtml = e.summary ? renderHistorySummary(e) : '';
+
+    let backupHtml = '';
+    if (e.backup_path) {
+      if (e.backup_exists) {
+        backupHtml = `
+          <div style="display:flex;align-items:baseline;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--border);font-family:var(--mono);font-size:11px;">
+            <span style="color:var(--green);flex-shrink:0;">● backup exists</span>
+            <span style="color:var(--text-dim);word-break:break-all;">${esc(e.backup_path)}</span>
+          </div>`;
+      } else {
+        backupHtml = `
+          <div style="display:flex;align-items:baseline;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--border);font-family:var(--mono);font-size:11px;">
+            <span style="color:var(--text-dim);flex-shrink:0;">◌ backup deleted</span>
+            <span style="color:var(--text-dim);opacity:0.45;word-break:break-all;text-decoration:line-through;">${esc(e.backup_path)}</span>
+          </div>`;
+      }
+    }
+
+    const hasSummary = !!summaryHtml;
+
+    return `
+      <div class="card" style="margin-bottom:10px;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;${hasSummary || backupHtml ? 'margin-bottom:14px;' : ''}">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <span style="font-size:20px;color:var(--accent);font-family:var(--mono);line-height:1;">${icon}</span>
+            <div>
+              <div style="font-family:var(--mono);font-size:14px;font-weight:600;color:var(--text);">${esc(e.tool_label)}</div>
+              <div style="font-family:var(--mono);font-size:11px;color:var(--text-dim);margin-top:3px;">${ts}</div>
+            </div>
+          </div>
+          <div style="padding-top:2px;">${modeBadge}</div>
+        </div>
+        ${summaryHtml}
+        ${backupHtml}
+      </div>`;
+  }
+
+  // ── Summary stat cards ───────────────────────────────────────────────────────
+
+  function renderHistorySummary(e) {
+    const s = e.summary;
+    const t = e.tool;
+    let cards = [];
+
+    if (t === 'relocate') {
+      cards = [
+        statCard('Total in DB',   s.total,         'accent'),
+        statCard('Already OK',    s.already_ok,    'green'),
+        statCard('Updated',       s.updated,       s.updated > 0 ? 'green' : 'accent'),
+        statCard('Still Missing', s.still_missing, s.still_missing > 0 ? 'red' : 'accent'),
+      ];
+    } else if (t === 'cleanup') {
+      const moved = s.moved !== undefined ? s.moved : (s.would_move || 0);
+      cards = [
+        statCard('Files Scanned',   s.total_scanned,       'accent'),
+        statCard('Active in RB',    s.active_in_rekordbox, 'green'),
+        statCard('Unreferenced',    s.unreferenced,        s.unreferenced > 0 ? 'orange' : 'green'),
+        statCard('Moved to DELETE', moved,                  moved > 0 ? 'orange' : 'accent'),
+      ];
+    } else if (t === 'remove_missing') {
+      cards = [
+        statCard('Total Tracks', s.total,   'accent'),
+        statCard('Kept',         s.kept,    'green'),
+        statCard('Removed',      s.removed, s.removed > 0 ? 'orange' : 'green'),
+      ];
+    } else if (t === 'fix_metadata') {
+      cards = [
+        statCard('Total Tracks',    s.total,      'accent'),
+        statCard('Already Correct', s.already_ok, 'green'),
+        statCard('Fixed',           s.fixed,      s.fixed > 0 ? 'orange' : 'green'),
+        statCard('File Missing',    s.missing,    s.missing > 0 ? 'red' : 'accent'),
+      ];
+    } else if (t === 'add_new') {
+      cards = [
+        statCard('Scanned',       s.scanned,      'accent'),
+        statCard('Already in DB', s.already_in_db, 'green'),
+        statCard('Added',         s.added,         s.added > 0 ? 'green' : 'accent'),
+      ];
+      if (s.errors > 0) cards.push(statCard('Errors', s.errors, 'red'));
+    } else {
+      // Generic fallback — show all numeric fields
+      for (const [k, v] of Object.entries(s)) {
+        if (typeof v === 'number') {
+          cards.push(statCard(k.replace(/_/g, ' '), v, 'accent'));
+        }
+      }
+    }
+
+    if (!cards.length) return '';
+    return `<div class="report-stats" style="margin-bottom:0;">${cards.join('')}</div>`;
+  }
+
+  // ── Pagination ───────────────────────────────────────────────────────────────
+
+  function renderPagination(page, pages, total) {
+    const el = document.getElementById('history-pagination');
+
+    const countLabel = `<span style="font-family:var(--mono);font-size:11px;color:var(--text-dim);">${total} run${total !== 1 ? 's' : ''} total</span>`;
+
+    if (pages <= 1) {
+      el.innerHTML = `<div style="margin-top:8px;">${countLabel}</div>`;
+      return;
+    }
+
+    let html = `<div style="display:flex;align-items:center;gap:8px;margin-top:16px;flex-wrap:wrap;">`;
+    html += countLabel;
+    html += `<div style="flex:1;"></div>`;
+
+    if (page > 1) {
+      html += `<button class="btn btn-secondary" style="padding:6px 14px;font-size:12px;" onclick="loadHistory(${page - 1})">← Prev</button>`;
+    }
+
+    const rangeStart = Math.max(1, page - 2);
+    const rangeEnd   = Math.min(pages, page + 2);
+    for (let p = rangeStart; p <= rangeEnd; p++) {
+      if (p === page) {
+        html += `<span style="font-family:var(--mono);font-size:13px;color:var(--accent);padding:6px 10px;font-weight:600;">${p}</span>`;
+      } else {
+        html += `<button class="btn btn-secondary" style="padding:6px 10px;font-size:12px;" onclick="loadHistory(${p})">${p}</button>`;
+      }
+    }
+
+    if (page < pages) {
+      html += `<button class="btn btn-secondary" style="padding:6px 14px;font-size:12px;" onclick="loadHistory(${page + 1})">Next →</button>`;
+    }
+
+    html += '</div>';
+    el.innerHTML = html;
+  }
+
+  // ── Clear all ────────────────────────────────────────────────────────────────
+
+  function clearHistory() {
+    if (!confirm('Delete all run history? This cannot be undone.')) return;
+    fetch('/api/history', { method: 'DELETE' })
+      .then(() => loadHistory(1));
+  }
+
+  // ── Boot ─────────────────────────────────────────────────────────────────────
+
+  loadHistory(1);
+</script>
+{% endblock %}
