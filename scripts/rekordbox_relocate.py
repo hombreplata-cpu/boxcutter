@@ -259,7 +259,7 @@ def run(args):
 
     print("[db] Opening Rekordbox database...")
     try:
-        db = MasterDatabase()
+        db = MasterDatabase(path=args.db_path if args.db_path else None)
     except Exception as e:
         raise SystemExit(
             f"Failed to open Rekordbox database: {e}\nMake sure Rekordbox is closed."
@@ -475,6 +475,12 @@ def main():
         "--extensions", metavar="LIST", help="Comma-separated audio extensions to index"
     )
     parser.add_argument("--ids", metavar="ID_LIST", help="Comma-separated track IDs to process")
+    parser.add_argument(
+        "--db-path",
+        metavar="PATH",
+        default="",
+        help="Path to master.db (auto-detected if not set)",
+    )
 
     args = parser.parse_args()
     run(args)

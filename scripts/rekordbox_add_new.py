@@ -57,7 +57,7 @@ def run(args):
         sys.exit(1)
 
     print("[db]   Opening Rekordbox database…")
-    db = MasterDatabase()
+    db = MasterDatabase(path=args.db_path if args.db_path else None)
 
     # Backup before any writes
     if not args.dry_run:
@@ -74,6 +74,7 @@ def run(args):
     print(f"[db]   {len(existing_paths):,} tracks already in database")
 
     # Find the target playlist
+
     # get_playlist(ID=x) returns the object directly (not a query), so no .one() needed
     try:
         playlist = db.get_playlist(ID=args.playlist_id)
@@ -183,6 +184,12 @@ def main():
     )
     parser.add_argument(
         "--dry-run", action="store_true", help="Preview changes without writing to the database"
+    )
+    parser.add_argument(
+        "--db-path",
+        metavar="PATH",
+        default="",
+        help="Path to master.db (auto-detected if not set)",
     )
     args = parser.parse_args()
     run(args)
