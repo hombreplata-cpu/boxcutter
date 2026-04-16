@@ -53,6 +53,14 @@
              placeholder="e.g. C:\Users\You\Desktop\DELETE">
     </div>
     <div class="path-hint">Where Library Cleanup moves unreferenced files for review</div>
+
+    <div class="path-row">
+      <label>Watch Directory <span style="color:var(--text-dim)">(optional)</span></label>
+      <input class="path-input" type="text" name="watch_dir"
+             value="{{ cfg.watch_dir }}"
+             placeholder="e.g. C:\Users\You\Downloads\NewMusic">
+    </div>
+    <div class="path-hint">Folder scanned by Add New Tracks — audio files here not yet in Rekordbox will be added to a playlist</div>
   </div>
 
   <div class="card" style="margin-top:0;">
