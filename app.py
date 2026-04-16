@@ -9,7 +9,6 @@ Then open http://localhost:5000 in your browser.
 
 import json
 import os
-import queue
 import subprocess
 import sys
 import threading
@@ -56,6 +55,28 @@ def config_is_complete(cfg):
     return bool(cfg.get("music_root") and cfg.get("flac_root"))
 
 
+def clean_path(raw):
+    """Strip surrounding whitespace and quotes that Windows 'Copy as path' adds."""
+    if not raw:
+        return raw
+    return raw.strip().strip('"').strip("'").strip()
+
+
+def rekordbox_is_running():
+    """Return True if rekordbox.exe is in the Windows process list."""
+    try:
+        out = subprocess.check_output(
+            ["tasklist", "/FI", "IMAGENAME eq rekordbox.exe", "/NH"],
+            stderr=subprocess.DEVNULL,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        return "rekordbox.exe" in out.lower()
+    except Exception:
+        return False
+
+
 # ── Routes ───────────────────────────────────────────────────────────────────
 
 @app.route("/")
@@ -72,10 +93,10 @@ def setup():
     saved = False
     if request.method == "POST":
         cfg = save_config({
-            "music_root":  request.form.get("music_root", "").strip(),
-            "flac_root":   request.form.get("flac_root", "").strip(),
-            "mp3_root":    request.form.get("mp3_root", "").strip(),
-            "delete_dir":  request.form.get("delete_dir", "").strip(),
+            "music_root":  clean_path(request.form.get("music_root", "")),
+            "flac_root":   clean_path(request.form.get("flac_root", "")),
+            "mp3_root":    clean_path(request.form.get("mp3_root", "")),
+            "delete_dir":  clean_path(request.form.get("delete_dir", "")),
         })
         saved = True
         if config_is_complete(cfg):
@@ -91,6 +112,7 @@ def tool(n):
         "cleanup":        ("Library Cleanup",        "cleanup.html"),
         "remove_missing": ("Remove Missing Tracks",  "remove_missing.html"),
         "strip_comments": ("Strip URL Comments",     "strip_comments.html"),
+        "fix_metadata":   ("Fix Metadata",           "fix_metadata.html"),
     }
     if n not in tools:
         return redirect(url_for("index"))
@@ -105,6 +127,12 @@ def api_config():
     return jsonify({"ok": True, "config": cfg})
 
 
+@app.route("/api/rekordbox_status")
+def api_rekordbox_status():
+    """Check whether rekordbox.exe is currently running."""
+    return jsonify({"running": rekordbox_is_running()})
+
+
 @app.route("/api/run/<script_name>")
 def api_run(script_name):
     """Stream script output as server-sent events."""
@@ -113,6 +141,7 @@ def api_run(script_name):
         "cleanup":        "rekordbox_cleanup.py",
         "remove_missing": "rekordbox_remove_missing.py",
         "strip_comments": "strip_comment_urls.py",
+        "fix_metadata":   "rekordbox_fix_metadata.py",
     }
     if script_name not in allowed:
         return jsonify({"error": "unknown script"}), 400
@@ -120,13 +149,12 @@ def api_run(script_name):
     script_path = SCRIPTS_DIR / allowed[script_name]
     cfg = load_config()
 
-    # Build args from query params
     args = []
     dry_run = request.args.get("dry_run") == "1"
 
     if script_name == "relocate":
-        target = request.args.get("target_root") or cfg.get("flac_root", "")
-        source = request.args.get("source_root") or cfg.get("mp3_root", "")
+        target = clean_path(request.args.get("target_root") or cfg.get("flac_root", ""))
+        source = clean_path(request.args.get("source_root") or cfg.get("mp3_root", ""))
         if not target:
             return jsonify({"error": "target_root required"}), 400
         args += ["--target-root", target]
@@ -136,13 +164,13 @@ def api_run(script_name):
             args.append("--missing-only")
         if request.args.get("all_tracks") == "1":
             args.append("--all-tracks")
-        pref = request.args.get("prefer_ext", "flac")
+        pref = clean_path(request.args.get("prefer_ext", "flac"))
         args += ["--prefer-ext", pref]
 
     elif script_name == "cleanup":
-        scan = request.args.get("scan_root") or cfg.get("music_root", "")
-        delete_dir = request.args.get("delete_dir") or cfg.get("delete_dir", "")
-        exclude = request.args.get("exclude", "")
+        scan       = clean_path(request.args.get("scan_root") or cfg.get("music_root", ""))
+        delete_dir = clean_path(request.args.get("delete_dir") or cfg.get("delete_dir", ""))
+        exclude    = clean_path(request.args.get("exclude", ""))
         if not scan:
             return jsonify({"error": "scan_root required"}), 400
         args += ["--scan-root", scan]
@@ -153,8 +181,8 @@ def api_run(script_name):
 
     elif script_name == "strip_comments":
         dirs = [
-            request.args.get("dir1") or cfg.get("music_root", ""),
-            request.args.get("dir2", ""),
+            clean_path(request.args.get("dir1") or cfg.get("music_root", "")),
+            clean_path(request.args.get("dir2", "")),
         ]
         dirs = [d for d in dirs if d]
         if not dirs:
@@ -162,8 +190,12 @@ def api_run(script_name):
         args += dirs
         if not dry_run:
             args.append("--write")
-        # strip_comments handles dry-run via absence of --write, so skip below
         dry_run = False
+
+    elif script_name == "fix_metadata":
+        ids = clean_path(request.args.get("ids", ""))
+        if ids:
+            args += ["--ids", ids]
 
     if dry_run:
         args.append("--dry-run")
@@ -181,9 +213,28 @@ def api_run(script_name):
             encoding="utf-8",
             errors="replace",
         )
+        report_lines = []
+        in_report    = False
+
         for line in iter(proc.stdout.readline, ""):
             line = line.rstrip()
+
+            if line == "%%REPORT_START%%":
+                in_report = True
+                report_lines = []
+                continue
+            if line == "%%REPORT_END%%":
+                in_report = False
+                # Emit as a named SSE event — delivered atomically to the client
+                payload = "".join(report_lines)
+                yield f"event: report\ndata: {payload}\n\n"
+                continue
+            if in_report:
+                report_lines.append(line)
+                continue
+
             yield f"data: {line}\n\n"
+
         proc.stdout.close()
         proc.wait()
         yield "data: %%DONE%%\n\n"

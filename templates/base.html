@@ -30,6 +30,7 @@
       background: var(--bg);
       color: var(--text);
       font-family: var(--sans);
+      font-size: 16px;
       display: flex;
       min-height: 100vh;
     }
@@ -58,7 +59,7 @@
 
     .sidebar-logo .name {
       font-family: var(--mono);
-      font-size: 13px;
+      font-size: 14px;
       font-weight: 600;
       color: var(--text);
       margin-top: 8px;
@@ -66,7 +67,7 @@
 
     .sidebar-logo .sub {
       font-family: var(--mono);
-      font-size: 10px;
+      font-size: 12px;
       color: var(--text-dim);
       margin-top: 3px;
     }
@@ -77,7 +78,7 @@
       display: block;
       padding: 10px 20px;
       font-family: var(--mono);
-      font-size: 11px;
+      font-size: 13px;
       color: var(--text-dim);
       text-decoration: none;
       transition: background 0.1s, color 0.1s;
@@ -89,7 +90,7 @@
     .nav .nav-section {
       padding: 16px 20px 6px;
       font-family: var(--mono);
-      font-size: 9px;
+      font-size: 11px;
       color: var(--text-dim);
       letter-spacing: 0.08em;
       text-transform: uppercase;
@@ -98,7 +99,7 @@
     .sidebar-footer {
       padding: 16px 20px;
       font-family: var(--mono);
-      font-size: 9px;
+      font-size: 11px;
       color: var(--text-dim);
       border-top: 1px solid var(--border);
     }
@@ -107,20 +108,20 @@
     .main {
       flex: 1;
       padding: 40px 48px;
-      max-width: 900px;
+      max-width: 960px;
     }
 
     .page-header { margin-bottom: 28px; }
 
     .page-header h1 {
       font-family: var(--mono);
-      font-size: 22px;
+      font-size: 24px;
       font-weight: 600;
       color: var(--text);
     }
 
     .page-header p {
-      font-size: 13px;
+      font-size: 16px;
       color: var(--text-dim);
       margin-top: 6px;
     }
@@ -142,7 +143,7 @@
 
     .card-label {
       font-family: var(--mono);
-      font-size: 9px;
+      font-size: 11px;
       font-weight: 600;
       color: var(--accent);
       text-transform: uppercase;
@@ -160,10 +161,10 @@
 
     .path-row label {
       font-family: var(--mono);
-      font-size: 10px;
+      font-size: 13px;
       font-weight: 600;
       color: var(--text-dim);
-      width: 180px;
+      width: 190px;
       flex-shrink: 0;
     }
 
@@ -172,9 +173,9 @@
       background: var(--bg-input);
       border: 1px solid var(--border);
       border-radius: 4px;
-      padding: 7px 12px;
+      padding: 8px 12px;
       font-family: var(--mono);
-      font-size: 11px;
+      font-size: 13px;
       color: var(--text);
       outline: none;
       transition: border-color 0.15s;
@@ -188,9 +189,9 @@
     }
 
     .path-hint {
-      font-size: 10px;
+      font-size: 13px;
       color: var(--text-dim);
-      margin: -6px 0 14px 190px;
+      margin: -6px 0 14px 200px;
       font-family: var(--mono);
     }
 
@@ -199,7 +200,7 @@
       border: 1px solid var(--border);
       border-radius: 3px;
       padding: 1px 5px;
-      font-size: 10px;
+      font-size: 12px;
       font-family: var(--mono);
       color: var(--text);
     }
@@ -214,13 +215,13 @@
 
     .option-row input[type=checkbox] {
       accent-color: var(--accent);
-      width: 14px;
-      height: 14px;
+      width: 15px;
+      height: 15px;
     }
 
     .option-row label {
       font-family: var(--mono);
-      font-size: 11px;
+      font-size: 13px;
       color: var(--text);
       cursor: pointer;
     }
@@ -230,9 +231,9 @@
 
     .btn {
       font-family: var(--mono);
-      font-size: 11px;
+      font-size: 13px;
       font-weight: 600;
-      padding: 10px 24px;
+      padding: 11px 26px;
       border: none;
       border-radius: 4px;
       cursor: pointer;
@@ -262,7 +263,7 @@
       background: var(--bg-hover);
       padding: 8px 16px;
       font-family: var(--mono);
-      font-size: 10px;
+      font-size: 12px;
       color: var(--text-dim);
       border-bottom: 1px solid var(--border);
       display: flex;
@@ -277,9 +278,9 @@
     #console {
       padding: 14px 16px;
       font-family: var(--mono);
-      font-size: 11px;
+      font-size: 13px;
       line-height: 1.7;
-      height: 340px;
+      height: 300px;
       overflow-y: auto;
       white-space: pre-wrap;
       word-break: break-all;
@@ -290,6 +291,274 @@
     .c-green  { color: var(--green); }
     .c-orange { color: var(--orange); }
     .c-red    { color: var(--red); }
+
+    /* ── Report Panel ── */
+    #report-panel {
+      display: none;
+      margin-top: 20px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+
+    .report-bar {
+      background: var(--bg-hover);
+      padding: 10px 16px;
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--accent);
+      border-bottom: 1px solid var(--border);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .report-bar .report-mode {
+      font-size: 11px;
+      color: var(--text-dim);
+      font-weight: 400;
+      text-transform: none;
+      letter-spacing: 0;
+    }
+
+    .report-body {
+      background: var(--bg-panel);
+      padding: 20px 24px;
+    }
+
+    /* Summary stat grid */
+    .report-stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+
+    .stat-card {
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 14px 16px;
+    }
+
+    .stat-card.green  { border-left: 3px solid var(--green); }
+    .stat-card.orange { border-left: 3px solid var(--orange); }
+    .stat-card.red    { border-left: 3px solid var(--red); }
+    .stat-card.accent { border-left: 3px solid var(--accent); }
+
+    .stat-label {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text-dim);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .stat-value {
+      font-family: var(--mono);
+      font-size: 26px;
+      font-weight: 600;
+      color: var(--text);
+      line-height: 1;
+    }
+
+    .stat-card.green  .stat-value { color: var(--green); }
+    .stat-card.orange .stat-value { color: var(--orange); }
+    .stat-card.red    .stat-value { color: var(--red); }
+    .stat-card.accent .stat-value { color: var(--accent); }
+
+    /* Section headings inside report */
+    .report-section {
+      margin-top: 20px;
+    }
+
+    .report-section-title {
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .report-section-title .section-count {
+      font-size: 11px;
+      color: var(--text-dim);
+      font-weight: 400;
+    }
+
+    /* Match type breakdown table */
+    .match-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: var(--mono);
+      font-size: 13px;
+    }
+
+    .match-table td {
+      padding: 6px 10px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .match-table td:first-child { color: var(--text-dim); }
+    .match-table td:last-child  { color: var(--text); text-align: right; font-weight: 600; }
+
+    .match-table .expected td:first-child { color: var(--green); }
+    .match-table .warning  td:first-child { color: var(--orange); }
+
+    /* Track list rows */
+    .track-list {
+      max-height: 320px;
+      overflow-y: auto;
+    }
+
+    .track-row {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      font-family: var(--mono);
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    .track-row:last-child { border-bottom: none; }
+
+    .track-row .track-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 3px;
+    }
+
+    .track-row .track-artist {
+      color: var(--text-dim);
+      font-size: 12px;
+    }
+
+    .track-row .track-path {
+      color: var(--text-dim);
+      font-size: 11px;
+      word-break: break-all;
+      margin-top: 3px;
+    }
+
+    .track-row .track-new-path {
+      color: var(--green);
+      font-size: 11px;
+      word-break: break-all;
+    }
+
+    .track-row .track-warning {
+      color: var(--orange);
+      font-size: 11px;
+      margin-top: 3px;
+    }
+
+    .track-row .match-badge {
+      display: inline-block;
+      font-size: 10px;
+      padding: 1px 7px;
+      border-radius: 3px;
+      margin-top: 4px;
+      background: var(--bg-hover);
+      color: var(--text-dim);
+      border: 1px solid var(--border);
+    }
+
+    .match-badge.exact       { color: var(--green);  border-color: var(--green); }
+    .match-badge.fuzzy       { color: var(--orange); border-color: var(--orange); }
+    .match-badge.warning     { color: var(--red);    border-color: var(--red); }
+
+    .report-empty {
+      font-family: var(--mono);
+      font-size: 13px;
+      color: var(--text-dim);
+      padding: 12px 0;
+    }
+
+    /* ── Restore / emergency panel ── */
+    .restore-panel {
+      margin-top: 32px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+
+    .restore-toggle {
+      background: var(--bg-hover);
+      padding: 12px 18px;
+      font-family: var(--mono);
+      font-size: 13px;
+      color: var(--text-dim);
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border: none;
+      width: 100%;
+      text-align: left;
+      transition: color 0.15s;
+    }
+
+    .restore-toggle:hover { color: var(--red); }
+    .restore-toggle .arrow { transition: transform 0.2s; }
+    .restore-toggle.open .arrow { transform: rotate(180deg); }
+
+    .restore-body {
+      display: none;
+      background: var(--bg-panel);
+      padding: 20px 24px;
+      font-family: var(--mono);
+      font-size: 13px;
+      line-height: 1.8;
+      color: var(--text-dim);
+    }
+
+    .restore-body.open { display: block; }
+
+    .restore-body h3 {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--red);
+      margin-bottom: 12px;
+      font-family: var(--mono);
+    }
+
+    .restore-body ol {
+      padding-left: 20px;
+      margin-bottom: 16px;
+    }
+
+    .restore-body ol li { margin-bottom: 8px; }
+
+    .restore-body code {
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-size: 12px;
+      color: var(--accent);
+    }
+
+    .restore-body .restore-path {
+      color: var(--text);
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 8px 12px;
+      margin: 8px 0;
+      word-break: break-all;
+      display: block;
+    }
 
     /* ── Dashboard cards ── */
     .tool-grid {
@@ -315,20 +584,20 @@
     }
 
     .tool-card .tc-icon {
-      font-size: 20px;
+      font-size: 22px;
       margin-bottom: 10px;
     }
 
     .tool-card .tc-name {
       font-family: var(--mono);
-      font-size: 12px;
+      font-size: 14px;
       font-weight: 600;
       color: var(--text);
       margin-bottom: 6px;
     }
 
     .tool-card .tc-desc {
-      font-size: 11px;
+      font-size: 14px;
       color: var(--text-dim);
       line-height: 1.5;
     }
@@ -338,23 +607,45 @@
       background: #0d2a2e;
       border: 1px solid var(--accent-dim);
       border-radius: 4px;
-      padding: 12px 16px;
-      font-size: 12px;
+      padding: 14px 18px;
+      font-size: 14px;
       color: var(--text-dim);
       margin-bottom: 20px;
       font-family: var(--mono);
-      line-height: 1.6;
+      line-height: 1.7;
     }
 
     .flash {
       background: #1a2e1a;
       border: 1px solid var(--green);
       border-radius: 4px;
-      padding: 10px 16px;
-      font-size: 12px;
+      padding: 12px 16px;
+      font-size: 14px;
       color: var(--green);
       margin-bottom: 20px;
       font-family: var(--mono);
+    }
+
+    /* ── Rekordbox running banner ── */
+    #rb-warning {
+      display: none;
+      background: #2e1a0e;
+      border: 1px solid var(--red);
+      border-radius: 4px;
+      padding: 14px 18px;
+      margin-bottom: 20px;
+      font-family: var(--mono);
+      font-size: 14px;
+      color: var(--red);
+      line-height: 1.6;
+      animation: rb-pulse 2.5s ease-in-out infinite;
+    }
+
+    #rb-warning .rb-icon { font-size: 16px; margin-right: 6px; }
+
+    @keyframes rb-pulse {
+      0%, 100% { border-color: var(--red); }
+      50%       { border-color: #ff8a80; }
     }
   </style>
   {% block head %}{% endblock %}
@@ -374,13 +665,19 @@
     <a href="/tool/cleanup"        class="{% if 'cleanup' in request.path %}active{% endif %}">⌫ &nbsp;Library Cleanup</a>
     <a href="/tool/remove_missing" class="{% if 'remove_missing' in request.path %}active{% endif %}">✗ &nbsp;Remove Missing</a>
     <a href="/tool/strip_comments" class="{% if 'strip_comments' in request.path %}active{% endif %}">⊘ &nbsp;Strip URL Comments</a>
+    <a href="/tool/fix_metadata"   class="{% if 'fix_metadata' in request.path %}active{% endif %}">⚕ &nbsp;Fix Metadata</a>
     <div class="nav-section">Config</div>
     <a href="/setup" class="{% if 'setup' in request.path %}active{% endif %}">⚙ &nbsp;Setup &amp; Paths</a>
   </div>
-  <div class="sidebar-footer">v1.0.0</div>
+  <div class="sidebar-footer">v1.0.1</div>
 </nav>
 
 <main class="main">
+  <div id="rb-warning">
+    <span class="rb-icon">⚠</span>
+    <strong>Rekordbox is currently open.</strong>
+    Close it before running any tool — the database will be locked and changes cannot be written.
+  </div>
   {% block content %}{% endblock %}
 </main>
 
@@ -395,21 +692,11 @@
     input.addEventListener('drop', e => {
       e.preventDefault();
       input.classList.remove('drag-over');
-      const items = e.dataTransfer.items;
-      if (items && items.length > 0) {
-        const entry = items[0].webkitGetAsEntry?.();
-        if (entry) {
-          // Chrome/Edge give us the full path via File
-        }
-      }
       const files = e.dataTransfer.files;
       if (files && files.length > 0) {
-        // webkitRelativePath isn't useful here; use the file path if available
         const f = files[0];
-        // Electron-style path (not available in browser)
         if (f.path) {
           let p = f.path;
-          // If it's a file, use parent dir
           if (f.type !== '') {
             p = p.substring(0, p.lastIndexOf('\\') || p.lastIndexOf('/'));
           }
@@ -421,22 +708,405 @@
     });
   });
 
-  // SSE console runner
+  // ── Report renderer ──────────────────────────────────────────────────────
+
+  function renderReport(data) {
+    const panel = document.getElementById('report-panel');
+    if (!panel) return;
+    panel.style.display = 'block';
+    panel.innerHTML = '';
+
+    const isDry = data.dry_run;
+    const modeLabel = isDry
+      ? '<span style="color:var(--orange)">⚑ DRY RUN — no changes were written</span>'
+      : '<span style="color:var(--green)">✓ LIVE RUN — changes applied to database</span>';
+
+    let html = `
+      <div class="report-bar">
+        <span>Results Report</span>
+        <span class="report-mode">${modeLabel}</span>
+      </div>
+      <div class="report-body">
+    `;
+
+    if (data.tool === 'relocate') {
+      html += renderRelocateReport(data, isDry);
+    } else if (data.tool === 'cleanup') {
+      html += renderCleanupReport(data, isDry);
+    } else if (data.tool === 'remove_missing') {
+      html += renderRemoveMissingReport(data, isDry);
+    } else if (data.tool === 'fix_metadata') {
+      html += renderFixMetadataReport(data, isDry);
+    }
+
+    html += '</div>';
+    panel.innerHTML = html;
+  }
+
+  // ── Relocate report ──────────────────────────────────────────────────────
+
+  function renderRelocateReport(data, isDry) {
+    const s = data.summary;
+    const verb = isDry ? 'Would update' : 'Updated';
+
+    // Stat cards
+    let html = '<div class="report-stats">';
+    html += statCard('Total in DB',      s.total,          'accent');
+    html += statCard('Already OK',       s.already_ok,     'green');
+    html += statCard(verb,               s.updated,        s.updated > 0 ? 'green' : 'accent');
+    html += statCard('Multiple matches', s.skipped_multi,  s.skipped_multi > 0 ? 'orange' : 'accent');
+    html += statCard('Still missing',    s.still_missing,  s.still_missing > 0 ? 'red' : 'accent');
+    if (!isDry) {
+      html += statCard('FileType updated', s.filetype_updated, s.filetype_updated > 0 ? 'orange' : 'accent');
+    }
+    html += '</div>';
+
+    // Match type breakdown
+    const mt = s.by_match_type;
+    const matchRows = [
+      { label: 'Exact filename match',     value: mt.exact,        cls: 'expected', note: 'Expected — filename matched directly' },
+      { label: 'Title + Artist match',     value: mt.title_artist, cls: 'expected', note: 'Expected — matched by title & artist metadata' },
+      { label: 'Artist + Title match',     value: mt.artist_title, cls: 'expected', note: 'Expected — matched by artist & title metadata' },
+      { label: 'Numeric prefix stripped',  value: mt.prefix,       cls: '',         note: 'Normal — leading track number removed before matching' },
+      { label: 'Title substring match',    value: mt.substring,    cls: 'warning',  note: 'Review advised — title found inside a longer filename' },
+      { label: 'Partial title match',      value: mt.partial,      cls: 'warning',  note: 'Review advised — only first 25 chars of title matched' },
+      { label: 'Fuzzy normalized match',   value: mt.fuzzy,        cls: 'warning',  note: 'Review advised — separators/brackets ignored to find a match' },
+    ].filter(r => r.value > 0);
+
+    if (matchRows.length > 0) {
+      html += `<div class="report-section">
+        <div class="report-section-title">How matches were found</div>
+        <table class="match-table">`;
+      for (const r of matchRows) {
+        html += `<tr class="${r.cls}">
+          <td>${r.label}</td>
+          <td style="color:var(--text-dim);font-size:11px;padding-left:16px">${r.note}</td>
+          <td>${r.value}</td>
+        </tr>`;
+      }
+      html += '</table></div>';
+    }
+
+    // Warnings — tracks where match ext != prefer_ext
+    const warnings = (data.updated || []).filter(t => t.warning);
+    if (warnings.length > 0) {
+      html += `<div class="report-section">
+        <div class="report-section-title">
+          <span>⚠ Extension mismatch warnings</span>
+          <span class="section-count">${warnings.length} track${warnings.length !== 1 ? 's' : ''}</span>
+        </div>
+        <p style="font-family:var(--mono);font-size:13px;color:var(--text-dim);margin-bottom:12px">
+          These tracks were matched to a file whose extension differs from your preferred format.
+          The path was updated but the match quality should be reviewed.
+        </p>
+        <div class="track-list">`;
+      for (const t of warnings) {
+        html += trackRowRelocate(t, true);
+      }
+      html += '</div></div>';
+    }
+
+    // FileType changes
+    const typeChanged = (data.updated || []).filter(t => t.ext_changed);
+    if (typeChanged.length > 0) {
+      html += `<div class="report-section">
+        <div class="report-section-title">
+          <span>${isDry ? 'FileType would change' : 'FileType updated'}</span>
+          <span class="section-count">${typeChanged.length} track${typeChanged.length !== 1 ? 's' : ''}</span>
+        </div>
+        <p style="font-family:var(--mono);font-size:13px;color:var(--text-dim);margin-bottom:12px">
+          ${isDry
+            ? 'These tracks have a different file extension in the target folder. FileType in the database would be updated.'
+            : 'FileType was updated in the database because the matched file has a different extension than the original.'}
+        </p>
+        <div class="track-list">`;
+      for (const t of typeChanged) {
+        html += trackRowRelocate(t, false);
+      }
+      html += '</div></div>';
+    }
+
+    // Multiple matches — need manual attention
+    if (data.multi_matches && data.multi_matches.length > 0) {
+      html += `<div class="report-section">
+        <div class="report-section-title">
+          <span>⚠ Multiple matches — manual action needed</span>
+          <span class="section-count">${data.multi_matches.length} track${data.multi_matches.length !== 1 ? 's' : ''}</span>
+        </div>
+        <p style="font-family:var(--mono);font-size:13px;color:var(--text-dim);margin-bottom:12px">
+          The script found more than one possible file for these tracks and skipped them to avoid
+          making a wrong choice. Review the candidates and relocate manually via Rekordbox.
+        </p>
+        <div class="track-list">`;
+      for (const t of data.multi_matches) {
+        html += `<div class="track-row">
+          <div class="track-title">${esc(t.title)}</div>
+          <div class="track-artist">${esc(t.artist)}</div>
+          <div class="track-path">Current: ${esc(t.old_path)}</div>
+          <div style="margin-top:6px">`;
+        for (let i = 0; i < t.candidates.length; i++) {
+          html += `<div style="font-family:var(--mono);font-size:11px;color:var(--orange);margin-top:2px">${i + 1}) ${esc(t.candidates[i])}</div>`;
+        }
+        html += '</div></div>';
+      }
+      html += '</div></div>';
+    }
+
+    // Still missing
+    if (data.missing && data.missing.length > 0) {
+      html += `<div class="report-section">
+        <div class="report-section-title">
+          <span>✗ Still missing — not found in target folder</span>
+          <span class="section-count">${data.missing.length} track${data.missing.length !== 1 ? 's' : ''}</span>
+        </div>
+        <p style="font-family:var(--mono);font-size:13px;color:var(--text-dim);margin-bottom:12px">
+          No matching file was found for these tracks in the target folder.
+          The database was not changed for these. Locate the files manually or import them into Rekordbox.
+        </p>
+        <div class="track-list">`;
+      for (const t of data.missing) {
+        html += `<div class="track-row">
+          <div class="track-title">${esc(t.title)}</div>
+          <div class="track-artist">${esc(t.artist)}</div>
+          <div class="track-path">DB path: ${esc(t.old_path)}</div>
+          <div class="track-warning">${esc(t.reason)}</div>
+        </div>`;
+      }
+      html += '</div></div>';
+    }
+
+    return html;
+  }
+
+  function trackRowRelocate(t, showWarning) {
+    const badgeCls = t.match_type === 'exact' ? 'exact'
+                   : (t.match_type.includes('fuzzy') || t.match_type.includes('substring') || t.match_type.includes('partial')) ? 'fuzzy'
+                   : '';
+    return `<div class="track-row">
+      <div class="track-title">${esc(t.title)}</div>
+      <div class="track-artist">${esc(t.artist)}</div>
+      <div class="track-path">From: ${esc(t.old_path)}</div>
+      <div class="track-new-path">To: ${esc(t.new_path)}</div>
+      ${t.ext_changed ? `<div style="font-family:var(--mono);font-size:11px;color:var(--orange);margin-top:3px">FileType: .${esc(t.old_ext)} → .${esc(t.new_ext)}</div>` : ''}
+      ${showWarning && t.warning ? `<div class="track-warning">${esc(t.warning)}</div>` : ''}
+      <span class="match-badge ${badgeCls}">${esc(t.match_type)}</span>
+    </div>`;
+  }
+
+  // ── Cleanup report ───────────────────────────────────────────────────────
+
+  function renderCleanupReport(data, isDry) {
+    const s = data.summary;
+    const verb = isDry ? 'Would move' : 'Moved';
+
+    let html = '<div class="report-stats">';
+    html += statCard('Files scanned',      s.total_scanned,      'accent');
+    html += statCard('Active in Rekordbox', s.active_in_rekordbox, 'green');
+    html += statCard('Unreferenced',        s.unreferenced,        s.unreferenced > 0 ? 'orange' : 'green');
+    if (isDry) {
+      html += statCard('Would move to DELETE', s.would_move, s.would_move > 0 ? 'orange' : 'accent');
+    } else {
+      html += statCard('Moved to DELETE',   s.moved,           s.moved > 0 ? 'orange' : 'accent');
+      html += statCard('Errors',            s.skipped_errors,  s.skipped_errors > 0 ? 'red' : 'accent');
+    }
+    html += '</div>';
+
+    if (data.unreferenced_files && data.unreferenced_files.length > 0) {
+      html += `<div class="report-section">
+        <div class="report-section-title">
+          <span>${isDry ? 'Would be moved to DELETE' : 'Moved to DELETE'}</span>
+          <span class="section-count">${data.unreferenced_files.length} file${data.unreferenced_files.length !== 1 ? 's' : ''}</span>
+        </div>
+        <p style="font-family:var(--mono);font-size:13px;color:var(--text-dim);margin-bottom:12px">
+          These audio files exist on disk but are not referenced by any active track in Rekordbox.
+          ${isDry ? 'They would be moved' : 'They have been moved'} to your DELETE folder for review.
+          Do not empty the DELETE folder until you have confirmed these are unwanted.
+        </p>
+        <div class="track-list">`;
+      for (const f of data.unreferenced_files) {
+        html += `<div class="track-row">
+          <div class="track-path" style="color:var(--orange)">${esc(f.src)}</div>
+          <div class="track-new-path">→ ${esc(f.dst)}</div>
+        </div>`;
+      }
+      html += '</div></div>';
+    } else {
+      html += '<div class="report-empty">✓ No unreferenced files found. Your library folder matches your Rekordbox collection.</div>';
+    }
+
+    if (data.errors && data.errors.length > 0) {
+      html += `<div class="report-section">
+        <div class="report-section-title" style="color:var(--red)">
+          <span>Errors</span>
+          <span class="section-count">${data.errors.length}</span>
+        </div>
+        <div class="track-list">`;
+      for (const e of data.errors) {
+        html += `<div class="track-row">
+          <div class="track-path" style="color:var(--red)">${esc(e.src)}</div>
+          <div class="track-warning">${esc(e.error)}</div>
+        </div>`;
+      }
+      html += '</div></div>';
+    }
+
+    return html;
+  }
+
+  // ── Remove Missing report ────────────────────────────────────────────────
+
+  function renderRemoveMissingReport(data, isDry) {
+    const s = data.summary;
+    const verb = isDry ? 'Would remove' : 'Removed';
+
+    let html = '<div class="report-stats">';
+    html += statCard('Total tracks',   s.total,   'accent');
+    html += statCard('Kept (file OK)', s.kept,    'green');
+    html += statCard(verb,             s.removed, s.removed > 0 ? 'orange' : 'green');
+    html += '</div>';
+
+    if (data.removed_tracks && data.removed_tracks.length > 0) {
+      html += `<div class="report-section">
+        <div class="report-section-title">
+          <span>${isDry ? 'Would be soft-deleted' : 'Soft-deleted from Rekordbox'}</span>
+          <span class="section-count">${data.removed_tracks.length} track${data.removed_tracks.length !== 1 ? 's' : ''}</span>
+        </div>
+        <p style="font-family:var(--mono);font-size:13px;color:var(--text-dim);margin-bottom:12px">
+          These tracks have no corresponding file on disk. ${isDry ? 'They would be marked' : 'They have been marked'}
+          as deleted in Rekordbox (<code style="color:var(--accent)">rb_local_deleted=1</code>) —
+          the same way Rekordbox itself removes tracks. No data is destroyed.
+        </p>
+        <div class="track-list">`;
+      for (const t of data.removed_tracks) {
+        html += `<div class="track-row">
+          <div class="track-title">${esc(t.title)}</div>
+          <div class="track-path">${esc(t.path)}</div>
+          <div class="track-warning">${esc(t.reason)}</div>
+        </div>`;
+      }
+      html += '</div></div>';
+    } else {
+      html += '<div class="report-empty">✓ All tracks have valid file paths. Nothing to remove.</div>';
+    }
+
+    return html;
+  }
+
+  // ── Fix Metadata report ──────────────────────────────────────────────────
+
+  function renderFixMetadataReport(data, isDry) {
+    const s = data.summary;
+    const verb = isDry ? 'Would fix' : 'Fixed';
+
+    let html = '<div class="report-stats">';
+    html += statCard('Total tracks',    s.total,      'accent');
+    html += statCard('Already correct', s.already_ok, 'green');
+    html += statCard(verb,              s.fixed,      s.fixed > 0 ? 'orange' : 'green');
+    html += statCard('File missing',    s.missing,    s.missing > 0 ? 'red' : 'accent');
+    html += '</div>';
+
+    if (data.fixed_tracks && data.fixed_tracks.length > 0) {
+      html += `<div class="report-section">
+        <div class="report-section-title">
+          <span>${isDry ? 'Would be corrected' : 'Corrected in database'}</span>
+          <span class="section-count">${data.fixed_tracks.length} track${data.fixed_tracks.length !== 1 ? 's' : ''}</span>
+        </div>
+        <p style="font-family:var(--mono);font-size:13px;color:var(--text-dim);margin-bottom:12px">
+          These tracks have a correct file path but stale FileType or FileSize in the database.
+          ${isDry ? 'These values would be updated' : 'These values have been updated'} to match the actual file on disk.
+          No audio files were modified.
+        </p>
+        <div class="track-list">`;
+      for (const t of data.fixed_tracks) {
+        const typeLabel = t.type_changed
+          ? `<div style="font-family:var(--mono);font-size:11px;color:var(--orange);margin-top:3px">FileType: ${esc(String(t.db_type))} → ${esc(String(t.actual_type))}</div>`
+          : '';
+        const sizeLabel = t.size_changed
+          ? `<div style="font-family:var(--mono);font-size:11px;color:var(--text-dim);margin-top:2px">FileSize: ${t.db_size.toLocaleString()} → ${t.actual_size.toLocaleString()} bytes</div>`
+          : '';
+        html += `<div class="track-row">
+          <div class="track-title">${esc(t.title)}</div>
+          <div class="track-path">${esc(t.path)}</div>
+          ${typeLabel}${sizeLabel}
+        </div>`;
+      }
+      html += '</div></div>';
+    } else {
+      html += '<div class="report-empty">✓ All tracks have correct FileType and FileSize. Nothing to fix.</div>';
+    }
+
+    if (data.missing_tracks && data.missing_tracks.length > 0) {
+      html += `<div class="report-section">
+        <div class="report-section-title" style="color:var(--red)">
+          <span>✗ Path stored but file not found on disk</span>
+          <span class="section-count">${data.missing_tracks.length} track${data.missing_tracks.length !== 1 ? 's' : ''}</span>
+        </div>
+        <p style="font-family:var(--mono);font-size:13px;color:var(--text-dim);margin-bottom:12px">
+          These tracks were skipped because their file no longer exists at the stored path.
+          Use <strong>Relocate Tracks</strong> to find them or <strong>Remove Missing</strong> to soft-delete them.
+        </p>
+        <div class="track-list">`;
+      for (const t of data.missing_tracks) {
+        html += `<div class="track-row">
+          <div class="track-title">${esc(t.title)}</div>
+          <div class="track-path" style="color:var(--red)">${esc(t.path)}</div>
+        </div>`;
+      }
+      html += '</div></div>';
+    }
+
+    return html;
+  }
+
+  // ── Helpers ──────────────────────────────────────────────────────────────
+
+  function statCard(label, value, cls) {
+    return `<div class="stat-card ${cls}">
+      <div class="stat-label">${label}</div>
+      <div class="stat-value">${value !== undefined ? value.toLocaleString() : '—'}</div>
+    </div>`;
+  }
+
+  function esc(s) {
+    if (!s) return '';
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  // ── SSE console runner ───────────────────────────────────────────────────
+
   function runScript(endpoint, params, statusEl) {
     const consoleEl = document.getElementById('console');
+    const reportPanel = document.getElementById('report-panel');
     consoleEl.innerHTML = '';
+    if (reportPanel) reportPanel.style.display = 'none';
     if (statusEl) { statusEl.textContent = 'Running...'; statusEl.className = 'status running'; }
 
     const qs = new URLSearchParams(params).toString();
     const url = `/api/run/${endpoint}?${qs}`;
     const es = new EventSource(url);
 
+    // Named event: 'report' — delivered atomically as a single JSON payload
+    es.addEventListener('report', e => {
+      try {
+        const reportData = JSON.parse(e.data);
+        renderReport(reportData);
+      } catch (err) {
+        console.error('Failed to parse report JSON:', err);
+      }
+    });
+
+    // Default unnamed events: console lines + done sentinel
     es.onmessage = e => {
       if (e.data === '%%DONE%%') {
         es.close();
         if (statusEl) { statusEl.textContent = 'Done'; statusEl.className = 'status done'; }
         return;
       }
+
       const line = document.createElement('div');
       const d = e.data;
       if (d.startsWith('$'))              line.className = 'c-dim';
@@ -454,6 +1124,35 @@
       if (statusEl) { statusEl.textContent = 'Error'; statusEl.className = 'status'; }
     };
   }
+  // ── Rekordbox status polling ─────────────────────────────────────────────
+
+  function checkRekordboxStatus() {
+    fetch('/api/rekordbox_status')
+      .then(r => r.json())
+      .then(data => {
+        document.getElementById('rb-warning').style.display =
+          data.running ? 'block' : 'none';
+      })
+      .catch(() => {
+        // Server unreachable — don't show banner
+        document.getElementById('rb-warning').style.display = 'none';
+      });
+  }
+
+  // Check immediately on page load, then every 2.5 seconds
+  checkRekordboxStatus();
+  setInterval(checkRekordboxStatus, 2500);
+
+  // ── Restore panel toggle ─────────────────────────────────────────────────
+
+  function toggleRestore() {
+    const btn  = document.querySelector('.restore-toggle');
+    const body = document.querySelector('.restore-body');
+    if (!btn || !body) return;
+    btn.classList.toggle('open');
+    body.classList.toggle('open');
+  }
+
 </script>
 
 {% block scripts %}{% endblock %}

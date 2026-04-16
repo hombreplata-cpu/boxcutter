@@ -4,7 +4,7 @@
 {% block content %}
 <div class="page-header">
   <h1>Relocate Tracks</h1>
-  <p>Re-point broken or MP3 track paths to a FLAC (or other) target folder. Cues, beatgrids, and playlists are preserved.</p>
+  <p>Re-point broken track paths to a target folder containing better-quality files. Cues, beatgrids, and playlists are preserved.</p>
 </div>
 <div class="divider"></div>
 
@@ -16,24 +16,26 @@
   <div class="card-label">Options</div>
 
   <div class="path-row">
-    <label>Target Root ↗</label>
+    <label>Target Folder ↗</label>
     <input class="path-input" id="target_root" type="text"
-           value="{{ cfg.flac_root }}" placeholder="FLAC folder">
+           value="{{ cfg.flac_root }}" placeholder="Folder containing your target files (e.g. FLAC, WAV, AIFF)">
   </div>
   <div class="path-hint">Drag a folder here, or <kbd>Right-click folder</kbd> → <kbd>Copy as path</kbd> → paste</div>
 
   <div class="path-row">
-    <label>Source Root ↙ <span style="color:var(--text-dim)">(optional)</span></label>
+    <label>Source Folder ↙ <span style="color:var(--text-dim)">(optional)</span></label>
     <input class="path-input" id="source_root" type="text"
-           value="{{ cfg.mp3_root }}" placeholder="MP3 folder to migrate away from">
+           value="{{ cfg.mp3_root }}" placeholder="Folder to migrate away from — can be same root as target">
   </div>
-  <div class="path-hint">Leave blank to only fix broken/missing paths</div>
+  <div class="path-hint">Leave blank to only fix broken/missing paths. Source can be a subfolder of, or the same folder as, your target.</div>
 
   <div class="path-row" style="margin-top:8px;">
     <label>Prefer extension</label>
     <input class="path-input" id="prefer_ext" type="text"
-           value="flac" style="width:80px;flex:none;">
+           value="flac" style="width:100px;flex:none;"
+           placeholder="flac, wav, aiff, mp3…">
   </div>
+  <div class="path-hint" style="margin-left:0">Preferred format when multiple matches exist. Change to <kbd>wav</kbd> or <kbd>aiff</kbd> as needed.</div>
 
   <div style="margin-top:14px;">
     <div class="option-row">
@@ -55,9 +57,33 @@
   <div id="console"></div>
 </div>
 
+<div id="report-panel"></div>
+
 <div class="btn-row">
   <button class="btn btn-secondary" onclick="run(true)">▷ &nbsp;Dry Run</button>
   <button class="btn btn-primary"   onclick="run(false)">▶ &nbsp;Run Relocate</button>
+</div>
+
+<div class="restore-panel">
+  <button class="restore-toggle" onclick="toggleRestore()">
+    <span>🔴 &nbsp;Something broke? — How to restore your database backup</span>
+    <span class="arrow">▾</span>
+  </button>
+  <div class="restore-body">
+    <h3>How to restore a Rekordbox database backup</h3>
+    <p>Every tool that modifies the database creates a timestamped backup before writing anything. Here's how to restore if something went wrong.</p>
+    <ol>
+      <li><strong>Close Rekordbox completely</strong> before touching any database files.</li>
+      <li>Open File Explorer and paste this into the address bar:<br>
+        <code class="restore-path">%APPDATA%\Pioneer\rekordbox\</code>
+      </li>
+      <li>You'll see <code>master.db</code> (live) and timestamped backups like <code>master_backup_20250415_143022.db</code>.</li>
+      <li>Rename <code>master.db</code> → <code>master_broken.db</code> to keep it as a reference.</li>
+      <li>Rename the backup you want to restore → <code>master.db</code>.</li>
+      <li>Open Rekordbox — it loads from the restored file.</li>
+    </ol>
+    <p style="color:var(--orange)">⚑ Delete old backups periodically to save disk space.</p>
+  </div>
 </div>
 {% endblock %}
 

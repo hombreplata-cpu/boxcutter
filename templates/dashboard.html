@@ -10,14 +10,14 @@
 
 <div class="card" style="margin-bottom:20px;">
   <div class="card-label">Saved Paths</div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-family:var(--mono);font-size:11px;">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-family:var(--mono);font-size:13px;">
     <div><span style="color:var(--text-dim)">Music Root &nbsp;</span><span style="color:var(--text)">{{ cfg.music_root or '—' }}</span></div>
     <div><span style="color:var(--text-dim)">FLAC Root &nbsp;&nbsp;</span><span style="color:var(--text)">{{ cfg.flac_root or '—' }}</span></div>
     <div><span style="color:var(--text-dim)">MP3 Root &nbsp;&nbsp;&nbsp;</span><span style="color:var(--text)">{{ cfg.mp3_root or '—' }}</span></div>
     <div><span style="color:var(--text-dim)">DELETE Folder </span><span style="color:var(--text)">{{ cfg.delete_dir or '—' }}</span></div>
   </div>
   <div style="margin-top:12px;">
-    <a href="/setup" style="font-family:var(--mono);font-size:10px;color:var(--accent);text-decoration:none;">⚙ Edit paths →</a>
+    <a href="/setup" style="font-family:var(--mono);font-size:12px;color:var(--accent);text-decoration:none;">⚙ Edit paths →</a>
   </div>
 </div>
 
@@ -41,6 +41,11 @@
     <div class="tc-icon">⊘</div>
     <div class="tc-name">Strip URL Comments</div>
     <div class="tc-desc">Remove URLs injected into MP3/FLAC comment tags by download services, leaving all other content intact.</div>
+  </a>
+  <a href="/tool/fix_metadata" class="tool-card">
+    <div class="tc-icon">⚕</div>
+    <div class="tc-name">Fix Metadata</div>
+    <div class="tc-desc">Correct stale FileType and FileSize in the Rekordbox database for tracks whose file path is correct but whose metadata doesn't match the file on disk.</div>
   </a>
 </div>
 {% endblock %}

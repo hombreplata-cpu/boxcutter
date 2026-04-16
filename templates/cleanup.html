@@ -33,7 +33,7 @@
     <input class="path-input" id="exclude" type="text"
            placeholder="Subfolder to skip">
   </div>
-  <div class="path-hint">Useful for excluding a FLAC folder that you don't want scanned</div>
+  <div class="path-hint">Useful for excluding a folder you don't want scanned</div>
 </div>
 
 <div class="console-wrap">
@@ -44,9 +44,33 @@
   <div id="console"></div>
 </div>
 
+<div id="report-panel"></div>
+
 <div class="btn-row">
   <button class="btn btn-secondary" onclick="run(true)">▷ &nbsp;Dry Run</button>
   <button class="btn btn-primary"   onclick="run(false)">▶ &nbsp;Run Cleanup</button>
+</div>
+
+<div class="restore-panel">
+  <button class="restore-toggle" onclick="toggleRestore()">
+    <span>🔴 &nbsp;Something broke? — How to restore your database backup</span>
+    <span class="arrow">▾</span>
+  </button>
+  <div class="restore-body">
+    <h3>How to restore a Rekordbox database backup</h3>
+    <p>Every tool that modifies the database creates a timestamped backup before writing anything. Here's how to restore if something went wrong.</p>
+    <ol>
+      <li><strong>Close Rekordbox completely</strong> before touching any database files.</li>
+      <li>Open File Explorer and paste this into the address bar:<br>
+        <code class="restore-path">%APPDATA%\Pioneer\rekordbox\</code>
+      </li>
+      <li>You'll see <code>master.db</code> (live) and timestamped backups like <code>master_backup_20250415_143022.db</code>.</li>
+      <li>Rename <code>master.db</code> → <code>master_broken.db</code> to keep it as a reference.</li>
+      <li>Rename the backup you want to restore → <code>master.db</code>.</li>
+      <li>Open Rekordbox — it loads from the restored file.</li>
+    </ol>
+    <p style="color:var(--orange)">⚑ Note: Library Cleanup moves files to DELETE, not the database. To recover moved files, simply move them back from your DELETE folder.</p>
+  </div>
 </div>
 {% endblock %}
 

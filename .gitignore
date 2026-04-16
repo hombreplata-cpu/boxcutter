@@ -41,3 +41,5 @@ master.db
 
 # Internal Claude docs
 .claude/
+CLAUDE.md
+CONTEXT.md
