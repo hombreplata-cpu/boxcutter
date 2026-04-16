@@ -27,6 +27,7 @@ DEFAULT_CONFIG = {
     "mp3_root": "",
     "delete_dir": str(Path.home() / "Desktop" / "DELETE"),
     "watch_dir": "",
+    "db_path": "",
 }
 
 
@@ -100,6 +101,7 @@ def setup():
                 "mp3_root": clean_path(request.form.get("mp3_root", "")),
                 "delete_dir": clean_path(request.form.get("delete_dir", "")),
                 "watch_dir": clean_path(request.form.get("watch_dir", "")),
+                "db_path": clean_path(request.form.get("db_path", "")),
             }
         )
         saved = True
@@ -212,6 +214,10 @@ def api_run(script_name):
             return jsonify({"error": "playlist_id required"}), 400
         args += ["--watch-dir", watch_dir, "--playlist-id", playlist_id]
 
+    db_path = clean_path(cfg.get("db_path", ""))
+    if db_path:
+        args += ["--db-path", db_path]
+
     if dry_run:
         args.append("--dry-run")
 
@@ -269,9 +275,14 @@ def api_playlists():
     same Python environment used by all other rekordbox-tools scripts.
     """
     script_path = SCRIPTS_DIR / "get_playlists.py"
+    cfg = load_config()
+    cmd = [sys.executable, str(script_path)]
+    db_path = clean_path(cfg.get("db_path", ""))
+    if db_path:
+        cmd += ["--db-path", db_path]
     try:
         result = subprocess.run(
-            [sys.executable, str(script_path)],
+            cmd,
             capture_output=True,
             text=True,
             encoding="utf-8",

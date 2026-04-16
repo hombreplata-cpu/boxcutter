@@ -16,8 +16,12 @@ from pyrekordbox import Rekordbox6Database as MasterDatabase
 
 
 def main():
+    db_path = None
+    if len(sys.argv) == 3 and sys.argv[1] == "--db-path":
+        db_path = sys.argv[2] or None
+
     try:
-        db = MasterDatabase()
+        db = MasterDatabase(path=db_path)
         # Attribute 0 = normal playlist; 1 = folder; 4 = smart playlist
         playlists = (
             db.get_playlist().filter_by(Attribute=0, rb_local_deleted=0).order_by("Name").all()

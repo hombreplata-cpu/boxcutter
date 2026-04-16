@@ -48,6 +48,12 @@ def main():
     parser.add_argument("--dry-run", action="store_true", help="Preview changes without writing")
     parser.add_argument("--verbose", action="store_true", help="Print all tracks checked")
     parser.add_argument("--ids", metavar="ID_LIST", help="Comma-separated track IDs to fix")
+    parser.add_argument(
+        "--db-path",
+        metavar="PATH",
+        default="",
+        help="Path to master.db (auto-detected if not set)",
+    )
     args = parser.parse_args()
 
     id_filter = None
@@ -55,7 +61,7 @@ def main():
         id_filter = {i.strip() for i in args.ids.split(",")}
 
     print("[db] Opening Rekordbox database...")
-    db = MasterDatabase()
+    db = MasterDatabase(path=args.db_path if args.db_path else None)
 
     if not args.dry_run:
         try:

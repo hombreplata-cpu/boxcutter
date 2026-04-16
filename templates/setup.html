@@ -61,6 +61,14 @@
              placeholder="e.g. C:\Users\You\Downloads\NewMusic">
     </div>
     <div class="path-hint">Folder scanned by Add New Tracks — audio files here not yet in Rekordbox will be added to a playlist</div>
+
+    <div class="path-row">
+      <label>Rekordbox DB Path <span style="color:var(--text-dim)">(optional)</span></label>
+      <input class="path-input" type="text" name="db_path"
+             value="{{ cfg.db_path }}"
+             placeholder="e.g. C:\Users\You\Dropbox\rekordbox\master.db">
+    </div>
+    <div class="path-hint">Leave blank to auto-detect (default: %APPDATA%\Pioneer\rekordbox\master.db). Set this if your DB lives in Dropbox, OneDrive, or a custom location.</div>
   </div>
 
   <div class="card" style="margin-top:0;">

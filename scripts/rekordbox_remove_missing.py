@@ -29,7 +29,7 @@ def normalize_path(raw):
 
 def run(args):
     print("[db] Opening Rekordbox database...")
-    db = MasterDatabase()
+    db = MasterDatabase(path=args.db_path if args.db_path else None)
 
     if not args.dry_run:
         try:
@@ -82,6 +82,12 @@ def main():
         "--dry-run",
         action="store_true",
         help="Show what would be removed without modifying the database",
+    )
+    parser.add_argument(
+        "--db-path",
+        metavar="PATH",
+        default="",
+        help="Path to master.db (auto-detected if not set)",
     )
     args = parser.parse_args()
     run(args)
