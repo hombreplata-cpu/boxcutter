@@ -88,13 +88,13 @@ echo  Press any key to run the key setup now.
 echo  If you have already done this step, close this window.
 echo.
 pause >nul
-python -m pyrekordbox download-key
+python -m pyrekordbox install-sqlcipher
 if errorlevel 1 (
     echo.
-    echo  [!] Key setup failed. Make sure Rekordbox is installed
-    echo      and has been opened at least once, then run:
+    echo  [!] SQLCipher setup failed. This is required to read the
+    echo      Rekordbox database. Try running manually:
     echo.
-    echo      python -m pyrekordbox download-key
+    echo      python -m pyrekordbox install-sqlcipher
     echo.
 )
 

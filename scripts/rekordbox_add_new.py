@@ -74,8 +74,11 @@ def run(args):
     print(f"[db]   {len(existing_paths):,} tracks already in database")
 
     # Find the target playlist
+    # get_playlist(ID=x) returns the object directly (not a query), so no .one() needed
     try:
-        playlist = db.get_playlist(ID=args.playlist_id).one()
+        playlist = db.get_playlist(ID=args.playlist_id)
+        if playlist is None:
+            raise ValueError("no result")
     except Exception:
         print(f"[error] Playlist ID '{args.playlist_id}' not found in database")
         sys.exit(1)
