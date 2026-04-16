@@ -11,6 +11,7 @@ Usage:
 """
 
 import argparse
+import contextlib
 import json
 import os
 import shutil
@@ -18,6 +19,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+import mutagen
 from pyrekordbox import Rekordbox6Database as MasterDatabase
 
 AUDIO_EXTENSIONS = {
@@ -25,12 +27,128 @@ AUDIO_EXTENSIONS = {
     ".wav",
     ".flac",
     ".aiff",
+    ".aif",
 }
 
 
 def normalize_path(p):
     """Normalise to forward slashes + lowercase for Windows case-insensitive comparison."""
     return str(p).replace("\\", "/").lower()
+
+
+def _first(val):
+    """Return first element of a list/tuple, or val itself. Returns None if empty."""
+    if isinstance(val, (list, tuple)):
+        return val[0] if val else None
+    return val
+
+
+def read_audio_tags(fp):
+    """
+    Read audio tags from an audio file using mutagen.
+
+    Returns a dict with any subset of:
+        title, artist, album, genre, bpm, year, track_no, comment,
+        length_ms, bitrate, sample_rate
+
+    All tag reads are best-effort — any exception returns {} so the caller
+    can still proceed with the filename as a fallback title.
+    """
+    try:
+        audio = mutagen.File(fp, easy=True)
+        if audio is None:
+            return {}
+
+        tags = {}
+
+        # Text tags — mutagen easy=True normalises all formats to lowercase keys
+        raw_title = _first(audio.get("title"))
+        if raw_title:
+            val = str(raw_title).strip()
+            if val:
+                tags["title"] = val
+
+        raw_artist = _first(audio.get("artist"))
+        if raw_artist:
+            val = str(raw_artist).strip()
+            if val:
+                tags["artist"] = val
+
+        raw_album = _first(audio.get("album"))
+        if raw_album:
+            val = str(raw_album).strip()
+            if val:
+                tags["album"] = val
+
+        raw_genre = _first(audio.get("genre"))
+        if raw_genre:
+            val = str(raw_genre).strip()
+            if val:
+                tags["genre"] = val
+
+        raw_bpm = _first(audio.get("bpm"))
+        if raw_bpm:
+            with contextlib.suppress(ValueError, TypeError):
+                tags["bpm"] = int(float(str(raw_bpm).strip()))
+
+        # Year — take first 4 chars of the date tag
+        raw_date = _first(audio.get("date"))
+        if raw_date:
+            with contextlib.suppress(ValueError, TypeError):
+                tags["year"] = int(str(raw_date).strip()[:4])
+
+        # Track number — handles "1/12" total-track format
+        raw_trackno = _first(audio.get("tracknumber"))
+        if raw_trackno:
+            with contextlib.suppress(ValueError, TypeError):
+                tags["track_no"] = int(str(raw_trackno).strip().split("/")[0])
+
+        raw_comment = _first(audio.get("comment"))
+        if raw_comment:
+            val = str(raw_comment).strip()
+            if val:
+                tags["comment"] = val
+
+        # Stream info properties (length, bitrate, sample rate)
+        info = audio.info
+        if hasattr(info, "length") and info.length:
+            tags["length_ms"] = int(info.length * 1000)
+        if hasattr(info, "bitrate") and info.bitrate:
+            tags["bitrate"] = info.bitrate // 1000  # bps → kbps
+        if hasattr(info, "sample_rate") and info.sample_rate:
+            tags["sample_rate"] = info.sample_rate
+
+        return tags
+
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def _get_or_create_artist(db, name):
+    """Return existing DjmdArtist by name, creating it if absent. Returns None on error."""
+    try:
+        obj = db.get_artist(Name=name).one_or_none()
+        return obj if obj is not None else db.add_artist(name=name)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _get_or_create_album(db, name, artist=None):
+    """Return existing DjmdAlbum by name, creating it if absent. Returns None on error."""
+    try:
+        obj = db.get_album(Name=name).one_or_none()
+        return obj if obj is not None else db.add_album(name=name, artist=artist)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _get_or_create_genre(db, name):
+    """Return existing DjmdGenre by name, creating it if absent. Returns None on error."""
+    try:
+        obj = db.get_genre(Name=name).one_or_none()
+        return obj if obj is not None else db.add_genre(name=name)
+    except Exception:  # noqa: BLE001
+        return None
 
 
 def scan_directory(watch_dir):
@@ -109,16 +227,53 @@ def run(args):
 
     for fp in new_files:
         label = fp.name
+        tags = read_audio_tags(fp)
+        title = tags.get("title") or fp.stem
+
         if args.dry_run:
             print(f"[dry-run] Would add: {fp}")
-            added.append({"title": fp.stem, "path": normalize_path(fp)})
+            added.append({"title": title, "path": normalize_path(fp)})
             continue
 
         try:
-            content = db.add_content(fp, Title=fp.stem)
+            # Build content kwargs from audio tags
+            content_kwargs = {"Title": title}
+
+            # Direct scalar fields — only include if the tag value is present
+            for tag_key, db_field in [
+                ("bpm", "BPM"),
+                ("year", "ReleaseYear"),
+                ("track_no", "TrackNo"),
+                ("comment", "Commnt"),
+                ("length_ms", "Length"),
+                ("bitrate", "BitRate"),
+                ("sample_rate", "SampleRate"),
+            ]:
+                val = tags.get(tag_key)
+                if val is not None:
+                    content_kwargs[db_field] = val
+
+            # FK fields — get-or-create Artist/Album/Genre records
+            artist_obj = None
+            if tags.get("artist"):
+                artist_obj = _get_or_create_artist(db, tags["artist"])
+                if artist_obj is not None:
+                    content_kwargs["ArtistID"] = artist_obj.ID
+
+            if tags.get("album"):
+                album_obj = _get_or_create_album(db, tags["album"], artist=artist_obj)
+                if album_obj is not None:
+                    content_kwargs["AlbumID"] = album_obj.ID
+
+            if tags.get("genre"):
+                genre_obj = _get_or_create_genre(db, tags["genre"])
+                if genre_obj is not None:
+                    content_kwargs["GenreID"] = genre_obj.ID
+
+            content = db.add_content(fp, **content_kwargs)
             db.add_to_playlist(playlist, content)
             print(f"[added]   {label}")
-            added.append({"title": fp.stem, "path": normalize_path(fp)})
+            added.append({"title": title, "path": normalize_path(fp)})
         except ValueError as exc:
             # add_content raises ValueError for duplicate paths or unknown extensions
             reason = str(exc)
