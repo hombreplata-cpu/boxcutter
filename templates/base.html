@@ -958,8 +958,9 @@
     const verb = isDry ? 'Would move' : 'Moved';
 
     let html = '<div class="report-stats">';
-    html += statCard('Files scanned',      s.total_scanned,      'accent');
-    html += statCard('Active in Rekordbox', s.active_in_rekordbox, 'green');
+    html += statCard('Total in Rekordbox',  s.total_in_db,         'accent');
+    html += statCard('Files scanned',       s.total_scanned,       'accent');
+    html += statCard('Matched to library',  s.active_in_rekordbox, 'green');
     html += statCard('Unreferenced',        s.unreferenced,        s.unreferenced > 0 ? 'orange' : 'green');
     if (isDry) {
       html += statCard('Would move to DELETE', s.would_move, s.would_move > 0 ? 'orange' : 'accent');

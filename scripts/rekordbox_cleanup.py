@@ -206,6 +206,7 @@ def run(args):
         "dry_run": args.dry_run,
         "summary": {
             "total_scanned": total_scanned,
+            "total_in_db": len(active_paths),
             "active_in_rekordbox": total_scanned - len(unreferenced),
             "unreferenced": len(unreferenced),
             "moved": moved,
