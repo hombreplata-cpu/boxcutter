@@ -65,13 +65,15 @@ def run(args):
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         backup_path = db_path.with_name(f"master_backup_{ts}.db")
         shutil.copy2(db_path, backup_path)
-        print(f"[backup] Saved to: {backup_path}")
+        print(f"[backup] {backup_path}")
 
     # Build set of all paths already in the DB (normalised to forward slashes)
+    # Filter to active tracks only (rb_local_deleted=0) — soft-deleted tracks are
+    # excluded so they can be re-added if still present on disk.
     print("[db]   Loading existing track paths…")
-    all_content = db.get_content().all()
+    all_content = db.get_content().filter_by(rb_local_deleted=0).all()
     existing_paths = {normalize_path(c.FolderPath) for c in all_content if c.FolderPath}
-    print(f"[db]   {len(existing_paths):,} tracks already in database")
+    print(f"[db]   {len(existing_paths):,} active tracks in database")
 
     # Find the target playlist
 

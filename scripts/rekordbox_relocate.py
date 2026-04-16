@@ -38,6 +38,7 @@
 #   - Rekordbox must be CLOSED before running this script
 
 import argparse
+import json
 import os
 import platform
 import re
@@ -275,9 +276,9 @@ def run(args):
         backup_path = db_path.with_name(f"master_backup_{ts}.db")
         try:
             shutil.copy2(db_path, backup_path)
-            print(f"[backup] Saved to: {backup_path}")
+            print(f"[backup] {backup_path}")
         except Exception as e:
-            print(f"[backup] Warning - could not create backup: {e}")
+            print(f"[backup] WARNING: could not create backup: {e}")
 
     exact_index, stem_index, norm_index = build_target_index(target_root, extensions)
 
@@ -298,6 +299,7 @@ def run(args):
     already_ok = 0
     multi_match_log = []
     missing_log = []
+    updated_log = []
 
     id_filter = None
     if args.ids:
@@ -359,6 +361,20 @@ def run(args):
                 content.OrgFolderPath = new_path_stored
                 content.FileType = actual_type
                 content.FileSize = actual_size
+            old_ext = Path(plain_path).suffix.lower().lstrip(".")
+            new_ext = Path(new_path).suffix.lower().lstrip(".")
+            updated_log.append(
+                {
+                    "title": content.Title or "",
+                    "artist": raw_artist,
+                    "old_path": plain_path,
+                    "new_path": new_path,
+                    "match_type": match_type,
+                    "ext_changed": old_ext != new_ext,
+                    "old_ext": old_ext,
+                    "new_ext": new_ext,
+                }
+            )
             updated += 1
             if match_type == "exact":
                 updated_exact += 1
@@ -432,6 +448,44 @@ def run(args):
     if not args.dry_run and updated > 0:
         print(f"Done. {updated:,} paths updated in Rekordbox database.")
         print("Open Rekordbox to see the changes.")
+
+    filetype_updated = sum(1 for t in updated_log if t["ext_changed"])
+    print("%%REPORT_START%%")
+    print(
+        json.dumps(
+            {
+                "tool": "relocate",
+                "dry_run": args.dry_run,
+                "summary": {
+                    "total": total,
+                    "already_ok": already_ok,
+                    "updated": updated,
+                    "skipped_multi": skipped_multi,
+                    "still_missing": still_missing,
+                    "filetype_updated": filetype_updated,
+                    "by_match_type": {
+                        "exact": updated_exact,
+                        "title_artist": updated_title_art,
+                        "artist_title": updated_art_title,
+                        "prefix": updated_prefix,
+                        "substring": updated_substring,
+                        "partial": updated_partial,
+                        "fuzzy": updated_fuzzy,
+                    },
+                },
+                "updated": updated_log,
+                "multi_matches": [
+                    {"title": t, "artist": a, "old_path": old, "candidates": list(m)}
+                    for _id, t, a, old, m in multi_match_log
+                ],
+                "missing": [
+                    {"title": t, "artist": a, "old_path": old, "reason": reason}
+                    for _id, t, a, old, reason in missing_log
+                ],
+            }
+        )
+    )
+    print("%%REPORT_END%%")
 
 
 def main():
