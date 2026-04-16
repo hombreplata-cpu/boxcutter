@@ -35,7 +35,7 @@ DEFAULT_CONFIG = {
 HISTORY_FILE = Path.home() / ".rekordbox_tools_history.json"
 
 TOOL_LABELS = {
-    "relocate": "Relocate Tracks",
+    "relocate": "Repath Tracks",
     "cleanup": "Library Cleanup",
     "remove_missing": "Remove Missing",
     "strip_comments": "Strip URL Comments",
@@ -159,7 +159,7 @@ def setup():
 def tool(n):
     cfg = load_config()
     tools = {
-        "relocate": ("Relocate Tracks", "relocate.html"),
+        "relocate": ("Repath Tracks", "relocate.html"),
         "cleanup": ("Library Cleanup", "cleanup.html"),
         "remove_missing": ("Remove Missing Tracks", "remove_missing.html"),
         "strip_comments": ("Strip URL Comments", "strip_comments.html"),
@@ -365,6 +365,38 @@ def api_playlists():
         )
         if result.returncode != 0:
             msg = result.stderr.strip() or "Unknown error reading playlists"
+            return jsonify({"error": msg}), 500
+        return result.stdout, 200, {"Content-Type": "application/json"}
+    except subprocess.TimeoutExpired:
+        return jsonify({"error": "Timed out reading Rekordbox database"}), 500
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/stats")
+def api_stats():
+    """Return library stats (track count, file type breakdown, total size) as JSON.
+
+    Runs get_stats.py as a subprocess so pyrekordbox is imported in the
+    same Python environment used by all other rekordbox-tools scripts.
+    """
+    script_path = SCRIPTS_DIR / "get_stats.py"
+    cfg = load_config()
+    cmd = [sys.executable, str(script_path)]
+    db_path = clean_path(cfg.get("db_path", ""))
+    if db_path:
+        cmd += ["--db-path", db_path]
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=15,
+        )
+        if result.returncode != 0:
+            msg = result.stderr.strip() or "Unknown error reading database stats"
             return jsonify({"error": msg}), 500
         return result.stdout, 200, {"Content-Type": "application/json"}
     except subprocess.TimeoutExpired:
