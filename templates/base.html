@@ -349,9 +349,22 @@
     #report-panel {
       display: none;
       margin-top: 20px;
+    }
+
+    .report-item {
       border: 1px solid var(--border);
       border-radius: 6px;
       overflow: hidden;
+      margin-bottom: 12px;
+    }
+
+    .report-item-previous {
+      opacity: 0.5;
+      transition: opacity 0.15s;
+    }
+
+    .report-item-previous:hover {
+      opacity: 0.85;
     }
 
     .report-bar {
@@ -769,36 +782,42 @@
   function renderReport(data) {
     const panel = document.getElementById('report-panel');
     if (!panel) return;
-    panel.style.display = 'block';
-    panel.innerHTML = '';
 
     const isDry = data.dry_run;
     const modeLabel = isDry
-      ? '<span style="color:var(--orange)">⚑ DRY RUN — no changes were written</span>'
-      : '<span style="color:var(--green)">✓ LIVE RUN — changes applied to database</span>';
+      ? '<span style="color:var(--orange)">⚑ Dry Run — no changes written</span>'
+      : '<span style="color:var(--green)">✓ Live Run — changes applied to database</span>';
+    const time = new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
 
-    let html = `
-      <div class="report-bar">
-        <span>Results Report</span>
-        <span class="report-mode">${modeLabel}</span>
-      </div>
-      <div class="report-body">
-    `;
-
+    let inner = '';
     if (data.tool === 'relocate') {
-      html += renderRelocateReport(data, isDry);
+      inner = renderRelocateReport(data, isDry);
     } else if (data.tool === 'cleanup') {
-      html += renderCleanupReport(data, isDry);
+      inner = renderCleanupReport(data, isDry);
     } else if (data.tool === 'remove_missing') {
-      html += renderRemoveMissingReport(data, isDry);
+      inner = renderRemoveMissingReport(data, isDry);
     } else if (data.tool === 'fix_metadata') {
-      html += renderFixMetadataReport(data, isDry);
+      inner = renderFixMetadataReport(data, isDry);
     } else if (data.tool === 'add_new') {
-      html += renderAddNewReport(data, isDry);
+      inner = renderAddNewReport(data, isDry);
     }
 
-    html += '</div>';
-    panel.innerHTML = html;
+    // Dim any existing report blocks before adding the new one
+    for (const el of panel.querySelectorAll('.report-item')) {
+      el.classList.add('report-item-previous');
+    }
+
+    const block = document.createElement('div');
+    block.className = 'report-item';
+    block.innerHTML =
+      '<div class="report-bar">' +
+        '<span>Results \u2014 ' + time + '</span>' +
+        '<span class="report-mode">' + modeLabel + '</span>' +
+      '</div>' +
+      '<div class="report-body">' + inner + '</div>';
+
+    panel.insertBefore(block, panel.firstChild);
+    panel.style.display = 'block';
   }
 
   // ── Relocate report ──────────────────────────────────────────────────────
@@ -1211,9 +1230,10 @@
 
   // ── SSE console runner ───────────────────────────────────────────────────
 
-  let _prevRunWasDry = null;
+  let _prevRunWasDry     = null;
+  let _activeEventSource = null;  // closed before each new run to stop stale streams
 
-  function archivePreviousRun(consoleHtml, reportHtml, reportVisible, wasDry) {
+  function archivePreviousConsole(consoleHtml, wasDry) {
     const consoleWrap = document.querySelector('.console-wrap');
     if (!consoleWrap) return;
 
@@ -1225,7 +1245,7 @@
     }
 
     const label = wasDry === null ? 'Previous Run'
-                : wasDry ? 'Dry Run Preview' : 'Previous Run';
+                : wasDry ? 'Dry Run' : 'Previous Run';
     const time = new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
 
     const el = document.createElement('div');
@@ -1237,39 +1257,39 @@
       '</div>' +
       '<div class="prev-run-content">' +
         '<div class="prev-run-console">' + consoleHtml + '</div>' +
-        (reportVisible && reportHtml
-          ? '<div class="prev-run-report">' + reportHtml + '</div>'
-          : '') +
       '</div>';
     container.appendChild(el);
   }
 
   function runScript(endpoint, params, statusEl) {
-    const consoleEl = document.getElementById('console');
-    const reportPanel = document.getElementById('report-panel');
+    const consoleEl   = document.getElementById('console');
 
-    // Archive any existing run results before clearing
+    // Archive previous console output (console only — reports accumulate separately)
     const existingConsoleHtml = consoleEl.innerHTML.trim();
-    const reportVisible = reportPanel && reportPanel.style.display !== 'none';
-    const existingReportHtml = reportVisible ? reportPanel.innerHTML.trim() : '';
-    if (existingConsoleHtml || reportVisible) {
-      archivePreviousRun(existingConsoleHtml, existingReportHtml, reportVisible, _prevRunWasDry);
+    if (existingConsoleHtml) {
+      archivePreviousConsole(existingConsoleHtml, _prevRunWasDry);
     }
     _prevRunWasDry = params.dry_run === '1';
 
+    // Kill any in-flight SSE stream before opening a new one
+    if (_activeEventSource) {
+      _activeEventSource.close();
+      _activeEventSource = null;
+    }
+
     consoleEl.innerHTML = '';
-    if (reportPanel) reportPanel.style.display = 'none';
+    // Report panel is NOT cleared — reports from all runs accumulate there
     if (statusEl) { statusEl.textContent = 'Running...'; statusEl.className = 'status running'; }
 
-    const qs = new URLSearchParams(params).toString();
+    const qs  = new URLSearchParams(params).toString();
     const url = `/api/run/${endpoint}?${qs}`;
-    const es = new EventSource(url);
+    const es  = new EventSource(url);
+    _activeEventSource = es;
 
     // Named event: 'report' — delivered atomically as a single JSON payload
     es.addEventListener('report', e => {
       try {
-        const reportData = JSON.parse(e.data);
-        renderReport(reportData);
+        renderReport(JSON.parse(e.data));
       } catch (err) {
         console.error('Failed to parse report JSON:', err);
       }
@@ -1279,6 +1299,7 @@
     es.onmessage = e => {
       if (e.data === '%%DONE%%') {
         es.close();
+        _activeEventSource = null;
         if (statusEl) { statusEl.textContent = 'Done'; statusEl.className = 'status done'; }
         return;
       }
@@ -1297,6 +1318,7 @@
 
     es.onerror = () => {
       es.close();
+      _activeEventSource = null;
       if (statusEl) { statusEl.textContent = 'Error'; statusEl.className = 'status'; }
     };
   }
