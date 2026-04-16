@@ -8,10 +8,12 @@ Then open http://localhost:5000 in your browser.
 """
 
 import json
+import os
 import subprocess
 import sys
 import threading
 import webbrowser
+from datetime import datetime
 from pathlib import Path
 
 from flask import Flask, Response, jsonify, redirect, render_template, request, url_for
@@ -27,6 +29,17 @@ DEFAULT_CONFIG = {
     "mp3_root": "",
     "delete_dir": str(Path.home() / "Desktop" / "DELETE"),
     "watch_dir": "",
+}
+
+HISTORY_FILE = Path.home() / ".rekordbox_tools_history.json"
+
+TOOL_LABELS = {
+    "relocate": "Relocate Tracks",
+    "cleanup": "Library Cleanup",
+    "remove_missing": "Remove Missing",
+    "strip_comments": "Strip URL Comments",
+    "fix_metadata": "Fix Metadata",
+    "add_new": "Add New Tracks",
 }
 
 
@@ -60,6 +73,32 @@ def clean_path(raw):
     if not raw:
         return raw
     return raw.strip().strip('"').strip("'").strip()
+
+
+def get_rekordbox_backup_dir():
+    """Return the Pioneer rekordbox data directory (where master.db and backups live)."""
+    appdata = os.environ.get("APPDATA", "")
+    return Path(appdata) / "Pioneer" / "rekordbox"
+
+
+def load_history():
+    if HISTORY_FILE.exists():
+        try:
+            with open(HISTORY_FILE) as f:
+                return json.load(f)
+        except Exception:  # noqa: S110 — corrupt history file is non-fatal; fall back to empty list
+            pass
+    return []
+
+
+def save_history_entry(entry):
+    history = load_history()
+    history.insert(0, entry)  # newest first
+    try:
+        with open(HISTORY_FILE, "w") as f:
+            json.dump(history, f, indent=2)
+    except Exception:  # noqa: S110 — history write failure is non-fatal; run continues normally
+        pass
 
 
 def rekordbox_is_running():
@@ -218,6 +257,9 @@ def api_run(script_name):
     cmd = [sys.executable, str(script_path)] + args
 
     def generate():
+        backup_path = None
+        report_data = None
+
         yield f"data: $ {' '.join(cmd)}\n\n"
         yield "data: \n\n"
         proc = subprocess.Popen(
@@ -234,6 +276,10 @@ def api_run(script_name):
         for line in iter(proc.stdout.readline, ""):
             line = line.rstrip()
 
+            # Capture backup path printed by DB scripts
+            if line.startswith("[backup] ") and "WARNING" not in line:
+                backup_path = line[len("[backup] ") :]
+
             if line == "%%REPORT_START%%":
                 in_report = True
                 report_lines = []
@@ -242,6 +288,10 @@ def api_run(script_name):
                 in_report = False
                 # Emit as a named SSE event — delivered atomically to the client
                 payload = "".join(report_lines)
+                try:
+                    report_data = json.loads(payload)
+                except Exception:
+                    report_data = None
                 yield f"event: report\ndata: {payload}\n\n"
                 continue
             if in_report:
@@ -252,6 +302,21 @@ def api_run(script_name):
 
         proc.stdout.close()
         proc.wait()
+
+        # Persist a history entry for every completed run
+        ts = datetime.now()
+        save_history_entry(
+            {
+                "id": f"{ts.strftime('%Y%m%d_%H%M%S')}_{script_name}",
+                "tool": script_name,
+                "tool_label": TOOL_LABELS.get(script_name, script_name),
+                "timestamp": ts.isoformat(),
+                "dry_run": dry_run,
+                "backup_path": backup_path,
+                "summary": report_data.get("summary") if report_data else None,
+            }
+        )
+
         yield "data: %%DONE%%\n\n"
 
     return Response(
@@ -286,6 +351,117 @@ def api_playlists():
         return jsonify({"error": "Timed out reading Rekordbox database"}), 500
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/history")
+def history_page():
+    return render_template("history.html")
+
+
+@app.route("/backup_cleaner")
+def backup_cleaner_page():
+    return render_template("backup_cleaner.html")
+
+
+@app.route("/api/history")
+def api_history():
+    history = load_history()
+    page = max(1, int(request.args.get("page", 1)))
+    per_page = max(1, min(100, int(request.args.get("per_page", 20))))
+    total = len(history)
+    start = (page - 1) * per_page
+    entries = history[start : start + per_page]
+    for entry in entries:
+        bp = entry.get("backup_path")
+        entry["backup_exists"] = Path(bp).exists() if bp else None
+    return jsonify(
+        {
+            "entries": entries,
+            "total": total,
+            "page": page,
+            "per_page": per_page,
+            "pages": max(1, (total + per_page - 1) // per_page),
+        }
+    )
+
+
+@app.route("/api/history", methods=["DELETE"])
+def api_history_clear():
+    try:
+        if HISTORY_FILE.exists():
+            HISTORY_FILE.unlink()
+        return jsonify({"ok": True})
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/backups")
+def api_backups():
+    backup_dir = get_rekordbox_backup_dir()
+    if not backup_dir.exists():
+        return jsonify({"error": f"Directory not found: {backup_dir}"}), 404
+    now = datetime.now()
+    files = []
+    for f in backup_dir.glob("master_backup_*.db"):
+        try:
+            stat = f.stat()
+            mtime = datetime.fromtimestamp(stat.st_mtime)
+            age_days = (now - mtime).days
+            files.append(
+                {
+                    "name": f.name,
+                    "path": str(f),
+                    "size": stat.st_size,
+                    "modified": mtime.isoformat(),
+                    "age_days": age_days,
+                }
+            )
+        except Exception:  # noqa: S110 — unreadable backup file is skipped; rest of list still returned
+            pass
+    files.sort(key=lambda x: x["modified"], reverse=True)
+    return jsonify({"backups": files, "backup_dir": str(backup_dir)})
+
+
+@app.route("/api/backups/clean", methods=["POST"])
+def api_backups_clean():
+    data = request.get_json() or {}
+    try:
+        keep_days = max(1, int(data.get("keep_days", 30)))
+    except (TypeError, ValueError):
+        return jsonify({"error": "keep_days must be a positive integer"}), 400
+    dry_run = bool(data.get("dry_run", False))
+    backup_dir = get_rekordbox_backup_dir()
+    if not backup_dir.exists():
+        return jsonify({"error": f"Directory not found: {backup_dir}"}), 404
+    now = datetime.now()
+    deleted = []
+    errors = []
+    for f in backup_dir.glob("master_backup_*.db"):
+        try:
+            stat = f.stat()
+            mtime = datetime.fromtimestamp(stat.st_mtime)
+            age_days = (now - mtime).days
+            if age_days > keep_days:
+                if not dry_run:
+                    f.unlink()
+                deleted.append(
+                    {
+                        "name": f.name,
+                        "path": str(f),
+                        "age_days": age_days,
+                        "size": stat.st_size,
+                    }
+                )
+        except Exception as exc:
+            errors.append({"path": str(f), "error": str(exc)})
+    return jsonify(
+        {
+            "deleted": deleted,
+            "errors": errors,
+            "dry_run": dry_run,
+            "keep_days": keep_days,
+        }
+    )
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────

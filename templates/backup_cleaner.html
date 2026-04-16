@@ -1,0 +1,221 @@
+{% extends "base.html" %}
+{% block title %}Backup Cleaner — rekordbocks{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Backup Cleaner</h1>
+  <p>Manage timestamped Rekordbox database backups created by each tool run.</p>
+</div>
+<div class="divider"></div>
+
+<div class="info-box">
+  ⚠ <strong>Backups are your safety net.</strong>
+  Each DB tool creates a timestamped <code style="color:var(--accent);font-size:12px;">master_backup_*.db</code> file before writing any changes.
+  Only delete backups you no longer need for emergency recovery.
+  Deleted backups will appear as <span style="color:var(--text-dim);">◌ backup deleted</span> in Run History — that state is expected and safe.
+</div>
+
+<div class="card">
+  <div class="card-label">Current Backups</div>
+  <div id="backup-loading" style="font-family:var(--mono);font-size:13px;color:var(--text-dim);">Loading...</div>
+  <div id="backup-dir-label" style="font-family:var(--mono);font-size:11px;color:var(--text-dim);margin-bottom:10px;display:none;word-break:break-all;"></div>
+  <div id="backup-list"></div>
+</div>
+
+<div class="card" style="margin-top:0;">
+  <div class="card-label">Clean Up Old Backups</div>
+  <p style="font-size:14px;color:var(--text-dim);margin-bottom:16px;line-height:1.6;">
+    Delete backups older than a chosen number of days.
+    Use <strong style="color:var(--text);">Preview</strong> first to see what would be removed before committing.
+  </p>
+  <div class="path-row">
+    <label>Keep backups newer than</label>
+    <input id="keep-days" type="number" value="30" min="1" max="3650"
+           style="width:80px;flex:none;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;padding:8px 12px;font-family:var(--mono);font-size:13px;color:var(--text);outline:none;transition:border-color 0.15s;"
+           onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'">
+    <span style="font-family:var(--mono);font-size:13px;color:var(--text-dim);">days</span>
+  </div>
+  <div class="btn-row">
+    <button class="btn btn-secondary" onclick="previewClean()">Preview</button>
+    <button class="btn btn-primary" onclick="confirmClean()"
+            style="background:var(--red);">Delete Old Backups</button>
+  </div>
+</div>
+
+<div id="clean-result"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function fmtBytes(b) {
+    if (b < 1024)    return b + ' B';
+    if (b < 1048576) return (b / 1024).toFixed(1) + ' KB';
+    return (b / 1048576).toFixed(1) + ' MB';
+  }
+
+  function fmtAge(days) {
+    if (days === 0) return 'today';
+    if (days === 1) return '1 day old';
+    return `${days} days old`;
+  }
+
+  // ── Load and render backup list ──────────────────────────────────────────────
+
+  function loadBackups() {
+    document.getElementById('backup-loading').style.display = 'block';
+    document.getElementById('backup-loading').textContent = 'Loading...';
+    document.getElementById('backup-list').innerHTML = '';
+    document.getElementById('backup-dir-label').style.display = 'none';
+
+    fetch('/api/backups')
+      .then(r => r.json())
+      .then(data => {
+        document.getElementById('backup-loading').style.display = 'none';
+
+        if (data.error) {
+          document.getElementById('backup-list').innerHTML =
+            `<div style="font-family:var(--mono);font-size:13px;color:var(--red);">${esc(data.error)}</div>`;
+          return;
+        }
+
+        const dirEl = document.getElementById('backup-dir-label');
+        dirEl.textContent = data.backup_dir;
+        dirEl.style.display = 'block';
+
+        if (!data.backups.length) {
+          document.getElementById('backup-list').innerHTML =
+            `<div style="font-family:var(--mono);font-size:13px;color:var(--text-dim);">No backup files found.</div>`;
+          return;
+        }
+
+        // Summary counts
+        const totalSize = data.backups.reduce((a, b) => a + b.size, 0);
+        let html = `
+          <div style="display:flex;gap:24px;margin-bottom:14px;font-family:var(--mono);font-size:12px;color:var(--text-dim);">
+            <span><span style="color:var(--text);font-weight:600;">${data.backups.length}</span> backup${data.backups.length !== 1 ? 's' : ''}</span>
+            <span><span style="color:var(--text);font-weight:600;">${fmtBytes(totalSize)}</span> total</span>
+          </div>
+          <div class="track-list">`;
+
+        for (const b of data.backups) {
+          const ageColor = b.age_days > 30 ? 'var(--orange)' : 'var(--text-dim)';
+          html += `
+            <div class="track-row">
+              <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+                <span style="font-family:var(--mono);font-size:13px;color:var(--text);word-break:break-all;">${esc(b.name)}</span>
+                <span style="font-family:var(--mono);font-size:11px;color:${ageColor};flex-shrink:0;">${fmtAge(b.age_days)}</span>
+              </div>
+              <div style="font-family:var(--mono);font-size:11px;color:var(--text-dim);margin-top:3px;">
+                ${fmtBytes(b.size)} &nbsp;·&nbsp; ${new Date(b.modified).toLocaleDateString(undefined, { year:'numeric', month:'short', day:'numeric' })}
+              </div>
+            </div>`;
+        }
+
+        html += '</div>';
+        document.getElementById('backup-list').innerHTML = html;
+      })
+      .catch(() => {
+        document.getElementById('backup-loading').textContent = 'Failed to load backup list.';
+      });
+  }
+
+  // ── Clean actions ────────────────────────────────────────────────────────────
+
+  function getKeepDays() {
+    return Math.max(1, parseInt(document.getElementById('keep-days').value) || 30);
+  }
+
+  function previewClean() {
+    runClean(true);
+  }
+
+  function confirmClean() {
+    const days = getKeepDays();
+    if (!confirm(`Delete all Rekordbox backup files older than ${days} day${days !== 1 ? 's' : ''}?\n\nThis cannot be undone. Deleted backups will appear as "backup deleted" in Run History.`)) return;
+    runClean(false);
+  }
+
+  function runClean(dryRun) {
+    const keepDays = getKeepDays();
+
+    fetch('/api/backups/clean', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ keep_days: keepDays, dry_run: dryRun }),
+    })
+      .then(r => r.json())
+      .then(data => {
+        renderCleanResult(data, dryRun);
+        if (!dryRun) loadBackups();
+      })
+      .catch(() => {
+        document.getElementById('clean-result').innerHTML =
+          `<div class="card" style="margin-top:16px;border-color:var(--red);">
+            <div style="font-family:var(--mono);font-size:13px;color:var(--red);">Request failed. Check the server console.</div>
+          </div>`;
+      });
+  }
+
+  // ── Result card ──────────────────────────────────────────────────────────────
+
+  function renderCleanResult(data, dryRun) {
+    const el = document.getElementById('clean-result');
+
+    if (data.error) {
+      el.innerHTML = `
+        <div class="card" style="margin-top:16px;border-color:var(--red);">
+          <div style="font-family:var(--mono);font-size:13px;color:var(--red);">${esc(data.error)}</div>
+        </div>`;
+      return;
+    }
+
+    const accentColor = dryRun ? 'var(--orange)' : 'var(--green)';
+    const modeLabel   = dryRun ? 'Preview — no changes made' : 'Done';
+    const verb        = dryRun ? 'Would delete' : 'Deleted';
+
+    let html = `
+      <div class="card" style="margin-top:16px;">
+        <div class="card-label">${modeLabel}</div>`;
+
+    if (!data.deleted.length) {
+      html += `
+        <div style="font-family:var(--mono);font-size:13px;color:var(--text-dim);">
+          ✓ No backup files older than ${data.keep_days} day${data.keep_days !== 1 ? 's' : ''} found.
+        </div>`;
+    } else {
+      const totalFreed = data.deleted.reduce((a, b) => a + b.size, 0);
+      html += `
+        <div style="font-family:var(--mono);font-size:13px;color:${accentColor};margin-bottom:14px;">
+          ${verb} ${data.deleted.length} backup${data.deleted.length !== 1 ? 's' : ''}
+          &nbsp;·&nbsp; ${fmtBytes(totalFreed)} ${dryRun ? 'would be freed' : 'freed'}
+        </div>
+        <div class="track-list">`;
+
+      for (const b of data.deleted) {
+        html += `
+          <div class="track-row">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+              <span style="font-family:var(--mono);font-size:13px;color:${dryRun ? 'var(--orange)' : 'var(--text-dim)'};">${esc(b.name)}</span>
+              <span style="font-family:var(--mono);font-size:11px;color:var(--text-dim);flex-shrink:0;">${fmtAge(b.age_days)} · ${fmtBytes(b.size)}</span>
+            </div>
+          </div>`;
+      }
+      html += '</div>';
+    }
+
+    if (data.errors && data.errors.length) {
+      html += `
+        <div style="margin-top:14px;font-family:var(--mono);font-size:13px;color:var(--red);">
+          ⚠ ${data.errors.length} error${data.errors.length !== 1 ? 's' : ''} during deletion — see server console for details.
+        </div>`;
+    }
+
+    html += '</div>';
+    el.innerHTML = html;
+  }
+
+  // ── Boot ─────────────────────────────────────────────────────────────────────
+
+  loadBackups();
+</script>
+{% endblock %}
