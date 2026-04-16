@@ -263,16 +263,27 @@ def api_run(script_name):
 
 @app.route("/api/playlists")
 def api_playlists():
-    """Return all normal (non-folder, non-smart) Rekordbox playlists as JSON."""
-    try:
-        from pyrekordbox import Rekordbox6Database as MasterDatabase  # noqa: PLC0415
+    """Return all normal (non-folder, non-smart) Rekordbox playlists as JSON.
 
-        db = MasterDatabase()
-        # Attribute 0 = normal playlist; 1 = folder; 4 = smart playlist
-        playlists = (
-            db.get_playlist().filter_by(Attribute=0, rb_local_deleted=0).order_by("Name").all()
+    Runs get_playlists.py as a subprocess so pyrekordbox is imported in the
+    same Python environment used by all other rekordbox-tools scripts.
+    """
+    script_path = SCRIPTS_DIR / "get_playlists.py"
+    try:
+        result = subprocess.run(
+            [sys.executable, str(script_path)],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=15,
         )
-        return jsonify([{"id": str(p.ID), "name": p.Name} for p in playlists])
+        if result.returncode != 0:
+            msg = result.stderr.strip() or "Unknown error reading playlists"
+            return jsonify({"error": msg}), 500
+        return result.stdout, 200, {"Content-Type": "application/json"}
+    except subprocess.TimeoutExpired:
+        return jsonify({"error": "Timed out reading Rekordbox database"}), 500
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
 

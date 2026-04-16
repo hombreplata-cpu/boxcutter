@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{% block title %}rekordbox-tools{% endblock %}</title>
+  <title>{% block title %}rekordbocks{% endblock %}</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
 
@@ -655,7 +655,7 @@
 <nav class="sidebar">
   <div class="sidebar-logo">
     <div class="icon">◈</div>
-    <div class="name">rekordbox-tools</div>
+    <div class="name">rekordbocks</div>
     <div class="sub">for Rekordbox 7</div>
   </div>
   <div class="nav">
@@ -666,6 +666,7 @@
     <a href="/tool/remove_missing" class="{% if 'remove_missing' in request.path %}active{% endif %}">✗ &nbsp;Remove Missing</a>
     <a href="/tool/strip_comments" class="{% if 'strip_comments' in request.path %}active{% endif %}">⊘ &nbsp;Strip URL Comments</a>
     <a href="/tool/fix_metadata"   class="{% if 'fix_metadata' in request.path %}active{% endif %}">⚕ &nbsp;Fix Metadata</a>
+    <a href="/tool/add_new"        class="{% if 'add_new' in request.path %}active{% endif %}">＋ &nbsp;Add New Tracks</a>
     <div class="nav-section">Config</div>
     <a href="/setup" class="{% if 'setup' in request.path %}active{% endif %}">⚙ &nbsp;Setup &amp; Paths</a>
   </div>
