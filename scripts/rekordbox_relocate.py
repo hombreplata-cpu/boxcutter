@@ -49,28 +49,28 @@ from pathlib import Path
 from pyrekordbox import Rekordbox6Database as MasterDatabase
 
 DEFAULT_EXTENSIONS = {"mp3", "flac", "wav", "aiff", "aif", "ogg", "m4a", "alac", "wma"}
-NUMERIC_PREFIX_RE  = re.compile(r'^[\d]+\s*-\s*')
+NUMERIC_PREFIX_RE = re.compile(r"^[\d]+\s*-\s*")
 
 EXT_TO_FILETYPE = {
-    ".mp3":  1,
-    ".m4a":  4,
-    ".wav":  5,
+    ".mp3": 1,
+    ".m4a": 4,
+    ".wav": 5,
     ".flac": 6,
-    ".aif":  7,
+    ".aif": 7,
     ".aiff": 7,
-    ".ogg":  8,
-    ".wma":  9,
-    ".mp4":  10,
+    ".ogg": 8,
+    ".wma": 9,
+    ".mp4": 10,
 }
 
 
 def strip_numeric_prefix(s):
-    return NUMERIC_PREFIX_RE.sub('', s).strip()
+    return NUMERIC_PREFIX_RE.sub("", s).strip()
 
 
 def sanitize(s):
     """Remove characters illegal in Windows filenames, preserving +, ;, & etc."""
-    return re.sub(r'[<>"/\\|?*\x00-\x1f]', '', s or '').strip()
+    return re.sub(r'[<>"/\\|?*\x00-\x1f]', "", s or "").strip()
 
 
 def normalize_stem(s):
@@ -81,9 +81,9 @@ def normalize_stem(s):
     - collapse whitespace
     """
     s = s.lower()
-    s = re.sub(r'[\-;,/]+', ' ', s)
-    s = re.sub(r'[()[\]]+', ' ', s)
-    s = re.sub(r'\s+', ' ', s).strip()
+    s = re.sub(r"[\-;,/]+", " ", s)
+    s = re.sub(r"[()[\]]+", " ", s)
+    s = re.sub(r"\s+", " ", s).strip()
     return s
 
 
@@ -96,18 +96,18 @@ def artist_variants(raw):
     raw_san = sanitize(raw)
     variants = [raw_san]
 
-    for sep in ['/', ',']:
+    for sep in ["/", ","]:
         if sep in raw:
-            normalized = sanitize('; '.join(p.strip() for p in raw.split(sep)))
+            normalized = sanitize("; ".join(p.strip() for p in raw.split(sep)))
             if normalized not in variants:
                 variants.append(normalized)
 
-    if '; ' in raw_san:
-        comma_ver = raw_san.replace('; ', ', ')
+    if "; " in raw_san:
+        comma_ver = raw_san.replace("; ", ", ")
         if comma_ver not in variants:
             variants.append(comma_ver)
 
-    for sep in ['; ', ', ', '/', ',']:
+    for sep in ["; ", ", ", "/", ","]:
         if sep in raw_san:
             first = raw_san.split(sep)[0].strip()
             if first and first not in variants:
@@ -136,9 +136,9 @@ def path_is_under(path, root):
 def build_target_index(target_root, extensions):
     """Recursively index all audio files in target_root."""
     exact_index = defaultdict(list)
-    stem_index  = defaultdict(list)
-    norm_index  = defaultdict(list)
-    print("[scan] Indexing target root: {}".format(target_root))
+    stem_index = defaultdict(list)
+    norm_index = defaultdict(list)
+    print(f"[scan] Indexing target root: {target_root}")
     count = 0
     for dirpath, _dirs, files in os.walk(target_root):
         for fname in files:
@@ -149,7 +149,7 @@ def build_target_index(target_root, extensions):
                 stem_index[p.stem.lower()].append(full)
                 norm_index[normalize_stem(p.stem)].append(full)
                 count += 1
-    print("[scan] Indexed {:,} audio files in target root.".format(count))
+    print(f"[scan] Indexed {count:,} audio files in target root.")
     return dict(exact_index), dict(stem_index), dict(norm_index)
 
 
@@ -159,17 +159,16 @@ def lookup_stem(stem, ext, exact_index, stem_index, prefer_ext):
         return matches
     stem_matches = stem_index.get(stem.lower(), [])
     if stem_matches:
-        preferred = [p for p in stem_matches
-                     if Path(p).suffix.lstrip(".").lower() == prefer_ext]
+        preferred = [p for p in stem_matches if Path(p).suffix.lstrip(".").lower() == prefer_ext]
         return preferred if preferred else stem_matches
     return []
 
 
 def find_match(filename, title, raw_artist, exact_index, stem_index, norm_index, prefer_ext):
     """Multi-pass match strategy. Returns (matches, match_type)."""
-    ext  = Path(filename).suffix
+    ext = Path(filename).suffix
     stem = Path(filename).stem
-    t    = sanitize(title or "")
+    t = sanitize(title or "")
 
     # Pass 1: exact filename
     matches = exact_index.get(filename.lower(), [])
@@ -179,27 +178,31 @@ def find_match(filename, title, raw_artist, exact_index, stem_index, norm_index,
     # Pass 2: Title - Artist
     if t and raw_artist:
         for av in artist_variants(raw_artist):
-            matches = lookup_stem("{} - {}".format(t, av), ext, exact_index, stem_index, prefer_ext)
+            matches = lookup_stem(f"{t} - {av}", ext, exact_index, stem_index, prefer_ext)
             if matches:
                 return matches, "title-artist"
 
     # Pass 3: Artist - Title
     if t and raw_artist:
         for av in artist_variants(raw_artist):
-            matches = lookup_stem("{} - {}".format(av, t), ext, exact_index, stem_index, prefer_ext)
+            matches = lookup_stem(f"{av} - {t}", ext, exact_index, stem_index, prefer_ext)
             if matches:
                 return matches, "artist-title"
 
     # Pass 3b: Strip mix/version suffixes and retry passes 2+3
-    t_stripped = re.sub(r'\s*\([^)]*(?:mix|edit|remix|version|dub|vocal|radio|extended|original)[^)]*\)\s*$',
-                        '', t, flags=re.IGNORECASE).strip()
+    t_stripped = re.sub(
+        r"\s*\([^)]*(?:mix|edit|remix|version|dub|vocal|radio|extended|original)[^)]*\)\s*$",
+        "",
+        t,
+        flags=re.IGNORECASE,
+    ).strip()
     if t_stripped and t_stripped != t and raw_artist:
         for av in artist_variants(raw_artist):
-            matches = lookup_stem("{} - {}".format(t_stripped, av), ext, exact_index, stem_index, prefer_ext)
+            matches = lookup_stem(f"{t_stripped} - {av}", ext, exact_index, stem_index, prefer_ext)
             if matches:
                 return matches, "title-artist-stripped"
         for av in artist_variants(raw_artist):
-            matches = lookup_stem("{} - {}".format(av, t_stripped), ext, exact_index, stem_index, prefer_ext)
+            matches = lookup_stem(f"{av} - {t_stripped}", ext, exact_index, stem_index, prefer_ext)
             if matches:
                 return matches, "artist-title-stripped"
 
@@ -213,18 +216,21 @@ def find_match(filename, title, raw_artist, exact_index, stem_index, norm_index,
     # Pass 5: Title substring search
     if t:
         t_norm = t.lower()
-        substring_matches = [p for key, paths in stem_index.items()
-                             if t_norm in key for p in paths]
+        substring_matches = [
+            p for key, paths in stem_index.items() if t_norm in key for p in paths
+        ]
         if substring_matches:
-            preferred = [p for p in substring_matches
-                         if Path(p).suffix.lstrip(".").lower() == prefer_ext]
+            preferred = [
+                p for p in substring_matches if Path(p).suffix.lstrip(".").lower() == prefer_ext
+            ]
             return (preferred if preferred else substring_matches), "title-substring"
 
     # Pass 6: Partial title match (first 25 chars)
     if t and len(t) > 25:
         partial = t[:25].lower()
-        partial_matches = [p for key, paths in stem_index.items()
-                          if key.startswith(partial) for p in paths]
+        partial_matches = [
+            p for key, paths in stem_index.items() if key.startswith(partial) for p in paths
+        ]
         if partial_matches:
             return partial_matches, "title-partial"
 
@@ -233,8 +239,9 @@ def find_match(filename, title, raw_artist, exact_index, stem_index, norm_index,
         norm_key = normalize_stem(stem)
         fuzzy_matches = norm_index.get(norm_key, [])
         if fuzzy_matches:
-            preferred = [p for p in fuzzy_matches
-                         if Path(p).suffix.lstrip(".").lower() == prefer_ext]
+            preferred = [
+                p for p in fuzzy_matches if Path(p).suffix.lstrip(".").lower() == prefer_ext
+            ]
             return (preferred if preferred else fuzzy_matches), "fuzzy-norm"
 
     return [], "no-match"
@@ -243,18 +250,20 @@ def find_match(filename, title, raw_artist, exact_index, stem_index, norm_index,
 def run(args):
     target_root = args.target_root
     if not os.path.isdir(target_root):
-        raise SystemExit("--target-root is not a valid directory: {}".format(target_root))
+        raise SystemExit(f"--target-root is not a valid directory: {target_root}")
 
     source_roots = args.source_root or []
-    prefer_ext   = (args.prefer_ext or "flac").lstrip(".").lower()
-    extensions   = set(args.extensions.split(",")) if args.extensions else DEFAULT_EXTENSIONS
-    extensions   = {e.lower().lstrip(".") for e in extensions}
+    prefer_ext = (args.prefer_ext or "flac").lstrip(".").lower()
+    extensions = set(args.extensions.split(",")) if args.extensions else DEFAULT_EXTENSIONS
+    extensions = {e.lower().lstrip(".") for e in extensions}
 
     print("[db] Opening Rekordbox database...")
     try:
         db = MasterDatabase()
     except Exception as e:
-        raise SystemExit("Failed to open Rekordbox database: {}\nMake sure Rekordbox is closed.".format(e))
+        raise SystemExit(
+            f"Failed to open Rekordbox database: {e}\nMake sure Rekordbox is closed."
+        ) from e
 
     try:
         db_path = Path(db.engine.url.database)
@@ -263,32 +272,32 @@ def run(args):
 
     if not args.dry_run:
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        backup_path = db_path.with_name("master_backup_{}.db".format(ts))
+        backup_path = db_path.with_name(f"master_backup_{ts}.db")
         try:
             shutil.copy2(db_path, backup_path)
-            print("[backup] Saved to: {}".format(backup_path))
+            print(f"[backup] Saved to: {backup_path}")
         except Exception as e:
-            print("[backup] Warning - could not create backup: {}".format(e))
+            print(f"[backup] Warning - could not create backup: {e}")
 
     exact_index, stem_index, norm_index = build_target_index(target_root, extensions)
 
     contents = db.get_content().filter_by(rb_local_deleted=0).all()
     total = len(contents)
-    print("[db] Found {:,} track rows.".format(total))
+    print(f"[db] Found {total:,} track rows.")
 
-    updated            = 0
-    updated_exact      = 0
-    updated_title_art  = 0
-    updated_art_title  = 0
-    updated_prefix     = 0
-    updated_substring  = 0
-    updated_partial    = 0
-    updated_fuzzy      = 0
-    skipped_multi      = 0
-    still_missing      = 0
-    already_ok         = 0
-    multi_match_log    = []
-    missing_log        = []
+    updated = 0
+    updated_exact = 0
+    updated_title_art = 0
+    updated_art_title = 0
+    updated_prefix = 0
+    updated_substring = 0
+    updated_partial = 0
+    updated_fuzzy = 0
+    skipped_multi = 0
+    still_missing = 0
+    already_ok = 0
+    multi_match_log = []
+    missing_log = []
 
     id_filter = None
     if args.ids:
@@ -299,17 +308,17 @@ def run(args):
             already_ok += 1
             continue
 
-        raw_path   = content.FolderPath or ""
+        raw_path = content.FolderPath or ""
         plain_path = normalize_path(raw_path)
 
         if args.missing_only:
-            path_exists  = bool(plain_path and os.path.isfile(plain_path))
+            path_exists = bool(plain_path and os.path.isfile(plain_path))
             under_source = False
             if path_exists:
                 already_ok += 1
                 continue
         else:
-            path_exists  = bool(plain_path and os.path.isfile(plain_path))
+            path_exists = bool(plain_path and os.path.isfile(plain_path))
             under_source = any(path_is_under(plain_path, sr) for sr in source_roots)
 
         if path_exists and not under_source and not args.all_tracks:
@@ -326,43 +335,63 @@ def run(args):
         except Exception:
             raw_artist = ""
 
-        filename            = os.path.basename(plain_path)
-        matches, match_type = find_match(filename, content.Title or "",
-                                         raw_artist, exact_index, stem_index, norm_index, prefer_ext)
+        filename = os.path.basename(plain_path)
+        matches, match_type = find_match(
+            filename,
+            content.Title or "",
+            raw_artist,
+            exact_index,
+            stem_index,
+            norm_index,
+            prefer_ext,
+        )
 
         if len(matches) == 1:
             new_path = matches[0]
             new_path_stored = new_path.replace("\\", "/")
 
             if args.dry_run:
-                print("[dry-run] [{}]\n  {}\n  -> {}".format(match_type, plain_path, new_path))
+                print(f"[dry-run] [{match_type}]\n  {plain_path}\n  -> {new_path}")
             else:
                 actual_size = os.path.getsize(new_path)
                 actual_type = EXT_TO_FILETYPE.get(Path(new_path).suffix.lower(), 6)
-                content.FolderPath    = new_path_stored
+                content.FolderPath = new_path_stored
                 content.OrgFolderPath = new_path_stored
-                content.FileType      = actual_type
-                content.FileSize      = actual_size
+                content.FileType = actual_type
+                content.FileSize = actual_size
             updated += 1
-            if match_type == "exact":                  updated_exact     += 1
-            elif match_type in ("title-artist",
-                                "title-artist-stripped"): updated_title_art += 1
-            elif match_type in ("artist-title",
-                                "artist-title-stripped"): updated_art_title += 1
-            elif match_type == "numeric-prefix-stripped": updated_prefix    += 1
-            elif match_type in ("title-substring",
-                                "title-only",
-                                "title-only-stripped"):    updated_substring += 1
-            elif match_type == "title-partial":            updated_partial   += 1
-            elif match_type == "fuzzy-norm":               updated_fuzzy     += 1
+            if match_type == "exact":
+                updated_exact += 1
+            elif match_type in ("title-artist", "title-artist-stripped"):
+                updated_title_art += 1
+            elif match_type in ("artist-title", "artist-title-stripped"):
+                updated_art_title += 1
+            elif match_type == "numeric-prefix-stripped":
+                updated_prefix += 1
+            elif match_type in ("title-substring", "title-only", "title-only-stripped"):
+                updated_substring += 1
+            elif match_type == "title-partial":
+                updated_partial += 1
+            elif match_type == "fuzzy-norm":
+                updated_fuzzy += 1
 
         elif len(matches) > 1:
             skipped_multi += 1
-            multi_match_log.append((content.ID, content.Title or "", raw_artist, plain_path, matches))
+            multi_match_log.append(
+                (content.ID, content.Title or "", raw_artist, plain_path, matches)
+            )
 
         else:
             still_missing += 1
-            missing_log.append((content.ID, content.Title or "", raw_artist, plain_path, "not found in target root"))
+            missing_log.append(
+                (
+                    content.ID,
+                    content.Title or "",
+                    raw_artist,
+                    plain_path,
+                    "not found in target root",
+                )
+            )
 
     if not args.dry_run:
         db.commit()
@@ -371,37 +400,37 @@ def run(args):
     print("\n" + "=" * 60)
     print("SUMMARY")
     print("=" * 60)
-    print("  Total tracks in DB               : {:,}".format(total))
-    print("  Already OK (skipped)             : {:,}".format(already_ok))
-    print("  Updated - exact filename         : {:,}{}".format(updated_exact, dry_tag))
-    print("  Updated - Title-Artist match     : {:,}{}".format(updated_title_art, dry_tag))
-    print("  Updated - Artist-Title match     : {:,}{}".format(updated_art_title, dry_tag))
-    print("  Updated - prefix stripped        : {:,}{}".format(updated_prefix, dry_tag))
-    print("  Updated - title substring        : {:,}{}".format(updated_substring, dry_tag))
-    print("  Updated - title partial match    : {:,}{}".format(updated_partial, dry_tag))
-    print("  Updated - fuzzy normalized       : {:,}{}".format(updated_fuzzy, dry_tag))
-    print("  Updated - TOTAL                  : {:,}{}".format(updated, dry_tag))
-    print("  Skipped (multiple hits)          : {:,}".format(skipped_multi))
-    print("  Still missing                    : {:,}".format(still_missing))
+    print(f"  Total tracks in DB               : {total:,}")
+    print(f"  Already OK (skipped)             : {already_ok:,}")
+    print(f"  Updated - exact filename         : {updated_exact:,}{dry_tag}")
+    print(f"  Updated - Title-Artist match     : {updated_title_art:,}{dry_tag}")
+    print(f"  Updated - Artist-Title match     : {updated_art_title:,}{dry_tag}")
+    print(f"  Updated - prefix stripped        : {updated_prefix:,}{dry_tag}")
+    print(f"  Updated - title substring        : {updated_substring:,}{dry_tag}")
+    print(f"  Updated - title partial match    : {updated_partial:,}{dry_tag}")
+    print(f"  Updated - fuzzy normalized       : {updated_fuzzy:,}{dry_tag}")
+    print(f"  Updated - TOTAL                  : {updated:,}{dry_tag}")
+    print(f"  Skipped (multiple hits)          : {skipped_multi:,}")
+    print(f"  Still missing                    : {still_missing:,}")
 
     if multi_match_log:
         print("\n-- MULTIPLE MATCHES (manual action needed) --")
         for tid, t, a, old, matches in multi_match_log:
-            print("\n  [id={}] {} - {}".format(tid, a, t))
-            print("  DB path: {}".format(old))
+            print(f"\n  [id={tid}] {a} - {t}")
+            print(f"  DB path: {old}")
             for i, m in enumerate(matches, 1):
-                print("    {}) {}".format(i, m))
+                print(f"    {i}) {m}")
 
     if missing_log:
         print("\n-- STILL MISSING (not found in target root) --")
-        for tid, t, a, old, reason in missing_log[:50]:
-            print("  [id={}] {} - {}  ({})".format(tid, a, t, reason))
+        for tid, t, a, _old, reason in missing_log[:50]:
+            print(f"  [id={tid}] {a} - {t}  ({reason})")
         if len(missing_log) > 50:
-            print("  ... and {} more.".format(len(missing_log) - 50))
+            print(f"  ... and {len(missing_log) - 50} more.")
 
     print()
     if not args.dry_run and updated > 0:
-        print("Done. {:,} paths updated in Rekordbox database.".format(updated))
+        print(f"Done. {updated:,} paths updated in Rekordbox database.")
         print("Open Rekordbox to see the changes.")
 
 
@@ -409,22 +438,43 @@ def main():
     parser = argparse.ArgumentParser(
         description="Re-point Rekordbox track paths to a new target root directory."
     )
-    parser.add_argument("--target-root", metavar="DIR", required=True,
-                        help="The destination folder all paths should point to")
-    parser.add_argument("--source-root", metavar="DIR", action="append",
-                        help="Folder(s) to migrate away from (repeat for multiple)")
-    parser.add_argument("--dry-run", action="store_true",
-                        help="Show what would change without modifying the database")
-    parser.add_argument("--all-tracks", action="store_true",
-                        help="Recheck every track regardless of current status")
-    parser.add_argument("--missing-only", action="store_true",
-                        help="Only process tracks whose file does not exist on disk")
-    parser.add_argument("--prefer-ext", metavar="EXT", default="flac",
-                        help="Preferred extension for matching (default: flac)")
-    parser.add_argument("--extensions", metavar="LIST",
-                        help="Comma-separated audio extensions to index")
-    parser.add_argument("--ids", metavar="ID_LIST",
-                        help="Comma-separated track IDs to process")
+    parser.add_argument(
+        "--target-root",
+        metavar="DIR",
+        required=True,
+        help="The destination folder all paths should point to",
+    )
+    parser.add_argument(
+        "--source-root",
+        metavar="DIR",
+        action="append",
+        help="Folder(s) to migrate away from (repeat for multiple)",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show what would change without modifying the database",
+    )
+    parser.add_argument(
+        "--all-tracks",
+        action="store_true",
+        help="Recheck every track regardless of current status",
+    )
+    parser.add_argument(
+        "--missing-only",
+        action="store_true",
+        help="Only process tracks whose file does not exist on disk",
+    )
+    parser.add_argument(
+        "--prefer-ext",
+        metavar="EXT",
+        default="flac",
+        help="Preferred extension for matching (default: flac)",
+    )
+    parser.add_argument(
+        "--extensions", metavar="LIST", help="Comma-separated audio extensions to index"
+    )
+    parser.add_argument("--ids", metavar="ID_LIST", help="Comma-separated track IDs to process")
 
     args = parser.parse_args()
     run(args)

@@ -1,0 +1,117 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: [main]
+
+# Cancel in-progress runs for the same branch/PR when a new commit arrives.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+
+  # ---------------------------------------------------------------------------
+  # Lint — Ruff linter + format check
+  # No install needed; runs on ubuntu-latest for speed.
+  # Violations appear as inline annotations on the PR diff.
+  # ---------------------------------------------------------------------------
+  lint:
+    name: Lint (Ruff)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install Ruff
+        run: pip install ruff==0.4.4
+
+      - name: Ruff — lint check
+        run: ruff check . --output-format github
+
+      - name: Ruff — format check
+        run: ruff format --check .
+
+  # ---------------------------------------------------------------------------
+  # Security — pip-audit CVE scan + Bandit SAST
+  # pip-audit: hard fail on any known CVE in deps or their transitive tree.
+  # Bandit: starts with --exit-zero for initial triage; remove it after triage
+  #         to turn it into a hard gate.
+  # ---------------------------------------------------------------------------
+  security:
+    name: Security (pip-audit + Bandit)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install security tools
+        run: pip install pip-audit==2.7.3 "bandit[toml]==1.7.8"
+
+      - name: pip-audit — dependency CVE scan
+        run: pip-audit -r requirements.txt --progress-spinner off
+
+      - name: Bandit — SAST scan
+        # --exit-zero: report findings without failing the job (initial triage mode).
+        # Remove --exit-zero once existing findings are resolved or suppressed with # nosec.
+        run: |
+          bandit -r . -ll --exit-zero -f json -o bandit-report.json
+          bandit -r . -ll --exit-zero
+
+      - name: Upload Bandit report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bandit-report
+          path: bandit-report.json
+          retention-days: 30
+
+  # ---------------------------------------------------------------------------
+  # Build — dependency install + syntax check
+  # Must run on windows-latest: pyrekordbox has Windows-specific behaviour.
+  # --no-deps avoids transitive dep failures while still proving the packages
+  # exist on PyPI and version constraints resolve.
+  # py_compile verifies every .py file has valid syntax.
+  # ---------------------------------------------------------------------------
+  build:
+    name: Build (install + syntax check)
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip
+
+      - name: Install direct dependencies
+        run: pip install --no-deps -r requirements.txt
+
+      - name: Syntax check — compile all Python files
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem -Recurse -Filter "*.py" | Select-Object -ExpandProperty FullName
+          foreach ($f in $files) {
+            python -m py_compile $f
+            if ($LASTEXITCODE -ne 0) {
+              Write-Error "Syntax error in: $f"
+              exit 1
+            }
+          }
+          Write-Host "All $($files.Count) Python files passed syntax check."

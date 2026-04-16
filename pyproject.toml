@@ -1,0 +1,29 @@
+[tool.ruff]
+target-version = "py39"
+line-length = 99
+exclude = [".git", ".venv", "venv", "env", "__pycache__"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "UP", "S", "C4", "SIM"]
+ignore = [
+    "E501",   # line too long — handled by formatter
+    "S603",   # subprocess without shell=True — list args is the safe pattern
+    "S607",   # partial executable path — tasklist is an intentional Windows binary
+    "B008",   # function call in default arg — Flask idioms trigger this
+]
+
+[tool.ruff.lint.per-file-ignores]
+"scripts/*.py" = ["F401"]
+"gui/*.py" = ["F401"]
+
+[tool.ruff.lint.isort]
+known-third-party = ["flask", "pyrekordbox", "mutagen"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+
+[tool.bandit]
+targets = ["app.py", "scripts", "gui"]
+skips = ["B603", "B607"]
