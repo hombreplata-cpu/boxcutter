@@ -59,22 +59,10 @@ from datetime import datetime
 from pathlib import Path
 
 from pyrekordbox import Rekordbox6Database as MasterDatabase
+from utils import EXT_TO_FILETYPE
 
 DEFAULT_EXTENSIONS = {"mp3", "flac", "wav", "aiff", "aif", "ogg", "m4a", "alac", "wma"}
 NUMERIC_PREFIX_RE = re.compile(r"^[\d]+\s*-\s*")
-
-EXT_TO_FILETYPE = {
-    ".mp3": 1,
-    ".m4a": 4,
-    ".wav": 5,
-    ".flac": 6,
-    ".aif": 7,
-    ".aiff": 7,
-    ".ogg": 8,
-    ".wma": 9,
-    ".mp4": 10,
-    ".alac": 11,  # ALAC stored as .alac — distinct from .m4a (AAC)
-}
 
 
 def strip_numeric_prefix(s):
@@ -406,10 +394,13 @@ def run(args):
                 print(f"[dry-run] [{match_type}]\n  {plain_path}\n  -> {new_path}")
             else:
                 actual_size = os.path.getsize(new_path)
+                actual_type = EXT_TO_FILETYPE.get(Path(new_path).suffix.lower())
                 content.FolderPath = new_path_stored
                 content.OrgFolderPath = new_path_stored
-                if old_ext_lower != new_ext_lower:
-                    content.FileType = EXT_TO_FILETYPE.get(new_ext_lower, 6)
+                if actual_type is None:
+                    print(f"  [WARN] Unknown extension — FileType not updated: {new_path}")
+                else:
+                    content.FileType = actual_type
                 content.FileSize = actual_size
             old_ext = old_ext_lower.lstrip(".")
             new_ext = new_ext_lower.lstrip(".")
