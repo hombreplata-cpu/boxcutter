@@ -40,6 +40,18 @@ EXT_TO_FILETYPE = {
     ".alac": 11,  # ALAC stored as .alac (distinct from .m4a)
 }
 
+FILETYPE_LABELS = {
+    1: "MP3",
+    4: "AAC/M4A",
+    5: "WAV",
+    6: "FLAC",
+    7: "AIFF",
+    8: "OGG",
+    9: "WMA",
+    10: "MP4",
+    11: "ALAC",
+}
+
 
 def run(args):
     id_filter = None
@@ -64,7 +76,15 @@ def run(args):
     total = len(contents)
     _progress_every = max(50, total // 200)
 
-    stats = {"fixed": 0, "already_ok": 0, "missing": 0, "skipped": 0, "unknown_ext": 0}
+    stats = {
+        "fixed": 0,
+        "already_ok": 0,
+        "missing": 0,
+        "skipped": 0,
+        "unknown_ext": 0,
+        "type_changed": 0,
+        "size_changed": 0,
+    }
     fixed_log = []
     missing_log = []
 
@@ -119,11 +139,17 @@ def run(args):
             continue
 
         # Needs fixing
+        type_differs = db_type != actual_type
+        size_differs = db_size != actual_size
         changes = []
-        if db_type != actual_type:
-            changes.append(f"FileType {db_type} → {actual_type}")
-        if db_size != actual_size:
-            changes.append(f"FileSize {db_size:,} → {actual_size:,}")
+        if type_differs:
+            db_label = FILETYPE_LABELS.get(db_type, str(db_type))
+            act_label = FILETYPE_LABELS.get(actual_type, str(actual_type))
+            changes.append(f"FileType {db_type} ({db_label}) → {actual_type} ({act_label})")
+        if size_differs:
+            delta = actual_size - db_size
+            sign = "+" if delta >= 0 else ""
+            changes.append(f"FileSize {db_size:,} → {actual_size:,} bytes ({sign}{delta:,})")
 
         dry_tag = "[dry-run] " if args.dry_run else ""
         print("\n{}[FIX] {}".format(dry_tag, r.Title or ""))
@@ -134,6 +160,10 @@ def run(args):
             r.FileType = actual_type
             r.FileSize = actual_size
 
+        if type_differs:
+            stats["type_changed"] += 1
+        if size_differs:
+            stats["size_changed"] += 1
         stats["fixed"] += 1
         fixed_log.append(
             {
@@ -142,10 +172,13 @@ def run(args):
                 "path": win_path,
                 "db_type": db_type,
                 "actual_type": actual_type,
+                "db_type_label": FILETYPE_LABELS.get(db_type, str(db_type)),
+                "actual_type_label": FILETYPE_LABELS.get(actual_type, str(actual_type)),
                 "db_size": db_size,
                 "actual_size": actual_size,
-                "type_changed": db_type != actual_type,
-                "size_changed": db_size != actual_size,
+                "size_delta": actual_size - db_size,
+                "type_changed": type_differs,
+                "size_changed": size_differs,
             }
         )
 
@@ -186,6 +219,8 @@ def run(args):
             "already_ok": stats["already_ok"],
             "missing": stats["missing"],
             "skipped": stats["skipped"],
+            "type_changed": stats["type_changed"],
+            "size_changed": stats["size_changed"],
         },
         "fixed_tracks": fixed_log,
         "missing_tracks": missing_log,

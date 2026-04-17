@@ -4,13 +4,24 @@
 {% block content %}
 <div class="page-header">
   <h1>Fix Metadata</h1>
-  <p>Correct stale FileType and FileSize in the Rekordbox database for tracks whose file path is correct but whose cached metadata doesn't match the actual file on disk.</p>
+  <p>Scans every track in your Rekordbox database and compares two cached values against the actual file on disk: <strong>FileType</strong> (the format code — MP3, FLAC, WAV, etc.) and <strong>FileSize</strong> (the byte count). If either value is wrong, it is corrected in the database. File paths and audio content are never modified.</p>
 </div>
 <div class="divider"></div>
 
 <div class="info-box">
   ⚠ Close Rekordbox before running. A timestamped backup of master.db is created automatically before any changes are written.<br><br>
-  This tool does <strong>not</strong> move or modify any audio files — it only corrects the FileType and FileSize values stored in the database. Use this after running Relocate Tracks, or any time Rekordbox shows tracks as broken despite the files being present on disk.
+  <strong>What this corrects:</strong><br><br>
+  <table style="width:100%;border-collapse:collapse;font-size:13px;">
+    <tr>
+      <td style="width:90px;padding:4px 12px 4px 0;color:var(--accent);font-weight:600;white-space:nowrap;vertical-align:top">FileType</td>
+      <td style="color:var(--text-dim);vertical-align:top">The format code Rekordbox uses to identify the file (e.g. 1&nbsp;=&nbsp;MP3, 6&nbsp;=&nbsp;FLAC). Becomes wrong when a file is converted to a different format but the database is not updated.</td>
+    </tr>
+    <tr>
+      <td style="padding:8px 12px 4px 0;color:var(--accent);font-weight:600;white-space:nowrap;vertical-align:top">FileSize</td>
+      <td style="padding-top:8px;color:var(--text-dim);vertical-align:top">The byte count cached in the database. Used by Rekordbox to detect file changes. Becomes wrong after re-encoding, replacing a file in place, or any operation that changes the file's size on disk.</td>
+    </tr>
+  </table>
+  <br>Use this after running Relocate Tracks, or any time Rekordbox shows tracks as broken despite the files being present on disk.
 </div>
 
 <div class="info-box" style="border-color:var(--orange);background:#2a1e0a;">

@@ -326,6 +326,26 @@
     .console-bar .status.running { color: var(--orange); }
     .console-bar .status.done { color: var(--green); }
 
+    .console-toggle {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      color: var(--text-dim);
+      font-family: var(--mono);
+      font-size: 11px;
+      cursor: pointer;
+      padding: 2px 8px;
+      margin-left: 10px;
+      transition: color 0.1s, border-color 0.1s;
+    }
+    .console-toggle:hover { color: var(--text); border-color: var(--text-dim); }
+
+    #console.console-collapsed {
+      height: 0 !important;
+      padding: 0 !important;
+      overflow: hidden;
+    }
+
     #console {
       padding: 14px 16px;
       font-family: var(--mono);
@@ -364,6 +384,33 @@
     .report-item-previous:hover {
       opacity: 0.85;
     }
+
+    .report-item.dry-run-block  { border-left: 3px solid var(--orange); }
+    .report-item.live-run-block { border-left: 3px solid var(--green); }
+
+    .report-allclear {
+      background: rgba(63, 185, 80, 0.07);
+      border: 1px solid rgba(63, 185, 80, 0.2);
+      border-radius: 5px;
+      padding: 12px 16px;
+      font-family: var(--mono);
+      font-size: 13px;
+      color: var(--green);
+      margin-bottom: 16px;
+    }
+
+    .report-next-steps {
+      background: rgba(0, 229, 255, 0.05);
+      border: 1px solid rgba(0, 229, 255, 0.15);
+      border-radius: 5px;
+      padding: 11px 16px;
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--text-dim);
+      margin-top: 16px;
+      line-height: 1.6;
+    }
+    .report-next-steps strong { color: var(--text); }
 
     .report-bar {
       background: var(--bg-hover);
@@ -831,6 +878,8 @@
       inner = renderFixMetadataReport(data, isDry);
     } else if (data.tool === 'add_new') {
       inner = renderAddNewReport(data, isDry);
+    } else if (data.tool === 'strip_comments') {
+      inner = renderStripCommentsReport(data, isDry);
     }
 
     // Dim any existing report blocks before adding the new one
@@ -839,7 +888,7 @@
     }
 
     const block = document.createElement('div');
-    block.className = 'report-item';
+    block.className = 'report-item ' + (isDry ? 'dry-run-block' : 'live-run-block');
     block.innerHTML =
       '<div class="report-bar">' +
         '<span>Results \u2014 ' + time + '</span>' +
@@ -983,6 +1032,18 @@
       html += '</div></div>';
     }
 
+    // All-clear state
+    if (s.updated === 0 && s.still_missing === 0 && s.skipped_multi === 0) {
+      html += '<div class="report-allclear">✓ All tracks are correctly pathed — no changes needed.</div>';
+    }
+
+    // Next steps
+    if (isDry && s.updated > 0) {
+      html += `<div class="report-next-steps"><strong>Next step:</strong> Run without Dry Run to apply ${s.updated.toLocaleString()} path update${s.updated !== 1 ? 's' : ''} to your database.</div>`;
+    } else if (!isDry && s.updated > 0) {
+      html += `<div class="report-next-steps"><strong>Done.</strong> Open Rekordbox to see the updated paths.</div>`;
+    }
+
     return html;
   }
 
@@ -1087,6 +1148,13 @@
       html += '</div></div>';
     }
 
+    // Next steps
+    if (isDry && s.would_move > 0) {
+      html += `<div class="report-next-steps"><strong>Next step:</strong> Run without Dry Run to move ${s.would_move.toLocaleString()} unreferenced file${s.would_move !== 1 ? 's' : ''} to the DELETE folder.</div>`;
+    } else if (!isDry && s.moved > 0) {
+      html += `<div class="report-next-steps"><strong>Next step:</strong> Review moved files in your DELETE folder before emptying it.</div>`;
+    }
+
     return html;
   }
 
@@ -1126,10 +1194,25 @@
       html += '<div class="report-empty">✓ All tracks have valid file paths. Nothing to remove.</div>';
     }
 
+    // Next steps
+    if (isDry && s.removed > 0) {
+      html += `<div class="report-next-steps"><strong>Next step:</strong> Run without Dry Run to soft-delete ${s.removed.toLocaleString()} missing track${s.removed !== 1 ? 's' : ''} from Rekordbox.</div>`;
+    } else if (!isDry && s.removed > 0) {
+      html += `<div class="report-next-steps"><strong>Note:</strong> Removed tracks will no longer appear in Rekordbox playlists or search results.</div>`;
+    }
+
     return html;
   }
 
   // ── Fix Metadata report ──────────────────────────────────────────────────
+
+  function fmtBytes(n) {
+    if (n === 0) return '0 B';
+    const abs = Math.abs(n);
+    if (abs >= 1048576) return (n / 1048576).toFixed(2) + ' MB';
+    if (abs >= 1024)    return (n / 1024).toFixed(1) + ' KB';
+    return n.toLocaleString() + ' B';
+  }
 
   function renderFixMetadataReport(data, isDry) {
     const s = data.summary;
@@ -1140,6 +1223,8 @@
     html += statCard('Already correct', s.already_ok, 'green');
     html += statCard(verb,              s.fixed,      s.fixed > 0 ? 'orange' : 'green');
     html += statCard('File missing',    s.missing,    s.missing > 0 ? 'red' : 'accent');
+    if (s.type_changed > 0) html += statCard('Format type changed', s.type_changed, 'orange');
+    if (s.size_changed > 0) html += statCard('File size re-synced', s.size_changed, 'accent');
     html += '</div>';
 
     if (data.fixed_tracks && data.fixed_tracks.length > 0) {
@@ -1149,18 +1234,23 @@
           <span class="section-count">${data.fixed_tracks.length} track${data.fixed_tracks.length !== 1 ? 's' : ''}</span>
         </div>
         <p style="font-family:var(--mono);font-size:13px;color:var(--text-dim);margin-bottom:12px">
-          These tracks have a correct file path but stale FileType or FileSize in the database.
-          ${isDry ? 'These values would be updated' : 'These values have been updated'} to match the actual file on disk.
+          The database had the wrong format code or wrong file size for these tracks.
+          The values below show what was stored in the database (old) versus what the actual file on disk says (new).
           No audio files were modified.
         </p>
         <div class="track-list">`;
       for (const t of data.fixed_tracks) {
+        const dbLabel  = t.db_type_label  || String(t.db_type);
+        const actLabel = t.actual_type_label || String(t.actual_type);
         const typeLabel = t.type_changed
-          ? `<div style="font-family:var(--mono);font-size:11px;color:var(--orange);margin-top:3px">FileType: ${esc(String(t.db_type))} → ${esc(String(t.actual_type))}</div>`
+          ? `<div style="font-family:var(--mono);font-size:11px;color:var(--orange);margin-top:3px">Format: ${esc(dbLabel)} → ${esc(actLabel)}</div>`
           : '';
-        const sizeLabel = t.size_changed
-          ? `<div style="font-family:var(--mono);font-size:11px;color:var(--text-dim);margin-top:2px">FileSize: ${t.db_size.toLocaleString()} → ${t.actual_size.toLocaleString()} bytes</div>`
-          : '';
+        let sizeLabel = '';
+        if (t.size_changed) {
+          const delta     = t.size_delta !== undefined ? t.size_delta : (t.actual_size - t.db_size);
+          const sign      = delta >= 0 ? '+' : '';
+          sizeLabel = `<div style="font-family:var(--mono);font-size:11px;color:var(--text-dim);margin-top:2px">Size: ${fmtBytes(t.db_size)} → ${fmtBytes(t.actual_size)} <span style="color:var(--text-dim);opacity:0.6">(${sign}${fmtBytes(delta)})</span></div>`;
+        }
         html += `<div class="track-row">
           <div class="track-title">${esc(t.title)}</div>
           <div class="track-path">${esc(t.path)}</div>
@@ -1169,7 +1259,7 @@
       }
       html += '</div></div>';
     } else {
-      html += '<div class="report-empty">✓ All tracks have correct FileType and FileSize. Nothing to fix.</div>';
+      html += '<div class="report-empty">✓ All tracks have correct format type and file size. Nothing to fix.</div>';
     }
 
     if (data.missing_tracks && data.missing_tracks.length > 0) {
@@ -1190,6 +1280,13 @@
         </div>`;
       }
       html += '</div></div>';
+    }
+
+    // Next steps
+    if (isDry && s.fixed > 0) {
+      html += `<div class="report-next-steps"><strong>Next step:</strong> Run without Dry Run to fix ${s.fixed.toLocaleString()} track${s.fixed !== 1 ? 's' : ''} in the database.</div>`;
+    } else if (!isDry && s.fixed > 0) {
+      html += `<div class="report-next-steps"><strong>Next step:</strong> Re-analyze updated tracks in Rekordbox — right-click the tracks → <strong>Analyze Tracks</strong> — to refresh waveform and BPM data.</div>`;
     }
 
     return html;
@@ -1260,6 +1357,67 @@
       html += '</div></div>';
     }
 
+    if (s.added === 0 && s.scanned > 0) {
+      html += '<div class="report-allclear">✓ No new files found — your watch folder is already up to date in Rekordbox.</div>';
+    }
+
+    // Next steps
+    if (isDry && s.added > 0) {
+      html += `<div class="report-next-steps"><strong>Next step:</strong> Run without Dry Run to add ${s.added.toLocaleString()} track${s.added !== 1 ? 's' : ''} to your Rekordbox library.</div>`;
+    } else if (!isDry && s.added > 0) {
+      html += `<div class="report-next-steps"><strong>Next step:</strong> Open Rekordbox and find your new tracks in <strong>${esc(data.playlist_name)}</strong>. Right-click → <strong>Analyze Tracks</strong> to build waveforms and BPM.</div>`;
+    }
+
+    return html;
+  }
+
+  // ── Strip Comments report ────────────────────────────────────────────────
+
+  function renderStripCommentsReport(data, isDry) {
+    const s = data.summary;
+    const verb = isDry ? 'Would modify' : 'Modified';
+
+    let html = '<div class="report-stats">';
+    html += statCard('Files scanned', s.scanned,  'accent');
+    html += statCard(verb,            s.modified, s.modified > 0 ? 'green' : 'accent');
+    if (s.errors > 0) html += statCard('Errors', s.errors, 'red');
+    html += '</div>';
+
+    if (s.modified === 0) {
+      html += '<div class="report-allclear">✓ No URL comments found — all scanned files are clean.</div>';
+    }
+
+    if (data.modified_files && data.modified_files.length > 0) {
+      html += `<div class="report-section">
+        <div class="report-section-title">
+          <span>${isDry ? 'Files with URL comments' : 'Files cleaned'}</span>
+          <span class="section-count">${data.modified_files.length} file${data.modified_files.length !== 1 ? 's' : ''}</span>
+        </div>
+        <p style="font-family:var(--mono);font-size:13px;color:var(--text-dim);margin-bottom:12px">
+          ${isDry ? 'These files contain URLs in comment tags that would be removed.' : 'URLs have been removed from comment tags in these files.'}
+        </p>
+        <div class="track-list">`;
+      for (const f of data.modified_files) {
+        const fname = f.path.replace(/\\/g, '/').split('/').pop();
+        html += `<div class="track-row">
+          <div class="track-title">${esc(fname)}</div>
+          <div class="track-path">${esc(f.path)}</div>`;
+        for (const c of f.changes) {
+          const fromShort = c.from.length > 60 ? c.from.substring(0, 60) + '\u2026' : c.from;
+          const toDisplay = c.to || '<empty>';
+          html += `<div style="font-family:var(--mono);font-size:11px;color:var(--text-dim);margin-top:3px">[${esc(c.field)}] ${esc(fromShort)} \u2192 <span style="color:var(--green)">${esc(toDisplay)}</span></div>`;
+        }
+        html += '</div>';
+      }
+      html += '</div></div>';
+    }
+
+    if (isDry && s.modified > 0) {
+      html += `<div class="report-next-steps"><strong>Next step:</strong> Run with Write mode to apply changes to ${s.modified.toLocaleString()} file${s.modified !== 1 ? 's' : ''}.</div>`;
+    } else if (!isDry && s.modified > 0) {
+      html += `<div class="report-next-steps"><strong>Done.</strong> URL comments removed from ${s.modified.toLocaleString()} file${s.modified !== 1 ? 's' : ''}. Re-import into Rekordbox to see the updated tags (right-click → Reload Tags).</div>`;
+    }
+
     return html;
   }
 
@@ -1297,7 +1455,7 @@
   }
 
   function runScript(endpoint, params, statusEl) {
-    const consoleEl   = document.getElementById('console');
+    const consoleEl = document.getElementById('console');
 
     // Archive previous console output (console only — reports accumulate separately)
     const existingConsoleHtml = consoleEl.innerHTML.trim();
@@ -1313,9 +1471,36 @@
     }
 
     consoleEl.innerHTML = '';
+    // Ensure console is visible at the start of each run
+    consoleEl.classList.remove('console-collapsed');
+
+    // Inject console toggle button once into the console bar
+    const consoleBar = consoleEl.parentElement.querySelector('.console-bar');
+    if (consoleBar && !consoleBar.querySelector('.console-toggle')) {
+      const toggleBtn = document.createElement('button');
+      toggleBtn.className = 'console-toggle';
+      toggleBtn.textContent = 'Hide \u25b4';
+      toggleBtn.onclick = () => {
+        const isCollapsed = consoleEl.classList.toggle('console-collapsed');
+        toggleBtn.textContent = isCollapsed ? 'Show \u25be' : 'Hide \u25b4';
+      };
+      consoleBar.insertBefore(toggleBtn, consoleBar.querySelector('.status'));
+    }
+    const toggleBtn = consoleEl.parentElement.querySelector('.console-toggle');
+    if (toggleBtn) toggleBtn.textContent = 'Hide \u25b4';
+
     resetProgress();
     // Report panel is NOT cleared — reports from all runs accumulate there
     if (statusEl) { statusEl.textContent = 'Running...'; statusEl.className = 'status running'; }
+
+    // Disable run buttons to prevent double-submission
+    const runBtns = document.querySelectorAll('.btn-primary, .btn-secondary');
+    runBtns.forEach(b => { b.disabled = true; b.style.opacity = '0.5'; });
+    function reEnableBtns() {
+      document.querySelectorAll('.btn-primary, .btn-secondary').forEach(b => {
+        b.disabled = false; b.style.opacity = '';
+      });
+    }
 
     const qs  = new URLSearchParams(params).toString();
     const url = `/api/run/${endpoint}?${qs}`;
@@ -1343,7 +1528,14 @@
         es.close();
         _activeEventSource = null;
         finishProgress();
+        reEnableBtns();
         if (statusEl) { statusEl.textContent = 'Done'; statusEl.className = 'status done'; }
+        // Auto-collapse console after run — report panel has the useful results
+        setTimeout(() => {
+          consoleEl.classList.add('console-collapsed');
+          const tb = consoleEl.parentElement.querySelector('.console-toggle');
+          if (tb) tb.textContent = 'Show \u25be';
+        }, 800);
         return;
       }
 
@@ -1362,6 +1554,7 @@
     es.onerror = () => {
       es.close();
       _activeEventSource = null;
+      reEnableBtns();
       if (statusEl) { statusEl.textContent = 'Error'; statusEl.className = 'status'; }
     };
   }
@@ -1388,11 +1581,13 @@
       fill.classList.remove('indeterminate');
       const pct = Math.min(100, Math.round((data.current / data.total) * 100));
       fill.style.width = pct + '%';
-      label.textContent = data.current.toLocaleString() + ' / ' + data.total.toLocaleString();
+      const countStr = data.current.toLocaleString() + ' / ' + data.total.toLocaleString();
+      label.textContent = data.label ? data.label + ' \u2014 ' + countStr : countStr;
     } else {
       fill.style.width = '';
       fill.classList.add('indeterminate');
-      label.textContent = 'Scanning\u2026 ' + (data.current || 0).toLocaleString() + ' files';
+      const countStr = (data.current || 0).toLocaleString() + ' files';
+      label.textContent = data.label ? data.label + '\u2026 ' + countStr : 'Scanning\u2026 ' + countStr;
     }
   }
 
