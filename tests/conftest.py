@@ -1,7 +1,12 @@
 import sys
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
+
+# Make scripts/ importable as a flat namespace (needed for `from utils import …`
+# inside scripts when they are imported as `scripts.rekordbox_xxx` in tests).
+sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 
 # Stub out pyrekordbox before any script imports it.
 # pyrekordbox has Windows-specific C extensions (anlz) that are unavailable
