@@ -57,6 +57,20 @@
     </div>
     <div class="path-hint" style="margin-left:0">Strict: only files matching this exact format are accepted. If a track's match exists in a different format, it is skipped — not relocated.</div>
 
+    <div class="path-row" style="margin-top:8px;">
+      <label>Prefer format <span style="color:var(--text-dim)">(optional)</span></label>
+      <select class="path-input" id="prefer_ext" style="width:160px;flex:none;">
+        <option value="">No preference</option>
+        <option value="flac">FLAC</option>
+        <option value="wav">WAV</option>
+        <option value="aiff">AIFF</option>
+        <option value="mp3">MP3</option>
+        <option value="m4a">M4A (AAC)</option>
+        <option value="alac">ALAC</option>
+      </select>
+    </div>
+    <div class="path-hint" style="margin-left:0">When a track has multiple matches (e.g. both FLAC and MP3 versions), automatically pick the preferred format instead of skipping it as ambiguous.</div>
+
     <div style="margin-top:14px;">
       <div class="option-row">
         <input type="checkbox" id="missing_only">
@@ -121,6 +135,7 @@ function run(dry) {
     source_root:  document.getElementById('source_root').value,
     source_ext:   document.getElementById('source_ext').value,
     target_ext:   document.getElementById('target_ext').value || 'flac',
+    prefer_ext:   document.getElementById('prefer_ext').value,
     missing_only: document.getElementById('missing_only').checked ? '1' : '0',
     all_tracks:   document.getElementById('all_tracks').checked  ? '1' : '0',
     dry_run:      dry ? '1' : '0',

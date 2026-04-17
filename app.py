@@ -222,9 +222,12 @@ def api_run(script_name):
             args.append("--all-tracks")
         target_ext = clean_path(request.args.get("target_ext", "flac")) or "flac"
         source_ext = clean_path(request.args.get("source_ext", ""))
+        prefer_ext = clean_path(request.args.get("prefer_ext", ""))
         args += ["--target-ext", target_ext]
         if source_ext:
             args += ["--source-ext", source_ext]
+        if prefer_ext:
+            args += ["--prefer-ext", prefer_ext]
 
     elif script_name == "cleanup":
         scan = clean_path(request.args.get("scan_root") or cfg.get("music_root", ""))
