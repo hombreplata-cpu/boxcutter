@@ -229,7 +229,10 @@ def run(args):
 
     for _i, fp in enumerate(new_files, 1):
         if _progress_total > 0 and (_i % _progress_every == 0 or _i == _progress_total):
-            print(f'%%PROGRESS%% {{"current": {_i}, "total": {_progress_total}}}', flush=True)
+            print(
+                f'%%PROGRESS%% {{"current": {_i}, "total": {_progress_total}, "label": "Adding tracks"}}',
+                flush=True,
+            )
         label = fp.name
         tags = read_audio_tags(fp)
         title = tags.get("title") or fp.stem

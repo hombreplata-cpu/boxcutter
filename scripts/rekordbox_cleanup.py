@@ -136,7 +136,10 @@ def run(args):
                 continue
             total_scanned += 1
             if total_scanned % 100 == 0:
-                print(f'%%PROGRESS%% {{"current": {total_scanned}}}', flush=True)
+                print(
+                    f'%%PROGRESS%% {{"current": {total_scanned}, "label": "Scanning files"}}',
+                    flush=True,
+                )
             full_path = os.path.join(dirpath, fname)
             if os.path.normcase(full_path) not in active_paths:
                 unreferenced.append(full_path)
@@ -157,7 +160,10 @@ def run(args):
 
     for _move_i, src in enumerate(unreferenced, 1):
         if _move_total > 0 and (_move_i % _move_every == 0 or _move_i == _move_total):
-            print(f'%%PROGRESS%% {{"current": {_move_i}, "total": {_move_total}}}', flush=True)
+            print(
+                f'%%PROGRESS%% {{"current": {_move_i}, "total": {_move_total}, "label": "Moving files"}}',
+                flush=True,
+            )
         try:
             rel = os.path.relpath(src, scan_root)
         except ValueError:

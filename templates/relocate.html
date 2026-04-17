@@ -31,12 +31,31 @@
     <div class="path-hint">Leave blank to only fix broken/missing paths. Source can be a subfolder of, or the same folder as, your target.</div>
 
     <div class="path-row" style="margin-top:8px;">
-      <label>Prefer extension</label>
-      <input class="path-input" id="prefer_ext" type="text"
-             value="flac" style="width:100px;flex:none;"
-             placeholder="flac, wav, aiff, mp3…">
+      <label>Source format <span style="color:var(--text-dim)">(optional)</span></label>
+      <select class="path-input" id="source_ext" style="width:160px;flex:none;">
+        <option value="">Any / all formats</option>
+        <option value="mp3">MP3</option>
+        <option value="flac">FLAC</option>
+        <option value="wav">WAV</option>
+        <option value="aiff">AIFF</option>
+        <option value="m4a">M4A (AAC)</option>
+        <option value="alac">ALAC</option>
+      </select>
     </div>
-    <div class="path-hint" style="margin-left:0">Preferred format when multiple matches exist. Change to <kbd>wav</kbd> or <kbd>aiff</kbd> as needed.</div>
+    <div class="path-hint" style="margin-left:0">Only process tracks currently stored with this format. Leave blank to process all applicable tracks.</div>
+
+    <div class="path-row" style="margin-top:8px;">
+      <label>Target format</label>
+      <select class="path-input" id="target_ext" style="width:160px;flex:none;">
+        <option value="flac">FLAC</option>
+        <option value="wav">WAV</option>
+        <option value="aiff">AIFF</option>
+        <option value="mp3">MP3</option>
+        <option value="m4a">M4A (AAC)</option>
+        <option value="alac">ALAC</option>
+      </select>
+    </div>
+    <div class="path-hint" style="margin-left:0">Strict: only files matching this exact format are accepted. If a track's match exists in a different format, it is skipped — not relocated.</div>
 
     <div style="margin-top:14px;">
       <div class="option-row">
@@ -100,7 +119,8 @@ function run(dry) {
   runScript('relocate', {
     target_root:  document.getElementById('target_root').value,
     source_root:  document.getElementById('source_root').value,
-    prefer_ext:   document.getElementById('prefer_ext').value || 'flac',
+    source_ext:   document.getElementById('source_ext').value,
+    target_ext:   document.getElementById('target_ext').value || 'flac',
     missing_only: document.getElementById('missing_only').checked ? '1' : '0',
     all_tracks:   document.getElementById('all_tracks').checked  ? '1' : '0',
     dry_run:      dry ? '1' : '0',
