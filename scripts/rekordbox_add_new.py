@@ -210,6 +210,8 @@ def run(args):
     already_in_db = len(disk_files) - len(new_files)
     print(f"[scan] {already_in_db:,} already in database — skipped")
     print(f"[scan] {len(new_files):,} new files to add")
+    _progress_total = len(new_files)
+    _progress_every = max(50, _progress_total // 200)
 
     if not new_files:
         print("\n" + "=" * 60)
@@ -225,7 +227,9 @@ def run(args):
     added = []
     errors = []
 
-    for fp in new_files:
+    for _i, fp in enumerate(new_files, 1):
+        if _progress_total > 0 and (_i % _progress_every == 0 or _i == _progress_total):
+            print(f'%%PROGRESS%% {{"current": {_i}, "total": {_progress_total}}}', flush=True)
         label = fp.name
         tags = read_audio_tags(fp)
         title = tags.get("title") or fp.stem

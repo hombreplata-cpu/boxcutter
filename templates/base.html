@@ -5,8 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}rekordbocks{% endblock %}</title>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
-
     :root {
       --bg:         #0d1117;
       --bg-panel:   #161b22;
@@ -20,8 +18,8 @@
       --green:      #3fb950;
       --orange:     #d29922;
       --red:        #f85149;
-      --mono:       'IBM Plex Mono', monospace;
-      --sans:       'IBM Plex Sans', sans-serif;
+      --mono:       'Avenir Next', Avenir, 'Century Gothic', sans-serif;
+      --sans:       'Avenir Next', Avenir, 'Century Gothic', sans-serif;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -30,7 +28,7 @@
       background: var(--bg);
       color: var(--text);
       font-family: var(--sans);
-      font-size: 16px;
+      font-size: 18px;
       display: flex;
       min-height: 100vh;
     }
@@ -713,6 +711,39 @@
       0%, 100% { border-color: var(--red); }
       50%       { border-color: #ff8a80; }
     }
+    /* ── Progress bar ── */
+    #progress-wrap {
+      display: none;
+      margin-top: 16px;
+    }
+    #progress-track {
+      height: 7px;
+      background: var(--bg-input);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    #progress-fill {
+      height: 100%;
+      width: 0%;
+      background: var(--accent);
+      border-radius: 4px;
+      transition: width 0.25s ease;
+    }
+    #progress-fill.indeterminate {
+      width: 40%;
+      animation: progress-pulse 1.4s ease-in-out infinite;
+    }
+    @keyframes progress-pulse {
+      0%   { transform: translateX(-100%); }
+      100% { transform: translateX(350%); }
+    }
+    #progress-label {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text-dim);
+      margin-top: 5px;
+      text-align: right;
+    }
   </style>
   {% block head %}{% endblock %}
 </head>
@@ -1003,8 +1034,13 @@
         </p>
         <div class="track-list">`;
       for (const f of data.unreferenced_files) {
+        const srcParts = f.src.replace(/\\/g, '/').split('/');
+        const filename = srcParts[srcParts.length - 1];
+        const srcFolder = srcParts.slice(0, -1).join('/');
+        const stem = filename.replace(/\.[^.]+$/, '');
         html += `<div class="track-row">
-          <div class="track-path" style="color:var(--orange)">${esc(f.src)}</div>
+          <div class="track-title">${esc(stem)}</div>
+          <div class="track-path">${esc(srcFolder)}</div>
           <div class="track-new-path">→ ${esc(f.dst)}</div>
         </div>`;
       }
@@ -1277,6 +1313,7 @@
     }
 
     consoleEl.innerHTML = '';
+    resetProgress();
     // Report panel is NOT cleared — reports from all runs accumulate there
     if (statusEl) { statusEl.textContent = 'Running...'; statusEl.className = 'status running'; }
 
@@ -1294,11 +1331,18 @@
       }
     });
 
+    // Named event: 'progress' — real-time progress updates
+    es.addEventListener('progress', e => {
+      try { updateProgress(JSON.parse(e.data)); }
+      catch (err) { console.error('Progress parse error:', err); }
+    });
+
     // Default unnamed events: console lines + done sentinel
     es.onmessage = e => {
       if (e.data === '%%DONE%%') {
         es.close();
         _activeEventSource = null;
+        finishProgress();
         if (statusEl) { statusEl.textContent = 'Done'; statusEl.className = 'status done'; }
         return;
       }
@@ -1321,6 +1365,48 @@
       if (statusEl) { statusEl.textContent = 'Error'; statusEl.className = 'status'; }
     };
   }
+  // ── Progress bar helpers ────────────────────────────────────────────────
+
+  function resetProgress() {
+    const wrap  = document.getElementById('progress-wrap');
+    const fill  = document.getElementById('progress-fill');
+    const label = document.getElementById('progress-label');
+    if (!wrap) return;
+    wrap.style.display = 'none';
+    fill.style.width = '0%';
+    fill.classList.remove('indeterminate');
+    label.textContent = '';
+  }
+
+  function updateProgress(data) {
+    const wrap  = document.getElementById('progress-wrap');
+    const fill  = document.getElementById('progress-fill');
+    const label = document.getElementById('progress-label');
+    if (!wrap) return;
+    wrap.style.display = 'block';
+    if (data.total) {
+      fill.classList.remove('indeterminate');
+      const pct = Math.min(100, Math.round((data.current / data.total) * 100));
+      fill.style.width = pct + '%';
+      label.textContent = data.current.toLocaleString() + ' / ' + data.total.toLocaleString();
+    } else {
+      fill.style.width = '';
+      fill.classList.add('indeterminate');
+      label.textContent = 'Scanning\u2026 ' + (data.current || 0).toLocaleString() + ' files';
+    }
+  }
+
+  function finishProgress() {
+    const wrap  = document.getElementById('progress-wrap');
+    const fill  = document.getElementById('progress-fill');
+    const label = document.getElementById('progress-label');
+    if (!wrap) return;
+    fill.classList.remove('indeterminate');
+    fill.style.width = '100%';
+    label.textContent = 'Done';
+    setTimeout(() => { wrap.style.display = 'none'; }, 1200);
+  }
+
   // ── Rekordbox status polling ─────────────────────────────────────────────
 
   function checkRekordboxStatus() {

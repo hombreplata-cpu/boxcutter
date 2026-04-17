@@ -285,6 +285,7 @@ def run(args):
     contents = db.get_content().filter_by(rb_local_deleted=0).all()
     total = len(contents)
     print(f"[db] Found {total:,} track rows.")
+    _progress_every = max(50, total // 200)
 
     updated = 0
     updated_exact = 0
@@ -305,7 +306,9 @@ def run(args):
     if args.ids:
         id_filter = {i.strip() for i in args.ids.split(",")}
 
-    for content in contents:
+    for _i, content in enumerate(contents, 1):
+        if _i % _progress_every == 0 or _i == total:
+            print(f'%%PROGRESS%% {{"current": {_i}, "total": {total}}}', flush=True)
         if id_filter is not None and content.ID not in id_filter:
             already_ok += 1
             continue

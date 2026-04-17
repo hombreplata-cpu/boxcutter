@@ -75,12 +75,16 @@ def main():
 
     contents = db.get_content().filter_by(rb_local_deleted=0).all()
     print(f"[db] {len(contents):,} tracks loaded")
+    total = len(contents)
+    _progress_every = max(50, total // 200)
 
     stats = {"fixed": 0, "already_ok": 0, "missing": 0, "skipped": 0}
     fixed_log = []
     missing_log = []
 
-    for r in contents:
+    for _i, r in enumerate(contents, 1):
+        if _i % _progress_every == 0 or _i == total:
+            print(f'%%PROGRESS%% {{"current": {_i}, "total": {total}}}', flush=True)
         if id_filter and str(r.ID) not in id_filter:
             stats["skipped"] += 1
             continue
@@ -154,7 +158,6 @@ def main():
     elif args.dry_run:
         print("\n[DRY-RUN] No changes written.")
 
-    total = len(contents)
     print("\n" + "=" * 50)
     print("SUMMARY")
     print("=" * 50)
