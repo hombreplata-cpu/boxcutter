@@ -273,6 +273,7 @@ def run(args):
     source_roots = args.source_root or []
     target_ext = (args.target_ext or "flac").lstrip(".").lower()
     source_ext = (args.source_ext or "").lstrip(".").lower() if args.source_ext else None
+    prefer_ext = (args.prefer_ext or "").lstrip(".").lower() or None
     extensions = set(args.extensions.split(",")) if args.extensions else DEFAULT_EXTENSIONS
     extensions = {e.lower().lstrip(".") for e in extensions}
 
@@ -383,6 +384,11 @@ def run(args):
             norm_index,
             target_ext,
         )
+
+        if len(matches) > 1 and prefer_ext:
+            preferred = [m for m in matches if Path(m).suffix.lstrip(".").lower() == prefer_ext]
+            if len(preferred) == 1:
+                matches = preferred
 
         if len(matches) == 1:
             new_path = matches[0]
@@ -576,6 +582,14 @@ def main():
         default="",
         help="Only process tracks whose current file has this extension (e.g. mp3). "
         "Leave blank to process all applicable tracks.",
+    )
+    parser.add_argument(
+        "--prefer-ext",
+        metavar="EXT",
+        default="",
+        help="When multiple matches exist for a track, prefer this extension (e.g. flac). "
+        "If exactly one match has the preferred extension, it is selected automatically "
+        "instead of being skipped as ambiguous.",
     )
     parser.add_argument(
         "--extensions", metavar="LIST", help="Comma-separated audio extensions to index"
