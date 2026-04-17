@@ -26,19 +26,7 @@ from datetime import datetime
 from pathlib import Path
 
 from pyrekordbox import Rekordbox6Database as MasterDatabase
-
-EXT_TO_FILETYPE = {
-    ".mp3": 1,
-    ".m4a": 4,  # AAC container
-    ".wav": 5,
-    ".flac": 6,
-    ".aif": 7,
-    ".aiff": 7,
-    ".ogg": 8,
-    ".wma": 9,
-    ".mp4": 10,
-    ".alac": 11,  # ALAC stored as .alac (distinct from .m4a)
-}
+from utils import EXT_TO_FILETYPE
 
 FILETYPE_LABELS = {
     1: "MP3",
