@@ -322,6 +322,7 @@ def run(args):
     skipped_multi = 0
     still_missing = 0
     already_ok = 0
+    already_correct = 0
     multi_match_log = []
     missing_log = []
     updated_log = []
@@ -394,6 +395,12 @@ def run(args):
             new_path = matches[0]
             new_path_stored = new_path.replace("\\", "/")
 
+            # Never touch a row whose path is already correct — avoids
+            # invalidating Rekordbox analysis on tracks that don't need updating.
+            if new_path_stored == raw_path.replace("\\", "/"):
+                already_correct += 1
+                continue
+
             old_ext_lower = Path(plain_path).suffix.lower()
             new_ext_lower = Path(new_path).suffix.lower()
             if args.dry_run and _console_verbose:
@@ -464,7 +471,8 @@ def run(args):
     print("SUMMARY")
     print("=" * 60)
     print(f"  Total tracks in DB               : {total:,}")
-    print(f"  Already OK (skipped)             : {already_ok:,}")
+    print(f"  Skipped — filtered out           : {already_ok:,}")
+    print(f"  Skipped — path already correct   : {already_correct:,}")
     print(f"  Updated - exact filename         : {updated_exact:,}{dry_tag}")
     print(f"  Updated - Title-Artist match     : {updated_title_art:,}{dry_tag}")
     print(f"  Updated - Artist-Title match     : {updated_art_title:,}{dry_tag}")
@@ -473,8 +481,8 @@ def run(args):
     print(f"  Updated - title partial match    : {updated_partial:,}{dry_tag}")
     print(f"  Updated - fuzzy normalized       : {updated_fuzzy:,}{dry_tag}")
     print(f"  Updated - TOTAL                  : {updated:,}{dry_tag}")
-    print(f"  Skipped (multiple hits)          : {skipped_multi:,}")
-    print(f"  Still missing                    : {still_missing:,}")
+    print(f"  Skipped (multiple matches found) : {skipped_multi:,}")
+    print(f"  Not found in target folder       : {still_missing:,}")
 
     if multi_match_log:
         print("\n-- MULTIPLE MATCHES (manual action needed) --")
@@ -506,6 +514,7 @@ def run(args):
                 "summary": {
                     "total": total,
                     "already_ok": already_ok,
+                    "already_correct": already_correct,
                     "updated": updated,
                     "skipped_multi": skipped_multi,
                     "still_missing": still_missing,
