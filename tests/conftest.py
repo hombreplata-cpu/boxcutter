@@ -1,6 +1,16 @@
+import sys
 from unittest.mock import MagicMock
 
 import pytest
+
+# Stub out pyrekordbox before any script imports it.
+# pyrekordbox has Windows-specific C extensions (anlz) that are unavailable
+# in the CI ubuntu runner used by the Security/Lint jobs. All DB calls in
+# tests are mocked anyway, so the real package is never needed at test time.
+_pyrekordbox_stub = MagicMock()
+sys.modules.setdefault("pyrekordbox", _pyrekordbox_stub)
+sys.modules.setdefault("pyrekordbox.db6", _pyrekordbox_stub)
+sys.modules.setdefault("pyrekordbox.anlz", _pyrekordbox_stub)
 
 
 @pytest.fixture
