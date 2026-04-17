@@ -13,25 +13,36 @@
 #   # Dry run first — nothing is written:
 #   python rekordbox_relocate.py --target-root "D:\Music\FLAC" --dry-run
 #
-#   # Migrate working MP3s that have a FLAC equivalent in target-root:
+#   # Migrate MP3s that have a FLAC equivalent (strict: only FLAC accepted):
 #   python rekordbox_relocate.py \
 #       --target-root "D:\Music\FLAC" \
 #       --source-root "D:\Music\MP3" \
+#       --source-ext mp3 \
+#       --target-ext flac \
 #       --dry-run
 #
 #   # Live run (remove --dry-run to apply):
 #   python rekordbox_relocate.py \
 #       --target-root "D:\Music\FLAC" \
-#       --source-root "D:\Music\MP3"
+#       --source-root "D:\Music\MP3" \
+#       --source-ext mp3 \
+#       --target-ext flac
 #
-# MATCHING LOGIC (six passes per track)
+# MATCHING LOGIC (seven passes per track)
 #   1. Exact filename match
 #   2. Title - Artist  (common FLAC naming format)
 #   3. Artist - Title
+#   3b. Strip mix/version suffixes and retry 2+3
 #   4. Strip numeric prefix (e.g. "00 - ") then retry 2+3
 #   5. Title substring search (title appears anywhere in stem)
 #   6. Partial title match (first 25 chars) for truncated filenames
 #   7. Fuzzy normalized match (collapses separators/brackets)
+#
+# EXTENSION MATCHING IS STRICT
+#   --target-ext determines the only acceptable file format. If a track's
+#   stem is found in the target root but only in a different format, the
+#   track is counted as "still missing" — it is NOT relocated to the wrong
+#   format. Use --source-ext to limit which tracks are processed.
 #
 # SAFETY
 #   - A timestamped backup of master.db is always created before any writes
@@ -62,6 +73,7 @@ EXT_TO_FILETYPE = {
     ".ogg": 8,
     ".wma": 9,
     ".mp4": 10,
+    ".alac": 11,  # ALAC stored as .alac — distinct from .m4a (AAC)
 }
 
 
@@ -154,19 +166,27 @@ def build_target_index(target_root, extensions):
     return dict(exact_index), dict(stem_index), dict(norm_index)
 
 
-def lookup_stem(stem, ext, exact_index, stem_index, prefer_ext):
+def lookup_stem(stem, ext, exact_index, stem_index, target_ext):
+    """Return matching paths for stem. Strict: only target_ext accepted, no fallback."""
     matches = exact_index.get((stem + ext).lower(), [])
     if matches:
+        if target_ext:
+            return [p for p in matches if Path(p).suffix.lstrip(".").lower() == target_ext]
         return matches
     stem_matches = stem_index.get(stem.lower(), [])
     if stem_matches:
-        preferred = [p for p in stem_matches if Path(p).suffix.lstrip(".").lower() == prefer_ext]
-        return preferred if preferred else stem_matches
+        if target_ext:
+            return [p for p in stem_matches if Path(p).suffix.lstrip(".").lower() == target_ext]
+        return stem_matches
     return []
 
 
-def find_match(filename, title, raw_artist, exact_index, stem_index, norm_index, prefer_ext):
-    """Multi-pass match strategy. Returns (matches, match_type)."""
+def find_match(filename, title, raw_artist, exact_index, stem_index, norm_index, target_ext):
+    """Multi-pass match strategy. Returns (matches, match_type).
+
+    Extension matching is strict: only files with target_ext are accepted.
+    A stem match with a different extension returns [] (not a fallback hit).
+    """
     ext = Path(filename).suffix
     stem = Path(filename).stem
     t = sanitize(title or "")
@@ -174,19 +194,22 @@ def find_match(filename, title, raw_artist, exact_index, stem_index, norm_index,
     # Pass 1: exact filename
     matches = exact_index.get(filename.lower(), [])
     if matches:
-        return matches, "exact"
+        if target_ext:
+            matches = [p for p in matches if Path(p).suffix.lstrip(".").lower() == target_ext]
+        if matches:
+            return matches, "exact"
 
     # Pass 2: Title - Artist
     if t and raw_artist:
         for av in artist_variants(raw_artist):
-            matches = lookup_stem(f"{t} - {av}", ext, exact_index, stem_index, prefer_ext)
+            matches = lookup_stem(f"{t} - {av}", ext, exact_index, stem_index, target_ext)
             if matches:
                 return matches, "title-artist"
 
     # Pass 3: Artist - Title
     if t and raw_artist:
         for av in artist_variants(raw_artist):
-            matches = lookup_stem(f"{av} - {t}", ext, exact_index, stem_index, prefer_ext)
+            matches = lookup_stem(f"{av} - {t}", ext, exact_index, stem_index, target_ext)
             if matches:
                 return matches, "artist-title"
 
@@ -199,18 +222,18 @@ def find_match(filename, title, raw_artist, exact_index, stem_index, norm_index,
     ).strip()
     if t_stripped and t_stripped != t and raw_artist:
         for av in artist_variants(raw_artist):
-            matches = lookup_stem(f"{t_stripped} - {av}", ext, exact_index, stem_index, prefer_ext)
+            matches = lookup_stem(f"{t_stripped} - {av}", ext, exact_index, stem_index, target_ext)
             if matches:
                 return matches, "title-artist-stripped"
         for av in artist_variants(raw_artist):
-            matches = lookup_stem(f"{av} - {t_stripped}", ext, exact_index, stem_index, prefer_ext)
+            matches = lookup_stem(f"{av} - {t_stripped}", ext, exact_index, stem_index, target_ext)
             if matches:
                 return matches, "artist-title-stripped"
 
     # Pass 4: Strip numeric prefix and retry
     stripped_stem = strip_numeric_prefix(stem)
     if stripped_stem != stem:
-        matches = lookup_stem(stripped_stem, ext, exact_index, stem_index, prefer_ext)
+        matches = lookup_stem(stripped_stem, ext, exact_index, stem_index, target_ext)
         if matches:
             return matches, "numeric-prefix-stripped"
 
@@ -220,11 +243,12 @@ def find_match(filename, title, raw_artist, exact_index, stem_index, norm_index,
         substring_matches = [
             p for key, paths in stem_index.items() if t_norm in key for p in paths
         ]
-        if substring_matches:
-            preferred = [
-                p for p in substring_matches if Path(p).suffix.lstrip(".").lower() == prefer_ext
+        if target_ext:
+            substring_matches = [
+                p for p in substring_matches if Path(p).suffix.lstrip(".").lower() == target_ext
             ]
-            return (preferred if preferred else substring_matches), "title-substring"
+        if substring_matches:
+            return substring_matches, "title-substring"
 
     # Pass 6: Partial title match (first 25 chars)
     if t and len(t) > 25:
@@ -232,6 +256,10 @@ def find_match(filename, title, raw_artist, exact_index, stem_index, norm_index,
         partial_matches = [
             p for key, paths in stem_index.items() if key.startswith(partial) for p in paths
         ]
+        if target_ext:
+            partial_matches = [
+                p for p in partial_matches if Path(p).suffix.lstrip(".").lower() == target_ext
+            ]
         if partial_matches:
             return partial_matches, "title-partial"
 
@@ -239,11 +267,12 @@ def find_match(filename, title, raw_artist, exact_index, stem_index, norm_index,
     if stem:
         norm_key = normalize_stem(stem)
         fuzzy_matches = norm_index.get(norm_key, [])
-        if fuzzy_matches:
-            preferred = [
-                p for p in fuzzy_matches if Path(p).suffix.lstrip(".").lower() == prefer_ext
+        if target_ext:
+            fuzzy_matches = [
+                p for p in fuzzy_matches if Path(p).suffix.lstrip(".").lower() == target_ext
             ]
-            return (preferred if preferred else fuzzy_matches), "fuzzy-norm"
+        if fuzzy_matches:
+            return fuzzy_matches, "fuzzy-norm"
 
     return [], "no-match"
 
@@ -254,7 +283,8 @@ def run(args):
         raise SystemExit(f"--target-root is not a valid directory: {target_root}")
 
     source_roots = args.source_root or []
-    prefer_ext = (args.prefer_ext or "flac").lstrip(".").lower()
+    target_ext = (args.target_ext or "flac").lstrip(".").lower()
+    source_ext = (args.source_ext or "").lstrip(".").lower() if args.source_ext else None
     extensions = set(args.extensions.split(",")) if args.extensions else DEFAULT_EXTENSIONS
     extensions = {e.lower().lstrip(".") for e in extensions}
 
@@ -286,6 +316,11 @@ def run(args):
     total = len(contents)
     print(f"[db] Found {total:,} track rows.")
     _progress_every = max(50, total // 200)
+    _console_verbose = total <= 200
+    if args.dry_run and not _console_verbose:
+        print(
+            f"[dry-run] {total:,} tracks — per-track output suppressed. See report panel for full results."
+        )
 
     updated = 0
     updated_exact = 0
@@ -308,13 +343,23 @@ def run(args):
 
     for _i, content in enumerate(contents, 1):
         if _i % _progress_every == 0 or _i == total:
-            print(f'%%PROGRESS%% {{"current": {_i}, "total": {total}}}', flush=True)
+            print(
+                f'%%PROGRESS%% {{"current": {_i}, "total": {total}, "label": "Matching tracks"}}',
+                flush=True,
+            )
         if id_filter is not None and content.ID not in id_filter:
             already_ok += 1
             continue
 
         raw_path = content.FolderPath or ""
         plain_path = normalize_path(raw_path)
+
+        # Filter by source extension before any path-existence checks
+        if source_ext and plain_path:
+            current_ext = Path(plain_path).suffix.lstrip(".").lower()
+            if current_ext != source_ext:
+                already_ok += 1
+                continue
 
         if args.missing_only:
             path_exists = bool(plain_path and os.path.isfile(plain_path))
@@ -348,24 +393,26 @@ def run(args):
             exact_index,
             stem_index,
             norm_index,
-            prefer_ext,
+            target_ext,
         )
 
         if len(matches) == 1:
             new_path = matches[0]
             new_path_stored = new_path.replace("\\", "/")
 
-            if args.dry_run:
+            old_ext_lower = Path(plain_path).suffix.lower()
+            new_ext_lower = Path(new_path).suffix.lower()
+            if args.dry_run and _console_verbose:
                 print(f"[dry-run] [{match_type}]\n  {plain_path}\n  -> {new_path}")
             else:
                 actual_size = os.path.getsize(new_path)
-                actual_type = EXT_TO_FILETYPE.get(Path(new_path).suffix.lower(), 6)
                 content.FolderPath = new_path_stored
                 content.OrgFolderPath = new_path_stored
-                content.FileType = actual_type
+                if old_ext_lower != new_ext_lower:
+                    content.FileType = EXT_TO_FILETYPE.get(new_ext_lower, 6)
                 content.FileSize = actual_size
-            old_ext = Path(plain_path).suffix.lower().lstrip(".")
-            new_ext = Path(new_path).suffix.lower().lstrip(".")
+            old_ext = old_ext_lower.lstrip(".")
+            new_ext = new_ext_lower.lstrip(".")
             updated_log.append(
                 {
                     "title": content.Title or "",
@@ -523,10 +570,21 @@ def main():
         help="Only process tracks whose file does not exist on disk",
     )
     parser.add_argument(
-        "--prefer-ext",
+        "--target-ext",
         metavar="EXT",
         default="flac",
-        help="Preferred extension for matching (default: flac)",
+        help=(
+            "Target file extension to match (default: flac). STRICT: only files with this "
+            "exact extension are accepted. If a stem exists in a different format it is "
+            "skipped — not relocated to the wrong format."
+        ),
+    )
+    parser.add_argument(
+        "--source-ext",
+        metavar="EXT",
+        default="",
+        help="Only process tracks whose current file has this extension (e.g. mp3). "
+        "Leave blank to process all applicable tracks.",
     )
     parser.add_argument(
         "--extensions", metavar="LIST", help="Comma-separated audio extensions to index"

@@ -220,8 +220,11 @@ def api_run(script_name):
             args.append("--missing-only")
         if request.args.get("all_tracks") == "1":
             args.append("--all-tracks")
-        pref = clean_path(request.args.get("prefer_ext", "flac"))
-        args += ["--prefer-ext", pref]
+        target_ext = clean_path(request.args.get("target_ext", "flac")) or "flac"
+        source_ext = clean_path(request.args.get("source_ext", ""))
+        args += ["--target-ext", target_ext]
+        if source_ext:
+            args += ["--source-ext", source_ext]
 
     elif script_name == "cleanup":
         scan = clean_path(request.args.get("scan_root") or cfg.get("music_root", ""))
@@ -275,6 +278,9 @@ def api_run(script_name):
         backup_path = None
         report_data = None
 
+        mode_str = "dry run" if dry_run else "live"
+        tool_label = TOOL_LABELS.get(script_name, script_name)
+        yield f"data: === {tool_label} ({mode_str}) ===\n\n"
         yield f"data: $ {' '.join(cmd)}\n\n"
         yield "data: \n\n"
         env = os.environ.copy()

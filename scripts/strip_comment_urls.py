@@ -19,6 +19,7 @@ Usage:
 """
 
 import argparse
+import json
 import re
 import sys
 from pathlib import Path
@@ -50,6 +51,7 @@ def has_url(text: str) -> bool:
 
 
 def process_mp3(path: Path, write: bool) -> list:
+    """Return list of dicts: {field, from_, to_} for each URL-containing frame."""
     changes = []
     try:
         tags = ID3(str(path))
@@ -72,10 +74,7 @@ def process_mp3(path: Path, write: bool) -> list:
             if has_url(text):
                 cleaned = strip_urls(text)
                 new_texts.append(cleaned)
-                changes.append(
-                    f"  [{key}] '{text[:80]}{'...' if len(text) > 80 else ''}'"
-                    f"\n        -> '{cleaned}'"
-                )
+                changes.append({"field": key, "from_": text, "to_": cleaned})
                 frame_changed = True
             else:
                 new_texts.append(text)
@@ -99,6 +98,7 @@ def process_mp3(path: Path, write: bool) -> list:
 
 
 def process_flac(path: Path, write: bool) -> list:
+    """Return list of dicts: {field, from_, to_} for each URL-containing tag."""
     changes = []
     try:
         audio = FLAC(str(path))
@@ -117,10 +117,7 @@ def process_flac(path: Path, write: bool) -> list:
             if has_url(text):
                 cleaned = strip_urls(text)
                 new_values.append(cleaned)
-                changes.append(
-                    f"  [{field.upper()}] '{text[:80]}{'...' if len(text) > 80 else ''}'"
-                    f"\n             -> '{cleaned}'"
-                )
+                changes.append({"field": field.upper(), "from_": text, "to_": cleaned})
                 field_changed = True
             else:
                 new_values.append(text)
@@ -146,6 +143,8 @@ def process_flac(path: Path, write: bool) -> list:
 def crawl(directories, write):
     total_files = 0
     total_changed = 0
+    total_errors = 0
+    modified_files = []
 
     mode_label = "WRITE" if write else "DRY RUN"
     print(f"\n=== strip_comment_urls  [{mode_label}] ===\n")
@@ -164,7 +163,9 @@ def crawl(directories, write):
                 continue
             _scan_i += 1
             if _scan_i % 100 == 0:
-                print(f'%%PROGRESS%% {{"current": {_scan_i}}}', flush=True)
+                print(
+                    f'%%PROGRESS%% {{"current": {_scan_i}, "label": "Scanning files"}}', flush=True
+                )
 
             suffix = path.suffix.lower()
             if suffix not in (".mp3", ".flac"):
@@ -178,7 +179,17 @@ def crawl(directories, write):
                 total_changed += 1
                 print(f"\n  {path}")
                 for c in changes:
-                    print(c)
+                    from_short = c["from_"][:80] + ("..." if len(c["from_"]) > 80 else "")
+                    print(f"  [{c['field']}] '{from_short}'\n        -> '{c['to_']}'")
+                modified_files.append(
+                    {
+                        "path": str(path),
+                        "changes": [
+                            {"field": c["field"], "from": c["from_"][:100], "to": c["to_"]}
+                            for c in changes
+                        ],
+                    }
+                )
 
     print(f"\n{'=' * 50}")
     print(f"Files scanned : {total_files}")
@@ -188,6 +199,23 @@ def crawl(directories, write):
     if not write and total_changed:
         print("\nRe-run with --write to apply changes.")
     print()
+
+    print("%%REPORT_START%%")
+    print(
+        json.dumps(
+            {
+                "tool": "strip_comments",
+                "dry_run": not write,
+                "summary": {
+                    "scanned": total_files,
+                    "modified": total_changed,
+                    "errors": total_errors,
+                },
+                "modified_files": modified_files,
+            }
+        )
+    )
+    print("%%REPORT_END%%")
 
 
 # ---------------------------------------------------------------------------

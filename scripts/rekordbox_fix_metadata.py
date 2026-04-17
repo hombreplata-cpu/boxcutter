@@ -41,21 +41,7 @@ EXT_TO_FILETYPE = {
 }
 
 
-def main():
-    parser = argparse.ArgumentParser(
-        description="Fix stale FileType/FileSize in Rekordbox DB for tracks with correct paths."
-    )
-    parser.add_argument("--dry-run", action="store_true", help="Preview changes without writing")
-    parser.add_argument("--verbose", action="store_true", help="Print all tracks checked")
-    parser.add_argument("--ids", metavar="ID_LIST", help="Comma-separated track IDs to fix")
-    parser.add_argument(
-        "--db-path",
-        metavar="PATH",
-        default="",
-        help="Path to master.db (auto-detected if not set)",
-    )
-    args = parser.parse_args()
-
+def run(args):
     id_filter = None
     if args.ids:
         id_filter = {i.strip() for i in args.ids.split(",")}
@@ -78,13 +64,16 @@ def main():
     total = len(contents)
     _progress_every = max(50, total // 200)
 
-    stats = {"fixed": 0, "already_ok": 0, "missing": 0, "skipped": 0}
+    stats = {"fixed": 0, "already_ok": 0, "missing": 0, "skipped": 0, "unknown_ext": 0}
     fixed_log = []
     missing_log = []
 
     for _i, r in enumerate(contents, 1):
         if _i % _progress_every == 0 or _i == total:
-            print(f'%%PROGRESS%% {{"current": {_i}, "total": {total}}}', flush=True)
+            print(
+                f'%%PROGRESS%% {{"current": {_i}, "total": {total}, "label": "Checking tracks"}}',
+                flush=True,
+            )
         if id_filter and str(r.ID) not in id_filter:
             stats["skipped"] += 1
             continue
@@ -110,7 +99,15 @@ def main():
             continue
 
         actual_size = os.path.getsize(win_path)
-        actual_type = EXT_TO_FILETYPE.get(Path(win_path).suffix.lower(), 6)
+        suffix = Path(win_path).suffix.lower()
+        actual_type = EXT_TO_FILETYPE.get(suffix)
+
+        # Skip files with unrecognised extensions — never guess a type.
+        if actual_type is None:
+            print(f"  [SKIP] Unknown extension '{suffix}': {r.Title}")
+            stats["unknown_ext"] += 1
+            stats["skipped"] += 1
+            continue
 
         db_size = r.FileSize or 0
         db_type = r.FileType or 0
@@ -196,6 +193,23 @@ def main():
     print("%%REPORT_START%%")
     print(json.dumps(report))
     print("%%REPORT_END%%")
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Fix stale FileType/FileSize in Rekordbox DB for tracks with correct paths."
+    )
+    parser.add_argument("--dry-run", action="store_true", help="Preview changes without writing")
+    parser.add_argument("--verbose", action="store_true", help="Print all tracks checked")
+    parser.add_argument("--ids", metavar="ID_LIST", help="Comma-separated track IDs to fix")
+    parser.add_argument(
+        "--db-path",
+        metavar="PATH",
+        default="",
+        help="Path to master.db (auto-detected if not set)",
+    )
+    args = parser.parse_args()
+    run(args)
 
 
 if __name__ == "__main__":

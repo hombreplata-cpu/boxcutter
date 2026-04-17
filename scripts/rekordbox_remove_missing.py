@@ -52,7 +52,10 @@ def run(args):
 
     for _i, content in enumerate(contents, 1):
         if _i % _progress_every == 0 or _i == total:
-            print(f'%%PROGRESS%% {{"current": {_i}, "total": {total}}}', flush=True)
+            print(
+                f'%%PROGRESS%% {{"current": {_i}, "total": {total}, "label": "Checking tracks"}}',
+                flush=True,
+            )
         raw_path = content.FolderPath or ""
         os_path = normalize_path(raw_path)
 
