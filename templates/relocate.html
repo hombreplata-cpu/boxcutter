@@ -4,7 +4,7 @@
 {% block content %}
 <div class="page-header">
   <h1>Relocate Tracks</h1>
-  <p>Re-point broken track paths to a target folder containing better-quality files. Cues, beatgrids, and playlists are preserved.</p>
+  <p>Update track file paths in your Rekordbox library — for example, when upgrading from MP3 to FLAC, or after moving your music folder. Cues, beatgrids, and playlists are always preserved.</p>
 </div>
 <div class="divider"></div>
 
@@ -24,11 +24,11 @@
     <div class="path-hint">Drag a folder here, or <kbd>Right-click folder</kbd> → <kbd>Copy as path</kbd> → paste</div>
 
     <div class="path-row">
-      <label>Source Folder ↙ <span style="color:var(--text-dim)">(optional)</span></label>
+      <label>Upgrade from folder <span style="color:var(--text-dim)">(optional)</span></label>
       <input class="path-input" id="source_root" type="text"
-             value="{{ cfg.mp3_root }}" placeholder="Folder to migrate away from — can be same root as target">
+             value="{{ cfg.mp3_root }}" placeholder="The folder you're moving away from (e.g. your old MP3 library)">
     </div>
-    <div class="path-hint">Leave blank to only fix broken/missing paths. Source can be a subfolder of, or the same folder as, your target.</div>
+    <div class="path-hint">Tracks pointing here will be switched to their match in the target folder. Leave blank to only fix tracks Rekordbox can't find.</div>
 
     <div class="path-row" style="margin-top:8px;">
       <label>Source format <span style="color:var(--text-dim)">(optional)</span></label>
@@ -42,7 +42,7 @@
         <option value="alac">ALAC</option>
       </select>
     </div>
-    <div class="path-hint" style="margin-left:0">Only process tracks currently stored with this format. Leave blank to process all applicable tracks.</div>
+    <div class="path-hint" style="margin-left:0">Only switch tracks that are currently this format. Leave blank to process all formats.</div>
 
     <div class="path-row" style="margin-top:8px;">
       <label>Target format</label>
@@ -55,7 +55,7 @@
         <option value="alac">ALAC</option>
       </select>
     </div>
-    <div class="path-hint" style="margin-left:0">Strict: only files matching this exact format are accepted. If a track's match exists in a different format, it is skipped — not relocated.</div>
+    <div class="path-hint" style="margin-left:0">Only accept files in this format. If a match exists in a different format it will be skipped, not used as a substitute.</div>
 
     <div class="path-row" style="margin-top:8px;">
       <label>Prefer format <span style="color:var(--text-dim)">(optional)</span></label>
@@ -69,16 +69,16 @@
         <option value="alac">ALAC</option>
       </select>
     </div>
-    <div class="path-hint" style="margin-left:0">When a track has multiple matches (e.g. both FLAC and MP3 versions), automatically pick the preferred format instead of skipping it as ambiguous.</div>
+    <div class="path-hint" style="margin-left:0">When multiple files match a track, automatically pick this format. Without this, tracks with multiple matches are skipped and listed for manual review.</div>
 
     <div style="margin-top:14px;">
       <div class="option-row">
         <input type="checkbox" id="missing_only">
-        <label for="missing_only">Missing only — skip tracks that already resolve</label>
+        <label for="missing_only">Only fix broken tracks — skip anything that already points to a valid file</label>
       </div>
       <div class="option-row">
         <input type="checkbox" id="all_tracks">
-        <label for="all_tracks">All tracks — recheck even existing paths</label>
+        <label for="all_tracks">Recheck all tracks — including ones that already work (tracks already at the correct path are never re-written)</label>
       </div>
     </div>
   </div>
@@ -87,6 +87,7 @@
     <button class="btn btn-secondary" onclick="run(true)">▷ &nbsp;Dry Run</button>
     <button class="btn btn-primary"   onclick="run(false)">▶ &nbsp;Run Relocate</button>
   </div>
+  <div class="path-hint" style="margin-top:8px;">After running, re-analyze any updated tracks in Rekordbox (select tracks → right-click → Analyze Tracks) to refresh waveforms and BPM.</div>
 </div>
 
 <div id="progress-wrap">
