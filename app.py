@@ -298,6 +298,12 @@ def api_run(script_name):
             if line.startswith("[backup] ") and not line.startswith("[backup] WARNING"):
                 backup_path = line[len("[backup] ") :]
 
+            # Progress sentinel — intercept and re-emit as named SSE event
+            if line.startswith("%%PROGRESS%%"):
+                payload = line[len("%%PROGRESS%%") :].strip()
+                yield f"event: progress\ndata: {payload}\n\n"
+                continue
+
             if line == "%%REPORT_START%%":
                 in_report = True
                 report_lines = []

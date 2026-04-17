@@ -44,11 +44,15 @@ def run(args):
 
     contents = db.get_content().filter_by(rb_local_deleted=0).all()
     print(f"[db] Loaded {len(contents):,} track rows.")
+    total = len(contents)
+    _progress_every = max(50, total // 200)
 
     removed = []
     kept = 0
 
-    for content in contents:
+    for _i, content in enumerate(contents, 1):
+        if _i % _progress_every == 0 or _i == total:
+            print(f'%%PROGRESS%% {{"current": {_i}, "total": {total}}}', flush=True)
         raw_path = content.FolderPath or ""
         os_path = normalize_path(raw_path)
 

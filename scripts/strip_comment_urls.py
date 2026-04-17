@@ -157,10 +157,14 @@ def crawl(directories, write):
             continue
 
         print(f"Scanning: {root}")
+        _scan_i = 0
 
         for path in root.rglob("*"):
             if not path.is_file():
                 continue
+            _scan_i += 1
+            if _scan_i % 100 == 0:
+                print(f'%%PROGRESS%% {{"current": {_scan_i}}}', flush=True)
 
             suffix = path.suffix.lower()
             if suffix not in (".mp3", ".flac"):
