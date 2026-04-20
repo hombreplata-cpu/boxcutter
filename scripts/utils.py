@@ -19,6 +19,8 @@ EXT_TO_FILETYPE = {
     ".alac": 11,  # ALAC stored as .alac (distinct from .m4a AAC)
 }
 
+MUSIC_EXTENSIONS = {".mp3", ".flac", ".wav", ".aif", ".aiff", ".alac", ".m4a"}
+
 FILETYPE_LABELS = {
     1: "MP3",
     4: "AAC/M4A",

@@ -1,8 +1,15 @@
 """
 strip_comment_urls.py
 
-Crawl directories for MP3/FLAC files and remove URLs from comment tags,
+Crawl directories for music files and remove URLs from comment tags,
 leaving all other comment content intact.
+
+Supported formats:
+    MP3   — ID3 COMM frames
+    FLAC  — Vorbis COMMENT / DESCRIPTION fields
+    WAV   — embedded ID3 COMM frames
+    AIFF  — embedded ID3 COMM frames
+    ALAC/M4A — MP4 \\xa9cmt atom
 
 Requirements:
     pip install mutagen
@@ -24,9 +31,12 @@ import re
 import sys
 from pathlib import Path
 
+from utils import MUSIC_EXTENSIONS
+
 try:
     from mutagen.flac import FLAC
     from mutagen.id3 import ID3, ID3NoHeaderError
+    from mutagen.mp4 import MP4
 except ImportError:
     print("ERROR: mutagen is not installed. Run:  pip install mutagen")
     sys.exit(1)
@@ -46,12 +56,12 @@ def has_url(text: str) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# MP3 handling (ID3 tags — COMM frames)
+# ID3 handling (MP3 — and WAV/AIFF which embed ID3 chunks)
 # ---------------------------------------------------------------------------
 
 
-def process_mp3(path: Path, write: bool) -> list:
-    """Return list of dicts: {field, from_, to_} for each URL-containing frame."""
+def _process_id3(path: Path, write: bool) -> list:
+    """Return list of dicts: {field, from_, to_} for each URL-containing COMM frame."""
     changes = []
     try:
         tags = ID3(str(path))
@@ -90,6 +100,14 @@ def process_mp3(path: Path, write: bool) -> list:
             print(f"  [ERROR] Could not save {path}: {e}")
 
     return changes
+
+
+def process_mp3(path: Path, write: bool) -> list:
+    return _process_id3(path, write)
+
+
+def process_wav_aiff(path: Path, write: bool) -> list:
+    return _process_id3(path, write)
 
 
 # ---------------------------------------------------------------------------
@@ -136,6 +154,49 @@ def process_flac(path: Path, write: bool) -> list:
 
 
 # ---------------------------------------------------------------------------
+# MP4 handling (ALAC / M4A — \xa9cmt atom)
+# ---------------------------------------------------------------------------
+
+
+def process_mp4(path: Path, write: bool) -> list:
+    """Return list of dicts: {field, from_, to_} for each URL-containing comment atom."""
+    changes = []
+    try:
+        audio = MP4(str(path))
+    except Exception as e:
+        print(f"  [WARN] Could not read MP4 tags: {path}  ({e})")
+        return changes
+
+    tags = audio.tags
+    if tags is None:
+        return changes
+
+    key = "\xa9cmt"
+    values = tags.get(key, [])
+    new_values = []
+    modified = False
+
+    for text in values:
+        if isinstance(text, str) and has_url(text):
+            cleaned = strip_urls(text)
+            new_values.append(cleaned)
+            changes.append({"field": "COMMENT", "from_": text, "to_": cleaned})
+            modified = True
+        else:
+            new_values.append(text)
+
+    if modified:
+        tags[key] = new_values
+        if write:
+            try:
+                audio.save()
+            except Exception as e:
+                print(f"  [ERROR] Could not save {path}: {e}")
+
+    return changes
+
+
+# ---------------------------------------------------------------------------
 # Directory crawler
 # ---------------------------------------------------------------------------
 
@@ -161,19 +222,30 @@ def crawl(directories, write):
         for path in root.rglob("*"):
             if not path.is_file():
                 continue
+
+            suffix = path.suffix.lower()
+            if suffix not in MUSIC_EXTENSIONS:
+                continue
+
             _scan_i += 1
             if _scan_i % 100 == 0:
                 print(
-                    f'%%PROGRESS%% {{"current": {_scan_i}, "label": "Scanning files"}}', flush=True
+                    f'%%PROGRESS%% {{"current": {_scan_i}, "label": "Scanning music files"}}',
+                    flush=True,
                 )
-
-            suffix = path.suffix.lower()
-            if suffix not in (".mp3", ".flac"):
-                continue
 
             total_files += 1
 
-            changes = process_mp3(path, write) if suffix == ".mp3" else process_flac(path, write)
+            if suffix == ".mp3":
+                changes = process_mp3(path, write)
+            elif suffix == ".flac":
+                changes = process_flac(path, write)
+            elif suffix in (".wav", ".aif", ".aiff"):
+                changes = process_wav_aiff(path, write)
+            elif suffix in (".m4a", ".alac"):
+                changes = process_mp4(path, write)
+            else:
+                continue
 
             if changes:
                 total_changed += 1
@@ -224,7 +296,9 @@ def crawl(directories, write):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Remove URLs from MP3/FLAC comment tags.")
+    parser = argparse.ArgumentParser(
+        description="Remove URLs from music file comment tags (MP3, FLAC, WAV, AIFF, ALAC/M4A)."
+    )
     parser.add_argument(
         "directories", nargs="+", help="One or more directories to crawl recursively."
     )
