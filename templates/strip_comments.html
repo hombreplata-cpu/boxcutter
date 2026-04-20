@@ -4,12 +4,12 @@
 {% block content %}
 <div class="page-header">
   <h1>Strip URL Comments</h1>
-  <p>Remove URLs from MP3/FLAC comment tags across your library. All other comment content is preserved.</p>
+  <p>Remove URLs from comment tags across your music library. All other comment content is preserved.</p>
 </div>
 <div class="divider"></div>
 
 <div class="info-box">
-  Scans MP3 (ID3 COMM frames) and FLAC (Vorbis COMMENT/DESCRIPTION fields). URLs injected by download services like Beatport, Bandcamp, and Traxsource are removed — artist, label, and other notes are left untouched.
+  Scans MP3 (ID3 COMM frames), FLAC (Vorbis COMMENT/DESCRIPTION fields), WAV/AIFF (embedded ID3), and ALAC/M4A (MP4 comment atom). URLs injected by download services like Beatport, Bandcamp, and Traxsource are removed — artist, label, and other notes are left untouched.
 </div>
 
 <div class="tool-body">
@@ -47,6 +47,8 @@
   </div>
   <div id="console"></div>
 </div>
+
+<div id="report-panel"></div>
 {% endblock %}
 
 {% block scripts %}
