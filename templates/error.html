@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Error — rekordbocks{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Something went wrong</h1>
+  <p>The app encountered an unexpected error.</p>
+</div>
+<div class="divider"></div>
+
+<div class="card">
+  <div class="card-label">Crash log saved</div>
+  {% if log_path %}
+  <p style="color:var(--text-dim);font-size:15px;margin-bottom:14px;">
+    A log file has been written to your machine. Share it on GitHub Issues so we can fix it.
+  </p>
+  <div class="path-row">
+    <input class="path-input" id="log-path-input" type="text" value="{{ log_path }}" readonly style="flex:1;">
+    <button class="btn-secondary" onclick="navigator.clipboard.writeText(document.getElementById('log-path-input').value)">Copy path</button>
+  </div>
+  <p style="color:var(--text-dim);font-size:13px;margin-top:10px;">
+    Open an issue at
+    <a href="https://github.com/hombreplata-cpu/rekordbocks/issues" target="_blank" style="color:var(--accent);">
+      github.com/hombreplata-cpu/rekordbocks/issues
+    </a>
+    and attach the log file.
+  </p>
+  {% else %}
+  <p style="color:var(--text-dim);font-size:15px;">
+    An error occurred but the log could not be written to disk.
+    Please open an issue at
+    <a href="https://github.com/hombreplata-cpu/rekordbocks/issues" target="_blank" style="color:var(--accent);">
+      github.com/hombreplata-cpu/rekordbocks/issues
+    </a>
+    and describe what you were doing.
+  </p>
+  {% endif %}
+</div>
+
+<div style="margin-top:20px;">
+  <a href="/" class="btn-secondary" style="display:inline-block;padding:8px 18px;font-family:var(--mono);font-size:13px;color:var(--text-dim);border:1px solid var(--border);border-radius:4px;text-decoration:none;">← Back to Dashboard</a>
+</div>
+{% endblock %}
