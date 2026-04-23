@@ -9,6 +9,7 @@ Then open http://localhost:5000 in your browser.
 
 import json
 import os
+import platform
 import socket
 import subprocess
 import sys
@@ -83,12 +84,14 @@ def get_rekordbox_backup_dir(db_path=""):
     """Return the directory that contains master.db and its backups.
 
     If db_path is configured, backups live alongside that file.
-    Otherwise fall back to the default Pioneer\\rekordbox folder.
+    Otherwise fall back to the default Pioneer/rekordbox folder for the current OS.
     """
     if db_path:
         return Path(db_path).parent
-    appdata = os.environ.get("APPDATA", "")
-    return Path(appdata) / "Pioneer" / "rekordbox"
+    if platform.system() == "Windows":
+        appdata = os.environ.get("APPDATA", "")
+        return Path(appdata) / "Pioneer" / "rekordbox"
+    return Path.home() / "Library" / "Application Support" / "Pioneer" / "rekordbox"
 
 
 def load_history():
@@ -112,16 +115,23 @@ def save_history_entry(entry):
 
 
 def rekordbox_is_running():
-    """Return True if rekordbox.exe is in the Windows process list."""
+    """Return True if the Rekordbox process is currently running."""
     try:
-        out = subprocess.check_output(
-            ["tasklist", "/FI", "IMAGENAME eq rekordbox.exe", "/NH"],
-            stderr=subprocess.DEVNULL,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-        )
-        return "rekordbox.exe" in out.lower()
+        if platform.system() == "Windows":
+            out = subprocess.check_output(
+                ["tasklist", "/FI", "IMAGENAME eq rekordbox.exe", "/NH"],
+                stderr=subprocess.DEVNULL,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+            )
+            return "rekordbox.exe" in out.lower()
+        else:
+            result = subprocess.run(
+                ["pgrep", "-x", "rekordbox"],
+                capture_output=True,
+            )
+            return result.returncode == 0
     except Exception:
         return False
 
@@ -541,16 +551,26 @@ def api_backups_clean():
 def _port_pid(port: int) -> int | None:
     """Return the PID listening on *port*, or None if the port is free."""
     try:
-        result = subprocess.run(
-            ["netstat", "-ano"],
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
-        for line in result.stdout.splitlines():
-            if f":{port}" in line and "LISTENING" in line:
-                pid = int(line.split()[-1])
-                return pid if pid != 0 else None
+        if platform.system() == "Windows":
+            result = subprocess.run(
+                ["netstat", "-ano"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            for line in result.stdout.splitlines():
+                if f":{port}" in line and "LISTENING" in line:
+                    pid = int(line.split()[-1])
+                    return pid if pid != 0 else None
+        else:
+            result = subprocess.run(
+                ["lsof", "-ti", f"tcp:{port}"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                return int(result.stdout.strip().splitlines()[0])
     except Exception:  # noqa: S110
         pass
     return None
@@ -559,12 +579,20 @@ def _port_pid(port: int) -> int | None:
 def _is_our_app(pid: int) -> bool:
     """Return True if *pid*'s command line contains app.py (rekordbox-tools)."""
     try:
-        result = subprocess.run(
-            ["wmic", "process", "where", f"processid={pid}", "get", "commandline"],
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
+        if platform.system() == "Windows":
+            result = subprocess.run(
+                ["wmic", "process", "where", f"processid={pid}", "get", "commandline"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+        else:
+            result = subprocess.run(
+                ["ps", "-p", str(pid), "-o", "command="],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
         return "app.py" in result.stdout
     except Exception:  # noqa: S110
         return False
@@ -593,7 +621,10 @@ def resolve_server_port(preferred: int = 5000) -> int:
     if pid is None:
         return preferred
     if _is_our_app(pid):
-        subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True, timeout=5)
+        if platform.system() == "Windows":
+            subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True, timeout=5)
+        else:
+            subprocess.run(["kill", "-9", str(pid)], capture_output=True, timeout=5)
         print(f"  Stopped previous instance (PID {pid})")
         return preferred
     print(f"  Port {preferred} in use by another app — finding a free port")

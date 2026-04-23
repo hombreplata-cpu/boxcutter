@@ -288,7 +288,17 @@ def run(args):
     try:
         db_path = Path(db.engine.url.database)
     except Exception:
-        db_path = Path(os.environ.get("APPDATA", "")) / "Pioneer" / "rekordbox" / "master.db"
+        if platform.system() == "Windows":
+            db_path = Path(os.environ.get("APPDATA", "")) / "Pioneer" / "rekordbox" / "master.db"
+        else:
+            db_path = (
+                Path.home()
+                / "Library"
+                / "Application Support"
+                / "Pioneer"
+                / "rekordbox"
+                / "master.db"
+            )
 
     if not args.dry_run:
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
