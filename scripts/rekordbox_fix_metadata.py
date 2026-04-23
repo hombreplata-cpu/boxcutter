@@ -91,9 +91,9 @@ def run(args):
             stats["skipped"] += 1
             continue
 
-        win_path = raw_path.replace("/", "\\")
+        local_path = str(Path(raw_path))
 
-        if not os.path.isfile(win_path):
+        if not os.path.isfile(local_path):
             if args.verbose:
                 print(f"  [MISSING] {r.Title} — file not on disk")
             stats["missing"] += 1
@@ -101,13 +101,13 @@ def run(args):
                 {
                     "id": r.ID,
                     "title": r.Title or "",
-                    "path": win_path,
+                    "path": local_path,
                 }
             )
             continue
 
-        actual_size = os.path.getsize(win_path)
-        suffix = Path(win_path).suffix.lower()
+        actual_size = os.path.getsize(local_path)
+        suffix = Path(local_path).suffix.lower()
         actual_type = EXT_TO_FILETYPE.get(suffix)
 
         # Skip files with unrecognised extensions — never guess a type.
@@ -157,7 +157,7 @@ def run(args):
             {
                 "id": r.ID,
                 "title": r.Title or "",
-                "path": win_path,
+                "path": local_path,
                 "db_type": db_type,
                 "actual_type": actual_type,
                 "db_type_label": FILETYPE_LABELS.get(db_type, str(db_type)),
