@@ -45,7 +45,6 @@ HISTORY_FILE = Path.home() / ".rekordbox_tools_history.json"
 TOOL_LABELS = {
     "relocate": "Repath Tracks",
     "cleanup": "Library Cleanup",
-    "remove_missing": "Remove Missing",
     "strip_comments": "Strip URL Comments",
     "fix_metadata": "Fix Metadata",
     "add_new": "Add New Tracks",
@@ -197,7 +196,6 @@ def tool(n):
     tools = {
         "relocate": ("Repath Tracks", "relocate.html"),
         "cleanup": ("Library Cleanup", "cleanup.html"),
-        "remove_missing": ("Remove Missing Tracks", "remove_missing.html"),
         "strip_comments": ("Strip URL Comments", "strip_comments.html"),
         "fix_metadata": ("Fix Metadata", "fix_metadata.html"),
         "add_new": ("Add New Tracks", "add_new.html"),
@@ -227,7 +225,6 @@ def api_run(script_name):
     allowed = {
         "relocate": "rekordbox_relocate.py",
         "cleanup": "rekordbox_cleanup.py",
-        "remove_missing": "rekordbox_remove_missing.py",
         "strip_comments": "strip_comment_urls.py",
         "fix_metadata": "rekordbox_fix_metadata.py",
         "add_new": "rekordbox_add_new.py",
