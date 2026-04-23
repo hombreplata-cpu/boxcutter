@@ -2,6 +2,7 @@
 
 import sys
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -66,9 +67,8 @@ def test_write_crash_log_creates_dir_if_missing(tmp_path, monkeypatch):
     assert new_dir.exists()
 
 
-def test_write_crash_log_returns_none_on_bad_dir(monkeypatch):
+def test_write_crash_log_returns_none_on_bad_dir():
     import crash_logger
-    from unittest.mock import patch
 
     with patch.object(crash_logger.LOG_DIR.__class__, "mkdir", side_effect=PermissionError("denied")):
         result = write_crash_log("startup", "tb")
