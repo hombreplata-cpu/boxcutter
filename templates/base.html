@@ -826,8 +826,7 @@
     <a href="/tool/cleanup"        class="{% if 'cleanup' in request.path %}active{% endif %}">⌫ &nbsp;Library Cleanup</a>
     <a href="/tool/relocate"       class="{% if 'relocate' in request.path and 'remove' not in request.path %}active{% endif %}">⇄ &nbsp;Repath Tracks</a>
     <a href="/tool/fix_metadata"   class="{% if 'fix_metadata' in request.path %}active{% endif %}">⚕ &nbsp;Fix Metadata</a>
-    <a href="/tool/remove_missing" class="{% if 'remove_missing' in request.path %}active{% endif %}">✗ &nbsp;Remove Missing</a>
-    <div class="nav-section">Config</div>
+<div class="nav-section">Config</div>
     <a href="/setup"          class="{% if 'setup'          in request.path %}active{% endif %}">⚙ &nbsp;Setup &amp; Paths</a>
     <a href="/history"        class="{% if 'history'        in request.path %}active{% endif %}">◷ &nbsp;History</a>
     <a href="/backup_cleaner" class="{% if 'backup_cleaner' in request.path %}active{% endif %}">⌦ &nbsp;Backup Cleaner</a>
