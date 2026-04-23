@@ -102,6 +102,22 @@
       border-top: 1px solid var(--border);
     }
 
+    .quit-btn {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      font-family: var(--mono);
+      font-size: 11px;
+      padding: 5px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      width: 100%;
+      text-align: left;
+      transition: border-color 0.1s, color 0.1s;
+    }
+
+    .quit-btn:hover { border-color: var(--red); color: var(--red); }
+
     /* ── Main ── */
     .main {
       flex: 1;
@@ -816,7 +832,14 @@
     <a href="/history"        class="{% if 'history'        in request.path %}active{% endif %}">◷ &nbsp;History</a>
     <a href="/backup_cleaner" class="{% if 'backup_cleaner' in request.path %}active{% endif %}">⌦ &nbsp;Backup Cleaner</a>
   </div>
-  <div class="sidebar-footer">v1.0.1</div>
+  <div class="sidebar-footer">
+    v1.0.1
+    {% if is_frozen %}
+    <form id="quit-form" action="/shutdown" method="post" style="margin-top:10px;">
+      <button type="submit" class="quit-btn" onclick="return confirm('Close rekordbox-tools? Your browser tab will stop working.')">✕ &nbsp;Quit App</button>
+    </form>
+    {% endif %}
+  </div>
 </nav>
 
 <main class="main">

@@ -10,6 +10,7 @@ Then open http://localhost:5000 in your browser.
 import json
 import os
 import platform
+import signal
 import socket
 import subprocess
 import sys
@@ -134,6 +135,14 @@ def rekordbox_is_running():
             return result.returncode == 0
     except Exception:
         return False
+
+
+# ── Template globals ─────────────────────────────────────────────────────────
+
+
+@app.context_processor
+def inject_globals():
+    return {"is_frozen": getattr(sys, "frozen", False)}
 
 
 # ── Routes ───────────────────────────────────────────────────────────────────
@@ -546,6 +555,13 @@ def api_backups_clean():
             "keep_days": keep_days,
         }
     )
+
+
+@app.route("/shutdown", methods=["POST"])
+def shutdown():
+    """Terminate the server process — only exposed when running as a frozen binary."""
+    os.kill(os.getpid(), signal.SIGTERM)
+    return "", 204
 
 
 def _port_pid(port: int) -> int | None:
