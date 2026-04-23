@@ -212,3 +212,26 @@ def test_missing_file_counted_not_fixed(tmp_path):
 
     assert row.FileType == original_type
     mock_db.commit.assert_not_called()
+
+
+def test_mac_path_resolves_correctly(tmp_path):
+    """FolderPath stored as forward-slash Unix path (Mac DB format) resolves to the real file."""
+    (tmp_path / "track.flac").write_bytes(b"x" * 512)
+    mac_style_path = str(tmp_path / "track.flac").replace("\\", "/")
+
+    row = MagicMock()
+    row.ID = 1
+    row.Title = "Mac Track"
+    row.FolderPath = mac_style_path
+    row.FileType = 1
+    row.FileSize = 0
+    row.rb_local_deleted = 0
+
+    mock_db = MagicMock()
+    mock_db.get_content.return_value.filter_by.return_value.all.return_value = [row]
+    mock_db.engine.url.database = str(tmp_path / "master.db")
+
+    with patch("scripts.rekordbox_fix_metadata.MasterDatabase", return_value=mock_db):
+        run(_make_args())
+
+    assert row.FileType == 6

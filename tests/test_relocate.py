@@ -94,6 +94,14 @@ def test_path_is_under_empty():
     assert not path_is_under("C:\\Music\\track.flac", "")
 
 
+def test_path_is_under_true_mac():
+    assert path_is_under("/Users/dj/Music/FLAC/track.flac", "/Users/dj/Music/FLAC")
+
+
+def test_path_is_under_false_mac():
+    assert not path_is_under("/Users/dj/Music/MP3/track.mp3", "/Users/dj/Music/FLAC")
+
+
 # ---------------------------------------------------------------------------
 # build_target_index
 # ---------------------------------------------------------------------------

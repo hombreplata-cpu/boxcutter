@@ -80,14 +80,17 @@ jobs:
 
   # ---------------------------------------------------------------------------
   # Build — dependency install + syntax check
-  # Must run on windows-latest: pyrekordbox has Windows-specific behaviour.
+  # Runs on both windows-latest and macos-latest.
   # --no-deps avoids transitive dep failures while still proving the packages
   # exist on PyPI and version constraints resolve.
   # py_compile verifies every .py file has valid syntax.
   # ---------------------------------------------------------------------------
   build:
-    name: Build (install + syntax check)
-    runs-on: windows-latest
+    name: Build (install + syntax check) [${{ matrix.os }}]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest]
 
     steps:
       - uses: actions/checkout@v6
@@ -103,7 +106,8 @@ jobs:
       - name: Install direct dependencies
         run: pip install --no-deps -r requirements.txt
 
-      - name: Syntax check — compile all Python files
+      - name: Syntax check — compile all Python files (Windows)
+        if: runner.os == 'Windows'
         shell: pwsh
         run: |
           $files = Get-ChildItem -Recurse -Filter "*.py" | Select-Object -ExpandProperty FullName
@@ -116,15 +120,23 @@ jobs:
           }
           Write-Host "All $($files.Count) Python files passed syntax check."
 
+      - name: Syntax check — compile all Python files (macOS/Linux)
+        if: runner.os != 'Windows'
+        run: |
+          find . -name "*.py" -not -path "./.venv/*" | xargs -I{} python -m py_compile {}
+
   # ---------------------------------------------------------------------------
   # Test — pytest unit + integration tests
-  # Runs on windows-latest to match production environment.
+  # Runs on both windows-latest and macos-latest.
   # pyrekordbox DB calls are mocked so no real master.db is needed.
   # ---------------------------------------------------------------------------
   test:
-    name: Test (pytest)
+    name: Test (pytest) [${{ matrix.os }}]
     needs: build
-    runs-on: windows-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest]
 
     steps:
       - uses: actions/checkout@v6
@@ -147,6 +159,6 @@ jobs:
         uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: coverage
+          name: coverage-${{ matrix.os }}
           path: coverage.xml
           retention-days: 30

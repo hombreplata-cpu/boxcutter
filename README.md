@@ -1,6 +1,6 @@
 # rekordbox-tools
 
-A locally-hosted web app for DJs who use **Rekordbox 7 on Windows**. Six maintenance tools for managing large music libraries — relocate tracks, clean up dead files, fix metadata, strip injected URLs from tags, and more. Runs entirely on your machine. No account, no cloud, no internet required.
+A locally-hosted web app for DJs who use **Rekordbox 7 on Windows or macOS**. Six maintenance tools for managing large music libraries — relocate tracks, clean up dead files, fix metadata, strip injected URLs from tags, and more. Runs entirely on your machine. No account, no cloud, no internet required.
 
 > **Always close Rekordbox before running any tool.** Every script that writes to `master.db` creates a timestamped backup automatically before touching anything.
 
@@ -8,26 +8,22 @@ A locally-hosted web app for DJs who use **Rekordbox 7 on Windows**. Six mainten
 
 ## Installation
 
-### Prerequisites
+### Windows
 
-Before installing, make sure you have:
+#### Prerequisites
 
 - **Windows 10 or 11**
 - **Python 3.9 or higher** — [download from python.org](https://www.python.org/downloads/)
   - On the Python installer screen, check **"Add Python to PATH"** before clicking Install. This is required. If you skipped it, uninstall Python and reinstall with that box checked.
 - **Rekordbox 7** installed and launched at least once (so its database exists on disk)
 
----
-
-### Step 1 — Download
+#### Step 1 — Download
 
 Go to the [Releases page](https://github.com/hombreplata-cpu/rekordbocks/releases) and download the latest **Source code (zip)**.
 
 Extract the ZIP anywhere on your computer — Desktop or `C:\Tools\` works well.
 
----
-
-### Step 2 — Run the installer
+#### Step 2 — Run the installer
 
 Inside the extracted folder, double-click **`install.bat`**.
 
@@ -38,9 +34,7 @@ The installer will:
 
 > **About the SQLCipher step:** Rekordbox encrypts its database. `pyrekordbox` handles decryption automatically, but it needs a one-time setup to locate the key. The installer runs `python -m pyrekordbox install-sqlcipher` for you. If this step fails, see [Troubleshooting](#troubleshooting) below.
 
----
-
-### Step 3 — Launch
+#### Step 3 — Launch
 
 Double-click **`start.bat`** to launch the app. A browser tab will open at `http://localhost:5000`.
 
@@ -48,13 +42,61 @@ To stop the server, close the terminal window or press `Ctrl+C` inside it.
 
 > You can create a shortcut to `start.bat` on your Desktop for quick access.
 
----
-
-### Step 4 — First-run setup
+#### Step 4 — First-run setup
 
 On first launch you'll be taken to a **Setup** screen. Enter the paths to:
 
 - Your **Rekordbox database** (`master.db`) — usually at `%APPDATA%\Pioneer\rekordbox\master.db`
+- Your **music folder(s)** — wherever your audio files live on disk
+
+These paths are saved locally and pre-filled on every future launch.
+
+---
+
+### macOS
+
+#### Prerequisites
+
+- **macOS 11 (Big Sur) or later**
+- **Python 3.9 or higher** — install via [python.org](https://www.python.org/downloads/) or [Homebrew](https://brew.sh/) (`brew install python`)
+- **Rekordbox 7** installed and launched at least once
+- **Homebrew** recommended — needed as a fallback if the SQLCipher step fails (see below)
+
+> **Apple Silicon (M1/M2/M3) note:** The automatic SQLCipher install may fail on Apple Silicon Macs. If `install.sh` prints an error at the SQLCipher step, run `brew install sqlcipher` and then re-run `./install.sh`. See [Troubleshooting](#troubleshooting) for details.
+
+#### Step 1 — Download
+
+Go to the [Releases page](https://github.com/hombreplata-cpu/rekordbocks/releases) and download the latest **Source code (zip)**.
+
+Extract the ZIP anywhere — your home folder or `~/Applications/` works well.
+
+#### Step 2 — Run the installer
+
+Open Terminal, `cd` into the extracted folder, and run:
+
+```bash
+chmod +x install.sh
+./install.sh
+```
+
+The installer will:
+1. Confirm Python 3.9+ is on PATH
+2. Install all Python dependencies (`flask`, `pyrekordbox`, `mutagen`)
+3. Run the one-time SQLCipher key setup
+
+#### Step 3 — Launch
+
+```bash
+./start.sh
+```
+
+A browser tab will open at `http://localhost:5000`. To stop, press `Ctrl+C` in the terminal.
+
+#### Step 4 — First-run setup
+
+On first launch you'll be taken to a **Setup** screen. Enter the paths to:
+
+- Your **Rekordbox database** (`master.db`) — usually at `~/Library/Application Support/Pioneer/rekordbox/master.db`
 - Your **music folder(s)** — wherever your audio files live on disk
 
 These paths are saved locally and pre-filled on every future launch.
@@ -112,21 +154,32 @@ To restore from a backup: close Rekordbox, copy the backup file over `master.db`
 
 ## Troubleshooting
 
-**"Python not found" during install**
+**"Python not found" during install (Windows)**
 Python is not on your system PATH. Uninstall Python, then reinstall from [python.org](https://www.python.org/downloads/) — on the first installer screen, check **"Add Python to PATH"** before clicking Install.
 
-**SQLCipher setup fails**
+**SQLCipher setup fails (Windows)**
 Run this manually in a terminal (Win+R → `cmd`):
 ```
 python -m pyrekordbox install-sqlcipher
 ```
 If it still fails, check that Rekordbox 7 has been launched at least once so its database file exists.
 
+**SQLCipher setup fails on Apple Silicon Mac (M1/M2/M3)**
+Pre-built SQLCipher wheels sometimes don't exist for ARM. Install SQLCipher via Homebrew first, then re-run the installer:
+```bash
+brew install sqlcipher
+./install.sh
+```
+If Homebrew isn't installed, get it from [brew.sh](https://brew.sh/).
+
 **"Rekordbox is open" warning banner appears**
 Close Rekordbox completely before running any tool. The banner disappears automatically once Rekordbox is no longer running.
 
-**App won't start / port already in use**
+**App won't start / port already in use (Windows)**
 Another process is using port 5000. Run `netstat -ano | findstr :5000` in a terminal to find it, then close that process, or edit `app.py` line 1 to change the port.
+
+**App won't start / port already in use (macOS)**
+Run `lsof -ti tcp:5000` in Terminal to find the PID using port 5000, then `kill <PID>` to free it.
 
 **Track matching misses files**
 Use the `--prefer-ext` option in Relocate Tracks to prioritise a specific format when multiple files match the same track name (e.g. prefer `.flac` over `.mp3`).
