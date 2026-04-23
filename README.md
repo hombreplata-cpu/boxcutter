@@ -10,39 +10,29 @@ A locally-hosted web app for DJs who use **Rekordbox 7 on Windows or macOS**. Si
 
 ### Windows
 
-#### Prerequisites
+#### Option A — Packaged installer (no Python required)
+
+1. Go to the [Releases page](https://github.com/hombreplata-cpu/rekordbocks/releases) and download **`rekordbox-tools-windows.exe`**.
+2. Double-click the `.exe` to launch. Your browser will open at `http://localhost:5000` automatically.
+
+> **Windows SmartScreen warning:** Because the binary is unsigned, Windows may show a "Windows protected your PC" prompt. Click **More info → Run anyway** to proceed. This is expected for open-source tools distributed outside the Microsoft Store.
+
+#### Option B — Run from source (requires Python)
+
+##### Prerequisites
 
 - **Windows 10 or 11**
 - **Python 3.9 or higher** — [download from python.org](https://www.python.org/downloads/)
   - On the Python installer screen, check **"Add Python to PATH"** before clicking Install. This is required. If you skipped it, uninstall Python and reinstall with that box checked.
 - **Rekordbox 7** installed and launched at least once (so its database exists on disk)
 
-#### Step 1 — Download
+Go to the [Releases page](https://github.com/hombreplata-cpu/rekordbocks/releases) and download the latest **Source code (zip)**. Extract it anywhere — Desktop or `C:\Tools\` works well.
 
-Go to the [Releases page](https://github.com/hombreplata-cpu/rekordbocks/releases) and download the latest **Source code (zip)**.
-
-Extract the ZIP anywhere on your computer — Desktop or `C:\Tools\` works well.
-
-#### Step 2 — Run the installer
-
-Inside the extracted folder, double-click **`install.bat`**.
-
-The installer will:
-1. Confirm Python is installed and on PATH
-2. Install all Python dependencies (`flask`, `pyrekordbox`, `mutagen`)
-3. Run the one-time SQLCipher key setup so the app can read your Rekordbox database
+Double-click **`install.bat`** to install dependencies, then double-click **`start.bat`** to launch.
 
 > **About the SQLCipher step:** Rekordbox encrypts its database. `pyrekordbox` handles decryption automatically, but it needs a one-time setup to locate the key. The installer runs `python -m pyrekordbox install-sqlcipher` for you. If this step fails, see [Troubleshooting](#troubleshooting) below.
 
-#### Step 3 — Launch
-
-Double-click **`start.bat`** to launch the app. A browser tab will open at `http://localhost:5000`.
-
-To stop the server, close the terminal window or press `Ctrl+C` inside it.
-
-> You can create a shortcut to `start.bat` on your Desktop for quick access.
-
-#### Step 4 — First-run setup
+#### Step — First-run setup (both options)
 
 On first launch you'll be taken to a **Setup** screen. Enter the paths to:
 
@@ -55,44 +45,38 @@ These paths are saved locally and pre-filled on every future launch.
 
 ### macOS
 
-#### Prerequisites
+#### Option A — Packaged DMG (no Python required)
+
+1. Go to the [Releases page](https://github.com/hombreplata-cpu/rekordbocks/releases) and download **`rekordbox-tools-mac.dmg`**.
+2. Open the `.dmg` and drag **rekordbox-tools** to your Applications folder.
+3. Double-click to launch. Your browser will open at `http://localhost:5000` automatically.
+
+> **macOS Gatekeeper warning:** Because the app is unsigned, macOS may block it on first launch. Go to **System Settings → Privacy & Security**, scroll down to the blocked app notice, and click **Open Anyway**.
+
+> **Apple Silicon (M1/M2/M3) note:** The packaged DMG is built on an Intel runner and runs via Rosetta 2 on Apple Silicon. It should work transparently, but if you hit issues, use Option B below.
+
+#### Option B — Run from source (requires Python)
+
+##### Prerequisites
 
 - **macOS 11 (Big Sur) or later**
 - **Python 3.9 or higher** — install via [python.org](https://www.python.org/downloads/) or [Homebrew](https://brew.sh/) (`brew install python`)
 - **Rekordbox 7** installed and launched at least once
 - **Homebrew** recommended — needed as a fallback if the SQLCipher step fails (see below)
 
-> **Apple Silicon (M1/M2/M3) note:** The automatic SQLCipher install may fail on Apple Silicon Macs. If `install.sh` prints an error at the SQLCipher step, run `brew install sqlcipher` and then re-run `./install.sh`. See [Troubleshooting](#troubleshooting) for details.
-
-#### Step 1 — Download
-
-Go to the [Releases page](https://github.com/hombreplata-cpu/rekordbocks/releases) and download the latest **Source code (zip)**.
-
-Extract the ZIP anywhere — your home folder or `~/Applications/` works well.
-
-#### Step 2 — Run the installer
+Go to the [Releases page](https://github.com/hombreplata-cpu/rekordbocks/releases), download the latest **Source code (zip)**, and extract it.
 
 Open Terminal, `cd` into the extracted folder, and run:
 
 ```bash
 chmod +x install.sh
 ./install.sh
-```
-
-The installer will:
-1. Confirm Python 3.9+ is on PATH
-2. Install all Python dependencies (`flask`, `pyrekordbox`, `mutagen`)
-3. Run the one-time SQLCipher key setup
-
-#### Step 3 — Launch
-
-```bash
 ./start.sh
 ```
 
-A browser tab will open at `http://localhost:5000`. To stop, press `Ctrl+C` in the terminal.
+> **Apple Silicon SQLCipher fallback:** If `install.sh` fails at the SQLCipher step, run `brew install sqlcipher` first, then re-run `./install.sh`.
 
-#### Step 4 — First-run setup
+#### Step — First-run setup (both options)
 
 On first launch you'll be taken to a **Setup** screen. Enter the paths to:
 
