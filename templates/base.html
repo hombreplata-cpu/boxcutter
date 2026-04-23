@@ -1545,6 +1545,14 @@
       catch (err) { console.error('Progress parse error:', err); }
     });
 
+    // Named event: 'crash' — script subprocess exited non-zero
+    es.addEventListener('crash', e => {
+      try {
+        const d = JSON.parse(e.data);
+        showCrashBanner(d.log_path);
+      } catch (err) { console.error('Crash event parse error:', err); }
+    });
+
     // Default unnamed events: console lines + done sentinel
     es.onmessage = e => {
       if (e.data === '%%DONE%%') {
@@ -1581,6 +1589,26 @@
       if (statusEl) { statusEl.textContent = 'Error'; statusEl.className = 'status'; }
     };
   }
+  // ── Crash banner ────────────────────────────────────────────────────────
+
+  function showCrashBanner(logPath) {
+    let banner = document.getElementById('crash-banner');
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.id = 'crash-banner';
+      banner.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:#3b0d0d;border-top:2px solid var(--red);color:var(--text);font-family:var(--mono);font-size:13px;padding:12px 20px;display:flex;align-items:center;gap:16px;z-index:1000;';
+      document.body.appendChild(banner);
+    }
+    banner.innerHTML = `
+      <span style="color:var(--red);font-weight:600;">⚠ Script crashed.</span>
+      <span style="color:var(--text-dim);">Crash log saved to:</span>
+      <code style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text);">${logPath}</code>
+      <button onclick="navigator.clipboard.writeText('${logPath.replace(/'/g,"\\'")}').then(()=>this.textContent='Copied!')" style="background:none;border:1px solid var(--border);color:var(--text-dim);font-family:var(--mono);font-size:11px;padding:4px 10px;border-radius:4px;cursor:pointer;white-space:nowrap;">Copy path</button>
+      <a href="https://github.com/hombreplata-cpu/rekordbocks/issues" target="_blank" style="color:var(--accent);font-size:11px;white-space:nowrap;">Open issue ↗</a>
+      <button onclick="this.parentElement.remove()" style="background:none;border:none;color:var(--text-dim);font-size:16px;cursor:pointer;padding:0 4px;">✕</button>
+    `;
+  }
+
   // ── Progress bar helpers ────────────────────────────────────────────────
 
   function resetProgress() {

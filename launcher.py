@@ -14,6 +14,19 @@ import urllib.error
 import urllib.request
 import webbrowser
 
+from crash_logger import write_crash_log  # noqa: E402
+
+
+def _excepthook(exc_type, exc_value, exc_tb):
+    body = "".join(__import__("traceback").format_exception(exc_type, exc_value, exc_tb))
+    log_path = write_crash_log("startup", body)
+    if log_path:
+        print(f"\n[crash] Log saved to: {log_path}", file=sys.stderr)
+    sys.__excepthook__(exc_type, exc_value, exc_tb)
+
+
+sys.excepthook = _excepthook
+
 # Must set cwd before importing app so Flask resolves templates/static correctly
 if getattr(sys, "frozen", False):
     os.chdir(sys._MEIPASS)

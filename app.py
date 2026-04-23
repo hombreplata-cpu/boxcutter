@@ -15,11 +15,14 @@ import socket
 import subprocess
 import sys
 import threading
+import traceback
 import webbrowser
 from datetime import datetime
 from pathlib import Path
 
 from flask import Flask, Response, jsonify, redirect, render_template, request, url_for
+
+from crash_logger import write_crash_log
 
 app = Flask(__name__)
 
@@ -143,6 +146,17 @@ def rekordbox_is_running():
 @app.context_processor
 def inject_globals():
     return {"is_frozen": getattr(sys, "frozen", False)}
+
+
+# ── Error handling ───────────────────────────────────────────────────────────
+
+
+@app.errorhandler(Exception)
+def handle_exception(exc):
+    body = traceback.format_exc()
+    ctx = {"Request": f"{request.method} {request.path}"}
+    log_path = write_crash_log("route", body, context=ctx)
+    return render_template("error.html", log_path=log_path), 500
 
 
 # ── Routes ───────────────────────────────────────────────────────────────────
@@ -354,6 +368,18 @@ def api_run(script_name):
 
         proc.stdout.close()
         proc.wait()
+
+        if proc.returncode != 0:
+            script_file = allowed[script_name]
+            ctx = {
+                "Script:   ": script_file,
+                "Exit code:": str(proc.returncode),
+                "Command:  ": " ".join(str(a) for a in cmd),
+            }
+            captured = "".join(f"  {part}\n" for part in cmd) + "\n(see streamed output above)"
+            log_path = write_crash_log("script", captured, context=ctx)
+            if log_path:
+                yield f"event: crash\ndata: {json.dumps({'log_path': str(log_path)})}\n\n"
 
         # Persist a history entry for every completed run
         ts = datetime.now()
