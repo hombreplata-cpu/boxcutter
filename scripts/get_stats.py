@@ -80,11 +80,26 @@ def main():
             for c in played
         ]
 
+        low_bitrate = sorted(
+            (c for c in contents if c.BitRate and 0 < c.BitRate < 320),
+            key=lambda c: c.BitRate,
+        )
+        low_bitrate_tracks = [
+            {
+                "title": c.Title or "",
+                "artist": c.Artist.Name if c.Artist else "",
+                "bitrate": c.BitRate,
+                "path": c.FolderPath or "",
+            }
+            for c in low_bitrate
+        ]
+
         result = {
             "track_count": len(contents),
             "file_types": file_types,
             "library_size_bytes": library_size_bytes,
             "top_played": top_played,
+            "low_bitrate_tracks": low_bitrate_tracks,
         }
         print(json.dumps(result))
     except Exception as exc:
