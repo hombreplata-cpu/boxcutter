@@ -337,15 +337,28 @@ def api_update_check():
         with urllib.request.urlopen(req, timeout=5) as resp:  # noqa: S310  # nosec B310 — hard-coded GitHub API URL
             data = json.loads(resp.read().decode())
         tag = data.get("tag_name", "").lstrip("v")
+        is_mac = platform.system() == "Darwin"
         download_url = ""
         for asset in data.get("assets", []):
             name = asset.get("name", "")
-            if name.startswith("BoxCutter-Setup-") and name.endswith(".exe"):
-                download_url = asset.get("browser_download_url", "")
-                break
+            if is_mac:
+                if name.startswith("boxcutter-mac") and name.endswith(".dmg"):
+                    download_url = asset.get("browser_download_url", "")
+                    break
+            else:
+                if name.startswith("BoxCutter-Setup-") and name.endswith(".exe"):
+                    download_url = asset.get("browser_download_url", "")
+                    break
         if not download_url or not _version_gt(tag, _app_version):
             return jsonify({"available": False})
-        return jsonify({"available": True, "version": tag, "download_url": download_url})
+        return jsonify(
+            {
+                "available": True,
+                "version": tag,
+                "download_url": download_url,
+                "platform": "mac" if is_mac else "win",
+            }
+        )
     except Exception:  # noqa: BLE001 — any network/parse failure → no update banner
         return jsonify({"available": False})
 
@@ -364,9 +377,11 @@ def api_download_update():
             )
             with urllib.request.urlopen(req, timeout=30) as resp:  # noqa: S310  # nosec B310 — URL validated against hard-coded prefix
                 total = int(resp.headers.get("Content-Length", 0))
+                is_mac = platform.system() == "Darwin"
+                suffix = ".dmg" if is_mac else ".exe"
                 tmp = tempfile.NamedTemporaryFile(
-                    suffix=".exe",
-                    prefix="BoxCutter-Setup-",
+                    suffix=suffix,
+                    prefix="BoxCutter-",
                     delete=False,
                     dir=tempfile.gettempdir(),
                 )
@@ -400,9 +415,13 @@ def api_apply_update():
     path = _update_state.get("path")
     if not path or not Path(path).exists():
         return jsonify({"error": "No update ready"}), 400
+    if platform.system() == "Darwin":
+        # Open the DMG in Finder — user drags BoxCutter.app to Applications
+        subprocess.Popen(["open", path])  # noqa: S603
+        return jsonify({"ok": True, "manual": True})
     subprocess.Popen([path, "/SILENT"])  # noqa: S603 — list form, no shell; path is server-controlled
     threading.Timer(1.0, lambda: os._exit(0)).start()  # noqa: SLF001 — intentional hard exit so installer can replace files
-    return jsonify({"ok": True})
+    return jsonify({"ok": True, "manual": False})
 
 
 # ── My Tag Manager routes ─────────────────────────────────────────────────────
