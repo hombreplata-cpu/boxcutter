@@ -66,10 +66,25 @@ def main():
             if c.FileSize:
                 library_size_bytes += c.FileSize
 
+        played = sorted(
+            (c for c in contents if c.DJPlayCount),
+            key=lambda c: c.DJPlayCount,
+            reverse=True,
+        )[:20]
+        top_played = [
+            {
+                "title": c.Title or "",
+                "artist": c.Artist.Name if c.Artist else "",
+                "play_count": c.DJPlayCount,
+            }
+            for c in played
+        ]
+
         result = {
             "track_count": len(contents),
             "file_types": file_types,
             "library_size_bytes": library_size_bytes,
+            "top_played": top_played,
         }
         print(json.dumps(result))
     except Exception as exc:

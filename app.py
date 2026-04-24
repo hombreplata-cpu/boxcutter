@@ -10,6 +10,7 @@ Then open http://localhost:5000 in your browser.
 import json
 import os
 import platform
+import secrets
 import shutil
 import signal
 import socket
@@ -22,7 +23,17 @@ import webbrowser
 from datetime import datetime
 from pathlib import Path
 
-from flask import Flask, Response, jsonify, redirect, render_template, request, url_for
+from flask import (
+    Flask,
+    Response,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    send_file,
+    session,
+    url_for,
+)
 
 from crash_logger import write_crash_log
 
@@ -40,6 +51,8 @@ DEFAULT_CONFIG = {
     "db_path": "",
     "target_playlist_id": "",  # Add New Tracks: last-used playlist
     "cleanup_exclude": "",  # Library Cleanup: last-used exclude folder
+    "donation_shown": False,
+    "listen_pin": "",  # Remote listener PIN (4 digits; empty = listener not configured)
 }
 
 HISTORY_FILE = Path.home() / ".rekordbox_tools_history.json"
@@ -77,6 +90,29 @@ def save_config(data):
 
 def config_is_complete(cfg):
     return bool(cfg.get("music_root") and cfg.get("flac_root"))
+
+
+# ── Session secret key ────────────────────────────────────────────────────────
+# Persisted in config so sessions survive server restarts.
+
+
+def _init_secret_key():
+    cfg = load_config()
+    key_hex = cfg.get("_secret_key", "")
+    if not key_hex:
+        key_hex = secrets.token_hex(32)
+        save_config({"_secret_key": key_hex})
+    return bytes.fromhex(key_hex)
+
+
+app.secret_key = _init_secret_key()
+
+
+# ── Listen auth ───────────────────────────────────────────────────────────────
+
+
+def _listen_authed():
+    return session.get("listen_ok") is True
 
 
 def clean_path(raw):
@@ -182,7 +218,11 @@ def rekordbox_is_running():
 
 @app.context_processor
 def inject_globals():
-    return {"is_frozen": getattr(sys, "frozen", False)}
+    cfg = load_config()
+    return {
+        "is_frozen": getattr(sys, "frozen", False),
+        "show_donation": not cfg.get("donation_shown", False),
+    }
 
 
 # ── Error handling ───────────────────────────────────────────────────────────
@@ -220,6 +260,7 @@ def setup():
                 "delete_dir": clean_path(request.form.get("delete_dir", "")),
                 "watch_dir": clean_path(request.form.get("watch_dir", "")),
                 "db_path": clean_path(request.form.get("db_path", "")),
+                "listen_pin": request.form.get("listen_pin", "").strip(),
             }
         )
         saved = True
@@ -406,6 +447,13 @@ def api_track_mytags_remove(content_id, assignment_id):
         return jsonify({"ok": True})
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/dismiss_donation", methods=["POST"])
+def api_dismiss_donation():
+    save_config({"donation_shown": True})
+    return jsonify({"ok": True})
+
 
 
 @app.route("/api/run/<script_name>")
@@ -776,6 +824,158 @@ def shutdown():
     return "", 204
 
 
+# ── Remote Listener ───────────────────────────────────────────────────────────
+
+
+def _tailscale_ip() -> str:
+    """Return the Tailscale IPv4 address, or empty string if not available."""
+    try:
+        result = subprocess.run(
+            ["tailscale", "ip", "-4"],
+            capture_output=True,
+            text=True,
+            timeout=3,
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+    except Exception:  # noqa: S110
+        pass
+    return ""
+
+
+@app.route("/listen/setup")
+def listen_setup():
+    cfg = load_config()
+    ts_ip = _tailscale_ip()
+    # Detect the port the server is actually listening on
+    server_port = request.host.split(":")[-1] if ":" in request.host else "5000"
+    return render_template(
+        "listen_setup.html",
+        pin_set=bool(cfg.get("listen_pin", "")),
+        tailscale_ip=ts_ip,
+        port=server_port,
+        rb_running=rekordbox_is_running(),
+    )
+
+
+_AUDIO_MIMES = {
+    ".mp3": "audio/mpeg",
+    ".flac": "audio/flac",
+    ".wav": "audio/wav",
+    ".aif": "audio/aiff",
+    ".aiff": "audio/aiff",
+    ".m4a": "audio/mp4",
+    ".alac": "audio/mp4",
+    ".ogg": "audio/ogg",
+    ".wma": "audio/x-ms-wma",
+    ".mp4": "audio/mp4",
+}
+
+
+@app.route("/listen")
+def listen():
+    if not _listen_authed():
+        return redirect(url_for("listen_login"))
+    return render_template("listen.html")
+
+
+@app.route("/listen/login", methods=["GET", "POST"])
+def listen_login():
+    cfg = load_config()
+    pin = cfg.get("listen_pin", "")
+    if not pin:
+        return render_template("listen_login.html", no_pin=True)
+    if request.method == "POST":
+        if request.form.get("pin", "").strip() == pin:
+            session["listen_ok"] = True
+            return redirect(url_for("listen"))
+        return render_template("listen_login.html", error=True)
+    return render_template("listen_login.html")
+
+
+@app.route("/listen/logout")
+def listen_logout():
+    session.pop("listen_ok", None)
+    return redirect(url_for("listen_login"))
+
+
+@app.route("/api/listen/tree")
+def api_listen_tree():
+    if not _listen_authed():
+        return jsonify({"error": "Unauthorized"}), 401
+    script_path = SCRIPTS_DIR / "get_listen_tree.py"
+    cfg = load_config()
+    cmd = [sys.executable, str(script_path)]
+    db_path = clean_path(cfg.get("db_path", ""))
+    if db_path:
+        cmd += ["--db-path", db_path]
+    try:
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=15
+        )
+        if result.returncode != 0:
+            return jsonify({"error": result.stderr.strip() or "Failed to read playlists"}), 500
+        # Inject rekordbox_running flag so mobile can warn the user
+        data = json.loads(result.stdout)
+        data["rekordbox_running"] = rekordbox_is_running()
+        return jsonify(data)
+    except subprocess.TimeoutExpired:
+        return jsonify({"error": "Timed out reading database"}), 500
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/listen/playlist/<int:pid>/tracks")
+def api_listen_tracks(pid):
+    if not _listen_authed():
+        return jsonify({"error": "Unauthorized"}), 401
+    script_path = SCRIPTS_DIR / "get_playlist_tracks.py"
+    cfg = load_config()
+    cmd = [sys.executable, str(script_path), "--playlist-id", str(pid)]
+    db_path = clean_path(cfg.get("db_path", ""))
+    if db_path:
+        cmd += ["--db-path", db_path]
+    try:
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30
+        )
+        if result.returncode != 0:
+            return jsonify({"error": result.stderr.strip() or "Failed to read tracks"}), 500
+        return result.stdout, 200, {"Content-Type": "application/json"}
+    except subprocess.TimeoutExpired:
+        return jsonify({"error": "Timed out reading tracks"}), 500
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/stream/<int:track_id>")
+def api_stream(track_id):
+    if not _listen_authed():
+        return jsonify({"error": "Unauthorized"}), 401
+    script_path = SCRIPTS_DIR / "get_track_path.py"
+    cfg = load_config()
+    cmd = [sys.executable, str(script_path), "--track-id", str(track_id)]
+    db_path = clean_path(cfg.get("db_path", ""))
+    if db_path:
+        cmd += ["--db-path", db_path]
+    try:
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=10
+        )
+        if result.returncode != 0:
+            return jsonify({"error": "Track not found"}), 404
+        data = json.loads(result.stdout)
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+    file_path = Path(data["path"])
+    if not file_path.exists():
+        return jsonify({"error": "File not found on disk"}), 404
+
+    mime = _AUDIO_MIMES.get(data["ext"], "application/octet-stream")
+    return send_file(file_path, mimetype=mime, conditional=True)
+
+
 def _port_pid(port: int) -> int | None:
     """Return the PID listening on *port*, or None if the port is free."""
     try:
@@ -866,6 +1066,8 @@ if __name__ == "__main__":
     print("  -------------------------------")
     _port = resolve_server_port()
     print(f"  Starting server at http://localhost:{_port}")
+    print("  Remote listener: http://<tailscale-ip>:{_port}/listen")
     print("  Press Ctrl+C to stop\n")
     threading.Timer(1.2, lambda: webbrowser.open(f"http://localhost:{_port}")).start()
-    app.run(debug=False, port=_port)
+    # Bind to 0.0.0.0 so the /listen endpoint is reachable over Tailscale
+    app.run(debug=False, port=_port, host="0.0.0.0")  # noqa: S104 — intentional; Tailscale is the security layer
