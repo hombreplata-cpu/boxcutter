@@ -63,7 +63,6 @@ TOOL_LABELS = {
     "strip_comments": "Strip URL Comments",
     "fix_metadata": "Fix Metadata",
     "add_new": "Add New Tracks",
-    "mytag": "My Tag Manager",
 }
 
 
@@ -278,7 +277,6 @@ def tool(n):
         "strip_comments": ("Strip URL Comments", "strip_comments.html"),
         "fix_metadata": ("Fix Metadata", "fix_metadata.html"),
         "add_new": ("Add New Tracks", "add_new.html"),
-        "mytag": ("My Tag Manager", "mytag.html"),
     }
     if n not in tools:
         return redirect(url_for("index"))
@@ -447,6 +445,162 @@ def api_track_mytags_remove(content_id, assignment_id):
         return jsonify({"ok": True})
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
+
+
+# ── Stream session — lazy one-per-session backup ───────────────────────────────
+
+_stream_session: dict = {"backup_path": None, "last_write": None}
+_STREAM_SESSION_TTL = 2 * 3600  # seconds
+
+_STAR_TO_RATING = {0: 0, 1: 51, 2: 102, 3: 153, 4: 204, 5: 255}
+
+
+def _ensure_stream_backup(db) -> Path:
+    now = datetime.now()
+    last = _stream_session["last_write"]
+    if last is None or (now - last).total_seconds() > _STREAM_SESSION_TTL:
+        path = create_db_backup(db, "stream")
+        _stream_session["backup_path"] = str(path)
+    _stream_session["last_write"] = now
+    return Path(_stream_session["backup_path"])
+
+
+def _next_song_playlist_id(db) -> str:
+    try:
+        from sqlalchemy import text  # noqa: PLC0415
+
+        with db.engine.connect() as conn:
+            result = conn.execute(
+                text("SELECT MAX(CAST(ID AS INTEGER)) FROM djmdSongPlaylist")
+            ).scalar()
+        return str((result or 0) + 1)
+    except Exception:
+        return str(uuid.uuid4())
+
+
+@app.route("/api/tracks/<content_id>/rating", methods=["POST"])
+def api_track_rating_set(content_id):
+    if not _listen_authed():
+        return jsonify({"error": "Unauthorized"}), 401
+    if rekordbox_is_running():
+        return jsonify({"error": "Close Rekordbox before editing"}), 409
+    data = request.get_json() or {}
+    stars = data.get("rating")
+    if stars is None or int(stars) not in range(6):
+        return jsonify({"error": "rating must be 0-5"}), 400
+    try:
+        from pyrekordbox.db6.tables import DjmdContent  # noqa: PLC0415
+
+        db = _open_db()
+        _ensure_stream_backup(db)
+        track = db.session.query(DjmdContent).filter_by(ID=content_id, rb_local_deleted=0).first()
+        if not track:
+            return jsonify({"error": "Track not found"}), 404
+        track.Rating = _STAR_TO_RATING[int(stars)]
+        db.commit()
+        return jsonify({"ok": True})
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/tracks/<content_id>/playlists")
+def api_track_playlists_get(content_id):
+    if not _listen_authed():
+        return jsonify({"error": "Unauthorized"}), 401
+    try:
+        from pyrekordbox.db6.tables import DjmdPlaylist, DjmdSongPlaylist  # noqa: PLC0415
+
+        db = _open_db()
+        entries = (
+            db.session.query(DjmdSongPlaylist)
+            .filter_by(ContentID=content_id, rb_local_deleted=0)
+            .all()
+        )
+        result = []
+        for e in entries:
+            pl = (
+                db.session.query(DjmdPlaylist)
+                .filter_by(ID=e.PlaylistID, rb_local_deleted=0)
+                .first()
+            )
+            if pl:
+                result.append({"playlist_id": str(e.PlaylistID), "name": pl.Name or ""})
+        return jsonify(result)
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/tracks/<content_id>/playlists/<playlist_id>", methods=["POST"])
+def api_track_playlist_add(content_id, playlist_id):
+    if not _listen_authed():
+        return jsonify({"error": "Unauthorized"}), 401
+    if rekordbox_is_running():
+        return jsonify({"error": "Close Rekordbox before editing"}), 409
+    try:
+        from pyrekordbox.db6.tables import DjmdPlaylist, DjmdSongPlaylist  # noqa: PLC0415
+
+        db = _open_db()
+        pl = db.session.query(DjmdPlaylist).filter_by(ID=playlist_id, rb_local_deleted=0).first()
+        if not pl:
+            return jsonify({"error": "Playlist not found"}), 404
+        existing = (
+            db.session.query(DjmdSongPlaylist)
+            .filter_by(ContentID=content_id, PlaylistID=playlist_id, rb_local_deleted=0)
+            .first()
+        )
+        if existing:
+            return jsonify({"ok": True, "already": True})
+        current = (
+            db.session.query(DjmdSongPlaylist)
+            .filter_by(PlaylistID=playlist_id, rb_local_deleted=0)
+            .all()
+        )
+        track_no = max((r.TrackNo or 0 for r in current), default=0) + 1
+        new_id = _next_song_playlist_id(db)
+        _ensure_stream_backup(db)
+        row = DjmdSongPlaylist(
+            ID=new_id,
+            PlaylistID=playlist_id,
+            ContentID=content_id,
+            TrackNo=track_no,
+            UUID=str(uuid.uuid4()),
+        )
+        db.session.add(row)
+        db.commit()
+        return jsonify({"ok": True})
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/tracks/<content_id>/playlists/<playlist_id>", methods=["DELETE"])
+def api_track_playlist_remove(content_id, playlist_id):
+    if not _listen_authed():
+        return jsonify({"error": "Unauthorized"}), 401
+    if rekordbox_is_running():
+        return jsonify({"error": "Close Rekordbox before editing"}), 409
+    try:
+        from pyrekordbox.db6.tables import DjmdSongPlaylist  # noqa: PLC0415
+
+        db = _open_db()
+        rows = (
+            db.session.query(DjmdSongPlaylist)
+            .filter_by(ContentID=content_id, PlaylistID=playlist_id, rb_local_deleted=0)
+            .all()
+        )
+        if not rows:
+            return jsonify({"error": "Not in that playlist"}), 404
+        _ensure_stream_backup(db)
+        for row in rows:
+            db.session.delete(row)
+        db.commit()
+        return jsonify({"ok": True})
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/restore")
+def restore():
+    return render_template("restore.html")
 
 
 @app.route("/api/dismiss_donation", methods=["POST"])
