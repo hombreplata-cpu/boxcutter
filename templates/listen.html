@@ -436,6 +436,145 @@
     }
     .play-btn:active { background: #0097a7; transform: scale(0.93); }
 
+    /* ── Track action sheet ─────────────────────────────────────── */
+    .track-more-btn {
+      background: none;
+      border: none;
+      color: var(--dim);
+      font-size: 18px;
+      cursor: pointer;
+      padding: 8px 6px;
+      line-height: 1;
+      flex-shrink: 0;
+      border-radius: 4px;
+    }
+    .track-more-btn:active { color: var(--text); background: var(--hover); }
+
+    #action-sheet-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 200;
+      display: none;
+      opacity: 0;
+      transition: opacity 0.25s;
+    }
+    #action-sheet-backdrop.open { display: block; opacity: 1; }
+
+    #action-sheet {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: var(--panel);
+      border-top: 1px solid var(--border);
+      border-radius: 16px 16px 0 0;
+      z-index: 201;
+      transform: translateY(100%);
+      transition: transform 0.3s cubic-bezier(0.32,0.72,0,1);
+      max-height: 80dvh;
+      display: flex;
+      flex-direction: column;
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+    #action-sheet.open { transform: translateY(0); }
+
+    .as-handle {
+      width: 36px;
+      height: 4px;
+      background: var(--border);
+      border-radius: 2px;
+      margin: 10px auto 0;
+      flex-shrink: 0;
+    }
+
+    .as-title {
+      font-size: 13px;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      text-align: center;
+      padding: 10px 20px 0;
+      color: var(--dim);
+      flex-shrink: 0;
+    }
+
+    .as-body {
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      padding: 0 0 16px;
+    }
+
+    .as-section-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--dim);
+      padding: 14px 20px 6px;
+    }
+
+    /* Stars */
+    .as-stars {
+      display: flex;
+      justify-content: center;
+      gap: 6px;
+      padding: 6px 20px 10px;
+    }
+    .star-btn {
+      background: none;
+      border: none;
+      font-size: 28px;
+      cursor: pointer;
+      color: var(--border);
+      padding: 4px;
+      line-height: 1;
+      transition: color 0.1s, transform 0.1s;
+    }
+    .star-btn:active { transform: scale(0.85); }
+    .star-btn.lit { color: #f5c518; }
+
+    /* Tag rows / playlist rows */
+    .as-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 13px 20px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      user-select: none;
+    }
+    .as-row:active { background: var(--hover); }
+    .as-row-name { flex: 1; font-size: 14px; }
+    .as-row-check {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      border: 2px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      font-size: 12px;
+      color: var(--bg);
+    }
+    .as-row.checked .as-row-check {
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+
+    .as-empty {
+      padding: 16px 20px;
+      font-size: 13px;
+      color: var(--dim);
+    }
+
+    .as-loading {
+      padding: 16px 20px;
+      font-size: 13px;
+      color: var(--dim);
+    }
+
     /* ── RB warning banner ───────────────────────────────────────── */
     #rb-banner {
       display: none;
@@ -517,6 +656,31 @@
     </div>
   </div>
 
+</div>
+
+<!-- Action sheet backdrop -->
+<div id="action-sheet-backdrop" onclick="closeActionSheet()"></div>
+
+<!-- Track action sheet -->
+<div id="action-sheet">
+  <div class="as-handle"></div>
+  <div class="as-title" id="as-title">—</div>
+  <div class="as-body">
+    <div class="as-section-label">Rate</div>
+    <div class="as-stars" id="as-stars">
+      <button class="star-btn" onclick="setStar(1)">★</button>
+      <button class="star-btn" onclick="setStar(2)">★</button>
+      <button class="star-btn" onclick="setStar(3)">★</button>
+      <button class="star-btn" onclick="setStar(4)">★</button>
+      <button class="star-btn" onclick="setStar(5)">★</button>
+    </div>
+
+    <div class="as-section-label">Tags</div>
+    <div id="as-tags-list"><div class="as-loading">Loading…</div></div>
+
+    <div class="as-section-label">Add to Playlist</div>
+    <div id="as-playlists-list"><div class="as-loading">Loading…</div></div>
+  </div>
 </div>
 
 <!-- Full-screen player sheet -->
@@ -722,6 +886,7 @@ function renderTracks() {
           ${meta ? `<div class="track-meta">${esc(meta)}</div>` : ''}
         </div>
         <div class="track-dur">${fmtDur(t.duration)}</div>
+        <button class="track-more-btn" onclick="event.stopPropagation();openActionSheet(${i})">···</button>
       </div>`;
   }
   document.getElementById('content').innerHTML = html;
@@ -890,6 +1055,187 @@ function updateMediaSession() {
   navigator.mediaSession.setActionHandler('nexttrack',     nextTrack);
   navigator.mediaSession.setActionHandler('play',  () => audio.play());
   navigator.mediaSession.setActionHandler('pause', () => audio.pause());
+}
+
+// ── Action sheet ───────────────────────────────────────────────────────────
+let actionTrackIdx = -1;
+let allMyTags      = [];   // [{id, name, parent_id}]
+let allPlaylists   = [];   // flattened [{id, name}] from tree
+let trackTags      = [];   // [{assignment_id, tag_id}]
+let trackPlaylists = [];   // [{playlist_id}]
+let trackRating    = 0;    // 0-5 stars
+
+function flattenPlaylists(nodes, out = []) {
+  for (const n of nodes) {
+    if (n.type === 'folder') flattenPlaylists(n.children || [], out);
+    else out.push({ id: String(n.id), name: n.name });
+  }
+  return out;
+}
+
+async function openActionSheet(idx) {
+  actionTrackIdx = idx;
+  const t = tracks[idx];
+  document.getElementById('as-title').textContent = t.title || '—';
+  document.getElementById('action-sheet-backdrop').classList.add('open');
+  document.getElementById('action-sheet').classList.add('open');
+  document.body.style.overflow = 'hidden';
+
+  // Reset state
+  trackRating = 0;
+  trackTags = [];
+  trackPlaylists = [];
+  renderStars(0);
+  document.getElementById('as-tags-list').innerHTML = '<div class="as-loading">Loading…</div>';
+  document.getElementById('as-playlists-list').innerHTML = '<div class="as-loading">Loading…</div>';
+
+  // Load rating from track data (if available from server, otherwise 0)
+  if (t.rating !== undefined) {
+    const RATING_TO_STAR = {0:0, 51:1, 102:2, 153:3, 204:4, 255:5};
+    trackRating = RATING_TO_STAR[t.rating] ?? 0;
+    renderStars(trackRating);
+  }
+
+  // Fetch all my tags (cached after first load)
+  if (!allMyTags.length) {
+    try {
+      const r = await fetch('/api/mytags');
+      allMyTags = (await r.json()) || [];
+    } catch { allMyTags = []; }
+  }
+
+  // Flatten playlists from already-loaded tree (cached)
+  if (!allPlaylists.length) {
+    allPlaylists = flattenPlaylists(tree);
+  }
+
+  // Fetch track's current tags and playlists in parallel
+  const [tagsRes, plRes] = await Promise.allSettled([
+    fetch(`/api/tracks/${t.id}/mytags`).then(r => r.json()),
+    fetch(`/api/tracks/${t.id}/playlists`).then(r => r.json()),
+  ]);
+
+  trackTags = tagsRes.status === 'fulfilled' && !tagsRes.value.error ? tagsRes.value : [];
+  trackPlaylists = plRes.status === 'fulfilled' && !plRes.value.error ? plRes.value : [];
+
+  renderTagsList();
+  renderPlaylistsList();
+}
+
+function closeActionSheet() {
+  document.getElementById('action-sheet-backdrop').classList.remove('open');
+  document.getElementById('action-sheet').classList.remove('open');
+  document.body.style.overflow = '';
+  actionTrackIdx = -1;
+}
+
+// Stars
+function renderStars(rating) {
+  const btns = document.querySelectorAll('#as-stars .star-btn');
+  btns.forEach((b, i) => b.classList.toggle('lit', i < rating));
+}
+
+async function setStar(star) {
+  if (!checkEditAllowed()) return;
+  const t = tracks[actionTrackIdx];
+  if (!t) return;
+  const newRating = (star === trackRating) ? 0 : star;  // tap same star to clear
+  renderStars(newRating);
+  trackRating = newRating;
+  try {
+    await fetch(`/api/tracks/${t.id}/rating`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({rating: newRating}),
+    });
+  } catch { /* silent — UI already updated */ }
+}
+
+// Tags
+function renderTagsList() {
+  const assignedIds = new Set(trackTags.map(a => String(a.tag_id)));
+  const children = allMyTags.filter(t => t.parent_id && t.parent_id !== '0');
+  if (!children.length) {
+    document.getElementById('as-tags-list').innerHTML = '<div class="as-empty">No My Tags found.</div>';
+    return;
+  }
+  let html = '';
+  for (const tag of children) {
+    const checked = assignedIds.has(String(tag.id));
+    const assignment = trackTags.find(a => String(a.tag_id) === String(tag.id));
+    html += `<div class="as-row${checked ? ' checked' : ''}" onclick="toggleTag('${tag.id}','${esc(tag.name)}','${assignment ? assignment.assignment_id : ''}')">
+      <div class="as-row-name">${esc(tag.name)}</div>
+      <div class="as-row-check">${checked ? '✓' : ''}</div>
+    </div>`;
+  }
+  document.getElementById('as-tags-list').innerHTML = html;
+}
+
+async function toggleTag(tagId, tagName, assignmentId) {
+  if (!checkEditAllowed()) return;
+  const t = tracks[actionTrackIdx];
+  if (!t) return;
+  const isAssigned = trackTags.some(a => String(a.tag_id) === String(tagId));
+  if (isAssigned && assignmentId) {
+    // Remove
+    trackTags = trackTags.filter(a => String(a.tag_id) !== String(tagId));
+    renderTagsList();
+    try {
+      await fetch(`/api/tracks/${t.id}/mytags/${assignmentId}`, {method: 'DELETE'});
+    } catch { /* silent */ }
+  } else if (!isAssigned) {
+    // Add
+    try {
+      const r = await fetch(`/api/tracks/${t.id}/mytags`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({mytag_id: tagId}),
+      });
+      const data = await r.json();
+      if (data.ok) {
+        trackTags.push({assignment_id: data.assignment_id, tag_id: tagId, tag_name: tagName});
+        renderTagsList();
+      }
+    } catch { /* silent */ }
+  }
+}
+
+// Playlists
+function renderPlaylistsList() {
+  const inIds = new Set(trackPlaylists.map(p => String(p.playlist_id)));
+  if (!allPlaylists.length) {
+    document.getElementById('as-playlists-list').innerHTML = '<div class="as-empty">No playlists found.</div>';
+    return;
+  }
+  let html = '';
+  for (const pl of allPlaylists) {
+    const checked = inIds.has(String(pl.id));
+    html += `<div class="as-row${checked ? ' checked' : ''}" onclick="togglePlaylist('${pl.id}','${esc(pl.name)}')">
+      <div class="as-row-name">${esc(pl.name)}</div>
+      <div class="as-row-check">${checked ? '✓' : ''}</div>
+    </div>`;
+  }
+  document.getElementById('as-playlists-list').innerHTML = html;
+}
+
+async function togglePlaylist(playlistId, playlistName) {
+  if (!checkEditAllowed()) return;
+  const t = tracks[actionTrackIdx];
+  if (!t) return;
+  const isIn = trackPlaylists.some(p => String(p.playlist_id) === String(playlistId));
+  if (isIn) {
+    trackPlaylists = trackPlaylists.filter(p => String(p.playlist_id) !== String(playlistId));
+    renderPlaylistsList();
+    try {
+      await fetch(`/api/tracks/${t.id}/playlists/${playlistId}`, {method: 'DELETE'});
+    } catch { /* silent */ }
+  } else {
+    trackPlaylists.push({playlist_id: playlistId, name: playlistName});
+    renderPlaylistsList();
+    try {
+      await fetch(`/api/tracks/${t.id}/playlists/${playlistId}`, {method: 'POST'});
+    } catch { /* silent */ }
+  }
 }
 
 // ── Boot ───────────────────────────────────────────────────────────────────

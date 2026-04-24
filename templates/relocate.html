@@ -108,27 +108,7 @@
 
 <div id="report-panel"></div>
 
-<div class="restore-panel">
-  <button class="restore-toggle" onclick="toggleRestore()">
-    <span>🔴 &nbsp;Something broke? — How to restore your database backup</span>
-    <span class="arrow">▾</span>
-  </button>
-  <div class="restore-body">
-    <h3>How to restore a Rekordbox database backup</h3>
-    <p>Every tool that modifies the database creates a timestamped backup before writing anything. Here's how to restore if something went wrong.</p>
-    <ol>
-      <li><strong>Close Rekordbox completely</strong> before touching any database files.</li>
-      <li>Open File Explorer and paste this into the address bar:<br>
-        <code class="restore-path">%APPDATA%\Pioneer\rekordbox\</code>
-      </li>
-      <li>You'll see <code>master.db</code> (live) and timestamped backups like <code>master_backup_20250415_143022.db</code>.</li>
-      <li>Rename <code>master.db</code> → <code>master_broken.db</code> to keep it as a reference.</li>
-      <li>Rename the backup you want to restore → <code>master.db</code>.</li>
-      <li>Open Rekordbox — it loads from the restored file.</li>
-    </ol>
-    <p style="color:var(--orange)">⚑ Delete old backups periodically to save disk space.</p>
-  </div>
-</div>
+<p style="margin-top:24px;font-size:13px;color:var(--dim);">🔴 &nbsp;<a href="/restore" style="color:var(--dim);">Something broke? — Restore a backup →</a></p>
 {% endblock %}
 
 {% block scripts %}
