@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -594,6 +594,29 @@
     }
 
     /* ── Loading / error states ──────────────────────────────────── */
+    /* Search bar */
+    #search-bar {
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      padding: 8px 12px;
+      flex-shrink: 0;
+    }
+
+    #search-input {
+      width: 100%;
+      background: var(--hover);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 14px;
+      padding: 8px 12px;
+      outline: none;
+      -webkit-appearance: none;
+    }
+    #search-input::placeholder { color: var(--dim); }
+    #search-input:focus { border-color: var(--accent); }
+
     .state-msg {
       padding: 48px 24px;
       text-align: center;
@@ -630,6 +653,11 @@
     <div id="header-title">My Library</div>
     <button id="shuffle-btn" onclick="toggleShuffle()" title="Shuffle">⇀</button>
     <button id="logout-btn" onclick="location.href='/listen/logout'">Sign out</button>
+  </div>
+
+  <!-- Search bar -->
+  <div id="search-bar">
+    <input id="search-input" type="search" placeholder="Search playlists…" oninput="onSearch(this.value)" autocomplete="off" autocorrect="off" spellcheck="false">
   </div>
 
   <!-- Scrollable content -->
@@ -726,6 +754,7 @@ let shuffleOrder = [];        // shuffled index array
 let shufflePos   = 0;
 let currentPlaylistName = '';
 let currentView = 'playlists'; // 'playlists' | 'tracks'
+let searchQuery  = '';         // current search filter
 
 const audio = document.getElementById('audio');
 
@@ -798,6 +827,21 @@ async function init() {
   }
 }
 
+// ── Search ─────────────────────────────────────────────────────────────────
+function onSearch(val) {
+  searchQuery = val.trim();
+  if (currentView === 'playlists') renderPlaylists();
+  else if (currentView === 'tracks') renderTracks();
+}
+
+function flattenTree(nodes, out = []) {
+  for (const n of nodes) {
+    if (n.type === 'folder') flattenTree(n.children || [], out);
+    else out.push(n);
+  }
+  return out;
+}
+
 // ── Playlist tree rendering ────────────────────────────────────────────────
 function renderPlaylists() {
   currentView = 'playlists';
@@ -805,13 +849,45 @@ function renderPlaylists() {
   document.getElementById('back-btn').style.display = 'none';
   document.getElementById('shuffle-btn').style.display = 'none';
   document.getElementById('logout-btn').style.display = '';
+  document.getElementById('search-input').placeholder = 'Search playlists…';
 
   const el = document.getElementById('content');
+  const q = searchQuery.toLowerCase();
+
+  // "All Tracks" is always pinned at the top
+  const allTracksItem = `
+    <div class="tree-item" onclick="openAllTracks()">
+      <span class="tree-icon">🎵</span>
+      <span class="tree-name">All Tracks</span>
+      <span class="tree-chevron">›</span>
+    </div>`;
+
   if (!tree.length) {
-    el.innerHTML = '<div class="state-msg">No playlists found in your Rekordbox library.</div>';
+    el.innerHTML = allTracksItem + '<div class="state-msg" style="padding-top:32px">No playlists found in your Rekordbox library.</div>';
     return;
   }
-  el.innerHTML = renderTreeNodes(tree);
+
+  if (q) {
+    // Flat filtered list of matching playlists
+    const matching = flattenTree(tree).filter(n => n.name.toLowerCase().includes(q));
+    let html = allTracksItem;
+    if (!matching.length) {
+      html += '<div class="state-msg" style="padding-top:32px">No playlists match your search.</div>';
+    } else {
+      for (const n of matching) {
+        html += `
+          <div class="tree-item" onclick="openPlaylist(${n.id}, ${JSON.stringify(esc(n.name))})">
+            <span class="tree-icon" style="font-size:13px;color:var(--dim)">♫</span>
+            <span class="tree-name">${esc(n.name)}</span>
+            <span class="tree-chevron">›</span>
+          </div>`;
+      }
+    }
+    el.innerHTML = html;
+    return;
+  }
+
+  el.innerHTML = allTracksItem + renderTreeNodes(tree);
 }
 
 function renderTreeNodes(nodes) {
@@ -847,40 +923,68 @@ function toggleFolder(el) {
 }
 
 // ── Track list ─────────────────────────────────────────────────────────────
-async function openPlaylist(pid, name) {
+function _enterTracksView(name) {
   currentPlaylistName = name;
+  currentView = 'tracks';
+  searchQuery = '';
+  document.getElementById('search-input').value = '';
+  document.getElementById('search-input').placeholder = 'Search tracks…';
   document.getElementById('header-title').textContent = name;
   document.getElementById('back-btn').style.display = '';
   document.getElementById('shuffle-btn').style.display = '';
   document.getElementById('logout-btn').style.display = 'none';
   document.getElementById('content').innerHTML = '<div class="state-msg"><div class="spinner"></div>Loading tracks…</div>';
-  currentView = 'tracks';
+  document.getElementById('sheet-playlist-name').textContent = name;
+}
 
+async function openPlaylist(pid, name) {
+  _enterTracksView(name);
   try {
     const res = await fetch(`/api/listen/playlist/${pid}/tracks`);
     if (!res.ok) throw new Error(await res.text());
     const data = await res.json();
     tracks = data.tracks || [];
     renderTracks();
-    document.getElementById('sheet-playlist-name').textContent = name;
+  } catch (e) {
+    showError('Could not load tracks.<br>' + esc(e.message));
+  }
+}
+
+async function openAllTracks() {
+  _enterTracksView('All Tracks');
+  try {
+    const res = await fetch('/api/listen/all-tracks');
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+    tracks = data.tracks || [];
+    renderTracks();
   } catch (e) {
     showError('Could not load tracks.<br>' + esc(e.message));
   }
 }
 
 function renderTracks() {
-  if (!tracks.length) {
-    document.getElementById('content').innerHTML = '<div class="state-msg">This playlist is empty.</div>';
+  document.getElementById('search-input').placeholder = 'Search tracks…';
+  const q = searchQuery.toLowerCase();
+  const filtered = q
+    ? tracks.map((t, i) => ({ t, i })).filter(({ t }) =>
+        (t.title || '').toLowerCase().includes(q) ||
+        (t.artist || '').toLowerCase().includes(q))
+    : tracks.map((t, i) => ({ t, i }));
+
+  if (!filtered.length) {
+    const msg = q ? 'No tracks match your search.' : 'This playlist is empty.';
+    document.getElementById('content').innerHTML = `<div class="state-msg">${msg}</div>`;
     return;
   }
   let html = '';
-  for (let i = 0; i < tracks.length; i++) {
-    const t = tracks[i];
+  for (let pos = 0; pos < filtered.length; pos++) {
+    const { t, i } = filtered[pos];
     const meta = [t.artist, t.bpm ? t.bpm + ' BPM' : '', t.key].filter(Boolean).join('  ·  ');
     const active = i === trackIdx;
     html += `
       <div class="track-item${active ? ' playing' : ''}" id="ti-${i}" onclick="playTrack(${i})">
-        <div class="track-idx">${active ? '▶' : i + 1}</div>
+        <div class="track-idx">${active ? '▶' : pos + 1}</div>
         <div class="track-info">
           <div class="track-title">${esc(t.title)}</div>
           ${meta ? `<div class="track-meta">${esc(meta)}</div>` : ''}
@@ -893,6 +997,8 @@ function renderTracks() {
 }
 
 function goBack() {
+  searchQuery = '';
+  document.getElementById('search-input').value = '';
   renderPlaylists();
 }
 

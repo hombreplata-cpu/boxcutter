@@ -982,17 +982,24 @@ def shutdown():
 
 def _tailscale_ip() -> str:
     """Return the Tailscale IPv4 address, or empty string if not available."""
-    try:
-        result = subprocess.run(
-            ["tailscale", "ip", "-4"],
-            capture_output=True,
-            text=True,
-            timeout=3,
-        )
-        if result.returncode == 0:
-            return result.stdout.strip()
-    except Exception:  # noqa: S110
-        pass
+    import platform
+
+    candidates = ["tailscale"]
+    if platform.system() == "Windows":
+        candidates.append(r"C:\Program Files\Tailscale\tailscale.exe")
+
+    for cmd in candidates:
+        try:
+            result = subprocess.run(
+                [cmd, "ip", "-4"],
+                capture_output=True,
+                text=True,
+                timeout=3,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                return result.stdout.strip()
+        except Exception:  # noqa: BLE001
+            continue
     return ""
 
 
@@ -1074,6 +1081,29 @@ def api_listen_tree():
         return jsonify(data)
     except subprocess.TimeoutExpired:
         return jsonify({"error": "Timed out reading database"}), 500
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/listen/all-tracks")
+def api_listen_all_tracks():
+    if not _listen_authed():
+        return jsonify({"error": "Unauthorized"}), 401
+    script_path = SCRIPTS_DIR / "get_playlist_tracks.py"
+    cfg = load_config()
+    cmd = [sys.executable, str(script_path), "--playlist-id", "all"]
+    db_path = clean_path(cfg.get("db_path", ""))
+    if db_path:
+        cmd += ["--db-path", db_path]
+    try:
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30
+        )
+        if result.returncode != 0:
+            return jsonify({"error": result.stderr.strip() or "Failed to read tracks"}), 500
+        return result.stdout, 200, {"Content-Type": "application/json"}
+    except subprocess.TimeoutExpired:
+        return jsonify({"error": "Timed out reading tracks"}), 500
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
 
