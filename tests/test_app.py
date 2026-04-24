@@ -23,8 +23,11 @@ import app as flask_app  # noqa: E402
 @pytest.fixture
 def client(tmp_path):
     flask_app.app.config["TESTING"] = True
-    # Patch load_config so tests don't need real config files
-    with patch.object(flask_app, "load_config", return_value={}), flask_app.app.test_client() as c:
+    # Patch load_config so tests don't need real config files.
+    # db_path must be non-empty: the api_run guard now rejects DB-tool runs without it.
+    with patch.object(
+        flask_app, "load_config", return_value={"db_path": "/fake/master.db"}
+    ), flask_app.app.test_client() as c:
         yield c
 
 

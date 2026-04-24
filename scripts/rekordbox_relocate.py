@@ -301,9 +301,11 @@ def run(args):
             )
 
     if not args.dry_run:
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        backup_path = db_path.with_name(f"master_backup_{ts}.db")
         try:
+            backup_dir = db_path.parent / "boxcutter-backups"
+            backup_dir.mkdir(exist_ok=True)
+            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+            backup_path = backup_dir / f"master_backup_relocate_{ts}.db"
             shutil.copy2(db_path, backup_path)
             print(f"[backup] {backup_path}")
         except Exception as e:

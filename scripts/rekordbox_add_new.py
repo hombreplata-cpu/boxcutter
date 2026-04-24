@@ -175,8 +175,10 @@ def run(args):
     # Backup before any writes
     if not args.dry_run:
         db_path = Path(db.engine.url.database)
+        backup_dir = db_path.parent / "boxcutter-backups"
+        backup_dir.mkdir(exist_ok=True)
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        backup_path = db_path.with_name(f"master_backup_{ts}.db")
+        backup_path = backup_dir / f"master_backup_add_new_{ts}.db"
         shutil.copy2(db_path, backup_path)
         print(f"[backup] {backup_path}")
 

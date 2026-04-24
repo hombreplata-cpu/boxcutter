@@ -11,7 +11,10 @@ import traceback as tb
 from datetime import datetime
 from pathlib import Path
 
-APP_VERSION = "1.1.0"
+try:
+    from version import __version__ as APP_VERSION
+except ImportError:
+    APP_VERSION = "unknown"
 
 LOG_DIR = Path.home() / ".boxcutter_logs"
 
