@@ -72,6 +72,25 @@
   </div>
 
   <div class="card" style="margin-top:0;">
+    <div class="card-label">Remote Listener</div>
+
+    <div class="path-row">
+      <label>Listener PIN</label>
+      <input class="path-input" type="text" name="listen_pin"
+             value="{{ cfg.listen_pin }}"
+             placeholder="e.g. 1234"
+             maxlength="8"
+             style="max-width:140px;letter-spacing:0.15em;">
+    </div>
+    <div class="path-hint">4-digit PIN to access your playlists from your phone at <strong>/listen</strong>. Leave blank to disable.</div>
+
+    <div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);line-height:1.8;margin-top:12px;">
+      <div><span style="color:var(--text)">Access URL&nbsp;&nbsp;</span> http://&lt;your-tailscale-ip&gt;:5000/listen</div>
+      <div><span style="color:var(--text)">Secure setup&nbsp;</span> Install <a href="https://tailscale.com" target="_blank" rel="noopener" style="color:var(--accent)">Tailscale</a> on this PC and your phone — no port forwarding needed</div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:0;">
     <div class="card-label">Where to find Rekordbox files</div>
     <div style="font-family:var(--mono);font-size:11px;line-height:2;color:var(--text-dim);">
       <div><span style="color:var(--text)">DB (Windows)&nbsp;&nbsp;</span> %APPDATA%\Pioneer\rekordbox\master.db</div>
