@@ -834,7 +834,7 @@ def api_run(script_name):
     db_path = clean_path(cfg.get("db_path", ""))
     if script_name != "strip_comments" and not db_path:
         return jsonify({"error": "Database path not configured — go to Setup & Paths."}), 400
-    if db_path:
+    if db_path and script_name != "strip_comments":
         args += ["--db-path", db_path]
 
     if dry_run:
