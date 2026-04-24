@@ -22,7 +22,8 @@ LicenseFile=..\..\LICENSE
 ; Install to user-local dir — no admin elevation required
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=commandline
-; Don't try to restart any running apps — the updater exits before launching this
+; Auto-updater exits the app before launching this installer, so no need to check
+CloseApplications=no
 RestartApplications=no
 
 [Languages]
