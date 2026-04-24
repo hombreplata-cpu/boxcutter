@@ -1,0 +1,47 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="body-f" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#7fb3de"/>
+      <stop offset="100%" stop-color="#3d6590"/>
+    </linearGradient>
+    <linearGradient id="body-side-f" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3d6590"/>
+      <stop offset="100%" stop-color="#1e3a5f"/>
+    </linearGradient>
+    <linearGradient id="metal-f" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#e8eef7"/>
+      <stop offset="100%" stop-color="#8fa8c8"/>
+    </linearGradient>
+    <linearGradient id="metal-side-f" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#9fb2ce"/>
+      <stop offset="100%" stop-color="#6b89a8"/>
+    </linearGradient>
+  </defs>
+  
+  <rect x="0" y="0" width="1024" height="1024" rx="205" fill="#1e3a5f"/>
+  
+  <ellipse cx="563" cy="904" rx="290" ry="34" fill="#000" opacity="0.35"/>
+  
+  <g transform="translate(512, 546) rotate(48)">
+    <rect x="-109" y="-246" width="218" height="437" rx="34" fill="#1a3050" opacity="0.5" transform="translate(10,10)"/>
+    <rect x="-109" y="-246" width="218" height="437" rx="34" fill="url(#body-f)"/>
+    <path d="M 109,-246 L 133,-222 L 133,167 L 109,191 Z" fill="url(#body-side-f)"/>
+    <path d="M -109,-246 L -85,-270 L 133,-270 L 109,-246 Z" fill="#9fc5e5"/>
+    <path d="M -109,191 L -85,215 L 133,215 L 109,191 Z" fill="#27476b"/>
+    <rect x="-109" y="-27" width="218" height="7" fill="#27476b" opacity="0.6"/>
+    <rect x="-109" y="-34" width="218" height="3" fill="#9fc5e5" opacity="0.4"/>
+    <rect x="-75" y="34" width="150" height="109" rx="10" fill="#1e3a5f" opacity="0.35"/>
+    <circle cx="0" cy="-119" r="14" fill="#5ec8e8"/>
+    <circle cx="0" cy="-119" r="7" fill="#a8e4f3"/>
+    <rect x="-61" y="-369" width="123" height="130" rx="10" fill="#1a3050" opacity="0.5" transform="translate(7,7)"/>
+    <rect x="-61" y="-369" width="123" height="130" rx="10" fill="url(#metal-f)"/>
+    <path d="M 61,-369 L 75,-355 L 75,-239 L 61,-239 Z" fill="url(#metal-side-f)"/>
+    <path d="M -61,-369 L -48,-383 L 75,-383 L 61,-369 Z" fill="#f5f8fc"/>
+    <rect x="-38" y="-324" width="75" height="14" rx="2" fill="#0a1628"/>
+    <rect x="-31" y="-300" width="61" height="27" rx="2" fill="#1a2b42"/>
+    <rect x="-27" y="-293" width="10" height="14" fill="#d4e0f0"/>
+    <rect x="-10" y="-293" width="10" height="14" fill="#d4e0f0"/>
+    <rect x="7" y="-293" width="10" height="14" fill="#d4e0f0"/>
+    <rect x="24" y="-293" width="10" height="14" fill="#d4e0f0"/>
+  </g>
+</svg>
