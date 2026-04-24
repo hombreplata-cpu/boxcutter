@@ -37,7 +37,10 @@
     <div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);">Tailscale is running. You're good to go.</div>
     {% else %}
     <div style="font-family:var(--mono);font-size:22px;color:var(--red);font-weight:600;margin-bottom:6px;">✗ Not detected</div>
-    <div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);">Install and start Tailscale — see setup below.</div>
+    <div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);line-height:1.8;">
+      Install and start Tailscale — see setup below.<br>
+      <span style="color:var(--text);">To find your IP manually:</span> click the Tailscale icon in the system tray (bottom-right taskbar). Your IP is the <span style="color:var(--accent);">100.x.x.x</span> address shown at the top.
+    </div>
     {% endif %}
   </div>
 
@@ -70,6 +73,7 @@
       <div style="color:var(--accent);font-weight:600;margin-bottom:6px;">Step 1 — Install Tailscale on this PC</div>
       <div>Download from <span style="color:var(--text);">tailscale.com</span> and sign in with a free account.</div>
       <div>Tailscale creates a private encrypted tunnel between your devices — no port forwarding needed.</div>
+      <div style="margin-top:6px;">Once installed and running, click the Tailscale icon in the system tray (bottom-right corner of the taskbar). Your <strong style="color:var(--accent);">Tailscale IP</strong> — always a <span style="color:var(--accent);">100.x.x.x</span> address — is shown at the top of the menu. This page detects it automatically when Tailscale is active.</div>
     </div>
 
     <div style="margin-bottom:20px;">
@@ -88,7 +92,11 @@
       <div style="color:var(--accent);font-weight:600;margin-bottom:6px;">Step 4 — When you're ready to head out</div>
       <div>1. Close Rekordbox if it's open.</div>
       <div>2. Leave this app running (minimise the window — don't close it).</div>
-      <div>3. On your iPhone, open the listener URL in Safari and enter your PIN.</div>
+      <div>3. On your iPhone, open Safari and go to:</div>
+      <div style="margin-top:6px;padding:8px 12px;background:var(--input-bg);border-radius:6px;border:1px solid var(--border);color:var(--accent);word-break:break-all;">
+        {% if tailscale_ip %}http://{{ tailscale_ip }}:{{ port }}/listen{% else %}http://<span style="opacity:0.6;">100.x.x.x</span>:{{ port }}/listen{% endif %}
+      </div>
+      <div style="margin-top:6px;">Enter your PIN when prompted. Bookmark the page in Safari for quick access next time.</div>
     </div>
 
     <div style="border-top:1px solid var(--border);padding-top:16px;color:var(--dim);font-size:12px;line-height:1.8;">
