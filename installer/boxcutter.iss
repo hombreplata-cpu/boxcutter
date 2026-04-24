@@ -14,6 +14,7 @@ DefaultGroupName={#MyAppName}
 UninstallDisplayName={#MyAppName}
 OutputBaseFilename=BoxCutter-Setup-{#AppVersion}
 OutputDir=Output
+SetupIconFile=..\static\favicon.ico
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
