@@ -1,5 +1,5 @@
 """
-crash_logger.py — stdlib-only crash log writer for rekordbox-tools
+crash_logger.py — stdlib-only crash log writer for BoxCutter
 
 Imported by both app.py and launcher.py. No Flask dependency so it
 survives import failures in either module.
@@ -13,7 +13,7 @@ from pathlib import Path
 
 APP_VERSION = "1.1.0"
 
-LOG_DIR = Path.home() / ".rekordbox_tools_logs"
+LOG_DIR = Path.home() / ".boxcutter_logs"
 
 
 def write_crash_log(surface: str, body: str, context: dict | None = None) -> Path | None:
@@ -36,7 +36,7 @@ def write_crash_log(surface: str, body: str, context: dict | None = None) -> Pat
         py_ver = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
 
         lines = [
-            "=== rekordbox-tools crash log ===",
+            "=== BoxCutter crash log ===",
             f"Time:      {ts.strftime('%Y-%m-%d %H:%M:%S')}",
             f"Version:   {APP_VERSION}",
             f"Platform:  {platform.platform()}",

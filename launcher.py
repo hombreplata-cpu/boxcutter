@@ -1,5 +1,5 @@
 """
-launcher.py — PyInstaller entry point for rekordbox-tools
+launcher.py — PyInstaller entry point for BoxCutter
 
 Starts Flask in a background thread, waits until the server is ready,
 then opens the browser. The main thread blocks on the Flask thread so
