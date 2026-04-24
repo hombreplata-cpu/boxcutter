@@ -790,6 +790,43 @@
       0%, 100% { border-color: var(--red); }
       50%       { border-color: #ff8a80; }
     }
+    /* ── Update available banner ── */
+    #update-banner {
+      display: none;
+      background: #0d2218;
+      border: 1px solid var(--accent);
+      border-radius: 4px;
+      padding: 12px 18px;
+      margin-bottom: 20px;
+      font-family: var(--mono);
+      font-size: 14px;
+      color: var(--text);
+      line-height: 1.6;
+    }
+    #update-progress {
+      display: none;
+      margin-top: 10px;
+    }
+    #update-progress-track {
+      height: 6px;
+      background: var(--bg-input);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    #update-progress-fill {
+      height: 100%;
+      width: 0%;
+      background: var(--accent);
+      border-radius: 3px;
+      transition: width 0.2s ease;
+    }
+    #update-progress-label {
+      font-size: 11px;
+      color: var(--text-dim);
+      margin-top: 4px;
+      text-align: right;
+    }
+
     /* ── Progress bar ── */
     #progress-wrap {
       display: none;
@@ -1009,6 +1046,18 @@
     <strong>Rekordbox is currently open.</strong>
     Close it before running any tool — the database will be locked and changes cannot be written.
   </div>
+
+  <div id="update-banner">
+    <span style="color:var(--accent)">✦</span>
+    BoxCutter <strong id="update-version"></strong> is available —
+    <button id="update-now-btn" onclick="startUpdate()" style="background:none;border:none;color:var(--accent);font-family:var(--mono);font-size:14px;cursor:pointer;padding:0 2px;text-decoration:underline;">Update Now</button>
+    <button onclick="document.getElementById('update-banner').style.display='none'" style="float:right;background:none;border:none;color:var(--text-dim);font-family:var(--mono);font-size:16px;cursor:pointer;padding:0 2px;line-height:1;">✕</button>
+    <div id="update-progress">
+      <div id="update-progress-track"><div id="update-progress-fill"></div></div>
+      <div id="update-progress-label"></div>
+    </div>
+  </div>
+
   {% block content %}{% endblock %}
 </main>
 
@@ -1832,6 +1881,76 @@
   // Check immediately on page load, then every 2.5 seconds
   checkRekordboxStatus();
   setInterval(checkRekordboxStatus, 2500);
+
+  // ── Auto-updater ─────────────────────────────────────────────────────────
+
+  let _updateDownloadUrl = '';
+
+  (function () {
+    fetch('/api/update_check')
+      .then(r => r.json())
+      .then(data => {
+        if (!data.available) return;
+        _updateDownloadUrl = data.download_url;
+        document.getElementById('update-version').textContent = 'v' + data.version;
+        document.getElementById('update-banner').style.display = 'block';
+      })
+      .catch(() => {});
+  })();
+
+  function startUpdate() {
+    if (!_updateDownloadUrl) return;
+    const btn      = document.getElementById('update-now-btn');
+    const progress = document.getElementById('update-progress');
+    const fill     = document.getElementById('update-progress-fill');
+    const label    = document.getElementById('update-progress-label');
+
+    btn.disabled    = true;
+    btn.textContent = 'Downloading…';
+    progress.style.display = 'block';
+
+    const es = new EventSource('/api/download_update?url=' + encodeURIComponent(_updateDownloadUrl));
+
+    es.onmessage = e => {
+      if (e.data === '%%DONE%%') {
+        es.close();
+        fill.style.width = '100%';
+        label.textContent = 'Download complete';
+        btn.style.display = 'none';
+        const restartBtn = document.createElement('button');
+        restartBtn.textContent = 'Restart & Install';
+        restartBtn.style.cssText = 'background:var(--accent);color:var(--bg);border:none;font-family:var(--mono);font-size:13px;font-weight:600;padding:6px 14px;border-radius:4px;cursor:pointer;margin-left:8px;';
+        restartBtn.onclick = applyUpdate;
+        btn.parentNode.insertBefore(restartBtn, btn);
+        return;
+      }
+      try {
+        const d = JSON.parse(e.data);
+        if (d.error) { es.close(); label.textContent = 'Error: ' + d.error; return; }
+        if (d.total) {
+          fill.style.width = Math.min(100, Math.round(d.downloaded * 100 / d.total)) + '%';
+          label.textContent = fmtMB(d.downloaded) + ' / ' + fmtMB(d.total);
+        } else {
+          label.textContent = fmtMB(d.downloaded) + ' downloaded…';
+        }
+      } catch (_) {}
+    };
+
+    es.onerror = () => {
+      es.close();
+      label.textContent = 'Download failed — please try again.';
+      btn.disabled    = false;
+      btn.textContent = 'Retry';
+    };
+  }
+
+  function fmtMB(bytes) {
+    return (bytes / 1048576).toFixed(1) + ' MB';
+  }
+
+  function applyUpdate() {
+    fetch('/api/apply_update', { method: 'POST' }).catch(() => {});
+  }
 
   // ── Mobile sidebar toggle ─────────────────────────────────────────────────
 
