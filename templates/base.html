@@ -1885,6 +1885,7 @@
   // ── Auto-updater ─────────────────────────────────────────────────────────
 
   let _updateDownloadUrl = '';
+  let _updatePlatform = 'win';
 
   (function () {
     fetch('/api/update_check')
@@ -1892,6 +1893,7 @@
       .then(data => {
         if (!data.available) return;
         _updateDownloadUrl = data.download_url;
+        _updatePlatform = data.platform || 'win';
         document.getElementById('update-version').textContent = 'v' + data.version;
         document.getElementById('update-banner').style.display = 'block';
       })
@@ -1918,7 +1920,7 @@
         label.textContent = 'Download complete';
         btn.style.display = 'none';
         const restartBtn = document.createElement('button');
-        restartBtn.textContent = 'Restart & Install';
+        restartBtn.textContent = _updatePlatform === 'mac' ? 'Open DMG' : 'Restart & Install';
         restartBtn.style.cssText = 'background:var(--accent);color:var(--bg);border:none;font-family:var(--mono);font-size:13px;font-weight:600;padding:6px 14px;border-radius:4px;cursor:pointer;margin-left:8px;';
         restartBtn.onclick = applyUpdate;
         btn.parentNode.insertBefore(restartBtn, btn);
@@ -1949,7 +1951,15 @@
   }
 
   function applyUpdate() {
-    fetch('/api/apply_update', { method: 'POST' }).catch(() => {});
+    fetch('/api/apply_update', { method: 'POST' })
+      .then(r => r.json())
+      .then(data => {
+        if (data.manual) {
+          document.getElementById('update-progress-label').textContent =
+            'DMG opened in Finder — drag BoxCutter to Applications, then relaunch.';
+        }
+      })
+      .catch(() => {});
   }
 
   // ── Mobile sidebar toggle ─────────────────────────────────────────────────
