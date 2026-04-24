@@ -875,9 +875,10 @@ function renderPlaylists() {
       html += '<div class="state-msg" style="padding-top:32px">No playlists match your search.</div>';
     } else {
       for (const n of matching) {
+        const icon = n.smart ? '⚡' : '♫';
         html += `
           <div class="tree-item" onclick="openPlaylist(${n.id}, ${JSON.stringify(esc(n.name))})">
-            <span class="tree-icon" style="font-size:13px;color:var(--dim)">♫</span>
+            <span class="tree-icon" style="font-size:13px;color:var(--dim)">${icon}</span>
             <span class="tree-name">${esc(n.name)}</span>
             <span class="tree-chevron">›</span>
           </div>`;
@@ -904,9 +905,10 @@ function renderTreeNodes(nodes) {
           ${renderTreeNodes(node.children || [])}
         </div>`;
     } else {
+      const icon = node.smart ? '⚡' : '♫';
       html += `
         <div class="tree-item" onclick="openPlaylist(${node.id}, ${JSON.stringify(esc(node.name))})">
-          <span class="tree-icon" style="font-size:13px;color:var(--dim)">♫</span>
+          <span class="tree-icon" style="font-size:13px;color:var(--dim)">${icon}</span>
           <span class="tree-name">${esc(node.name)}</span>
           <span class="tree-chevron">›</span>
         </div>`;
