@@ -455,7 +455,6 @@ def api_dismiss_donation():
     return jsonify({"ok": True})
 
 
-
 @app.route("/api/run/<script_name>")
 def api_run(script_name):
     """Stream script output as server-sent events."""
