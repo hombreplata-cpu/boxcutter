@@ -9,34 +9,6 @@ import sys
 from pyrekordbox import Rekordbox6Database as MasterDatabase
 from sqlalchemy import text
 
-# Rekordbox Tonality integer → Camelot wheel notation
-TONALITY_CAMELOT = {
-    1: "8B",
-    2: "3B",
-    3: "10B",
-    4: "5B",
-    5: "12B",
-    6: "7B",
-    7: "2B",
-    8: "9B",
-    9: "4B",
-    10: "11B",
-    11: "6B",
-    12: "1B",
-    13: "5A",
-    14: "12A",
-    15: "7A",
-    16: "2A",
-    17: "9A",
-    18: "4A",
-    19: "11A",
-    20: "6A",
-    21: "1A",
-    22: "8A",
-    23: "3A",
-    24: "10A",
-}
-
 
 def fmt_duration(ms):
     """Convert milliseconds to seconds."""
@@ -80,18 +52,13 @@ def main():
             if content.BPM:
                 with contextlib.suppress(Exception):
                     bpm = int(float(content.BPM))
-            key = ""
-            tonality = getattr(content, "Tonality", None)
-            if tonality:
-                with contextlib.suppress(Exception):
-                    key = TONALITY_CAMELOT.get(int(tonality), "")
             return {
                 "id": content.ID,
                 "title": content.Title or "",
                 "artist": artist_name,
                 "bpm": bpm,
-                "key": key,
-                "duration": fmt_duration(content.TotalTime),
+                "key": content.KeyName or "",
+                "duration": fmt_duration(content.Length),
             }
 
         if all_tracks_mode:

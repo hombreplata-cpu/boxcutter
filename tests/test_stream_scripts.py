@@ -215,14 +215,16 @@ def _run_playlist_tracks_main(playlist, rows, contents):
     return json.loads(captured.getvalue())
 
 
-def _make_track_content(id=1, title="Track", artist_id=1, bpm=128, tonality=1, total_time=180000):
+def _make_track_content(
+    id=1, title="Track", artist_id=1, bpm=128, key_name="8B", total_time=180000
+):
     c = MagicMock()
     c.ID = id
     c.Title = title
     c.ArtistID = artist_id
     c.BPM = bpm
-    c.Tonality = tonality
-    c.TotalTime = total_time
+    c.KeyName = key_name
+    c.Length = total_time
     return c
 
 
