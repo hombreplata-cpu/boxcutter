@@ -10,4 +10,4 @@ echo "  Starting server at http://localhost:5000"
 echo "  Press Ctrl+C to stop"
 echo ""
 
-python3 "$SCRIPT_DIR/app.py"
+python3 "$SCRIPT_DIR/../../app.py"

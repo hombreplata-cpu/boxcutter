@@ -1,5 +1,5 @@
 ; boxcutter.iss — Inno Setup script for BoxCutter
-; Compile: ISCC.exe /DAppVersion=1.0.0 installer\boxcutter.iss
+; Compile: ISCC.exe /DAppVersion=1.0.0 installer\windows\boxcutter.iss
 
 #define MyAppName "BoxCutter"
 #define MyAppPublisher "House//Minimal Records"
@@ -14,11 +14,11 @@ DefaultGroupName={#MyAppName}
 UninstallDisplayName={#MyAppName}
 OutputBaseFilename=BoxCutter-Setup-{#AppVersion}
 OutputDir=Output
-SetupIconFile=..\static\favicon.ico
+SetupIconFile=..\..\static\boxcutter.ico
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
-LicenseFile=..\LICENSE
+LicenseFile=..\..\LICENSE
 ; Install to user-local dir — no admin elevation required
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=commandline
@@ -32,7 +32,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: checkedonce
 
 [Files]
-Source: "..\dist\BoxCutter\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\..\dist\BoxCutter\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
