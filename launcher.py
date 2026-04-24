@@ -7,11 +7,13 @@ The main thread blocks inside webview.start() until the window is closed.
 """
 
 import os
+import socket
 import sys
 import threading
 import time
 import urllib.error
 import urllib.request
+import webbrowser
 
 from crash_logger import write_crash_log  # noqa: E402
 
@@ -35,6 +37,12 @@ from app import app  # noqa: E402
 PORT = 5000
 
 
+def _already_running(port: int) -> bool:
+    """Return True if something is already accepting connections on port."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        return s.connect_ex(("127.0.0.1", port)) == 0
+
+
 def _start_flask():
     app.run(port=PORT, debug=False, use_reloader=False)
 
@@ -50,6 +58,12 @@ def _wait_for_server():
 
 
 if __name__ == "__main__":
+    # Single-instance guard: if BoxCutter is already running, focus that window
+    # in the default browser and exit rather than spawning a second app window.
+    if _already_running(PORT):
+        webbrowser.open(f"http://localhost:{PORT}")
+        sys.exit(0)
+
     import webview
 
     flask_thread = threading.Thread(target=_start_flask, daemon=True)
@@ -63,4 +77,13 @@ if __name__ == "__main__":
         height=820,
         min_size=(900, 600),
     )
+
+    # Route target="_blank" links to the system browser instead of spawning
+    # new pywebview windows.
+    def _on_new_window(event):
+        webbrowser.open(event.url)
+        event.cancel()
+
+    window.events.new_window_requested += _on_new_window
+
     webview.start()
