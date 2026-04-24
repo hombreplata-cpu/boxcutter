@@ -38,6 +38,7 @@ DEFAULT_CONFIG = {
     "db_path": "",
     "target_playlist_id": "",  # Add New Tracks: last-used playlist
     "cleanup_exclude": "",  # Library Cleanup: last-used exclude folder
+    "donation_shown": False,
 }
 
 HISTORY_FILE = Path.home() / ".rekordbox_tools_history.json"
@@ -144,7 +145,11 @@ def rekordbox_is_running():
 
 @app.context_processor
 def inject_globals():
-    return {"is_frozen": getattr(sys, "frozen", False)}
+    cfg = load_config()
+    return {
+        "is_frozen": getattr(sys, "frozen", False),
+        "show_donation": not cfg.get("donation_shown", False),
+    }
 
 
 # ── Error handling ───────────────────────────────────────────────────────────
@@ -217,6 +222,12 @@ def api_config():
 def api_rekordbox_status():
     """Check whether rekordbox.exe is currently running."""
     return jsonify({"running": rekordbox_is_running()})
+
+
+@app.route("/api/dismiss_donation", methods=["POST"])
+def api_dismiss_donation():
+    save_config({"donation_shown": True})
+    return jsonify({"ok": True})
 
 
 @app.route("/api/run/<script_name>")

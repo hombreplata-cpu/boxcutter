@@ -102,6 +102,17 @@
       border-top: 1px solid var(--border);
     }
 
+    .donate-link {
+      display: block;
+      margin-bottom: 10px;
+      font-family: var(--mono);
+      font-size: 13px;
+      color: #f4a261;
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+    .donate-link:hover { color: #e76f51; }
+
     .quit-btn {
       background: none;
       border: 1px solid var(--border);
@@ -807,6 +818,67 @@
       margin-top: 5px;
       text-align: right;
     }
+
+    /* ── Donation modal ── */
+    #donation-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.65);
+      z-index: 2000;
+      align-items: center;
+      justify-content: center;
+    }
+    #donation-overlay.visible { display: flex; }
+    #donation-modal {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-top: 3px solid #f4a261;
+      border-radius: 8px;
+      padding: 36px 40px 28px;
+      max-width: 420px;
+      width: 90%;
+      font-family: var(--mono);
+      text-align: center;
+    }
+    #donation-modal .dm-icon { font-size: 40px; margin-bottom: 14px; }
+    #donation-modal h2 {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 10px;
+    }
+    #donation-modal p {
+      font-size: 13px;
+      color: var(--text-dim);
+      line-height: 1.7;
+      margin-bottom: 24px;
+    }
+    #donation-modal .dm-actions { display: flex; flex-direction: column; gap: 10px; }
+    #donation-modal .dm-coffee {
+      display: block;
+      background: #f4a261;
+      color: #0d1117;
+      font-family: var(--mono);
+      font-size: 14px;
+      font-weight: 700;
+      padding: 12px 20px;
+      border-radius: 5px;
+      text-decoration: none;
+      transition: background 0.15s;
+    }
+    #donation-modal .dm-coffee:hover { background: #e76f51; }
+    #donation-modal .dm-dismiss {
+      background: none;
+      border: none;
+      color: var(--text-dim);
+      font-family: var(--mono);
+      font-size: 12px;
+      cursor: pointer;
+      padding: 4px;
+      transition: color 0.15s;
+    }
+    #donation-modal .dm-dismiss:hover { color: var(--text); }
   </style>
   {% block head %}{% endblock %}
 </head>
@@ -832,6 +904,7 @@
     <a href="/backup_cleaner" class="{% if 'backup_cleaner' in request.path %}active{% endif %}">⌦ &nbsp;Backup Cleaner</a>
   </div>
   <div class="sidebar-footer">
+    <a href="https://buymeacoffee.com/hombreplata" target="_blank" rel="noopener" class="donate-link">☕ &nbsp;Buy me a coffee &hearts;</a>
     v1.0.1
     {% if is_frozen %}
     <form id="quit-form" action="/shutdown" method="post" style="margin-top:10px;">
@@ -1684,5 +1757,36 @@
 </script>
 
 {% block scripts %}{% endblock %}
+
+{% if show_donation %}
+<div id="donation-overlay" class="visible" role="dialog" aria-modal="true" aria-labelledby="dm-title">
+  <div id="donation-modal">
+    <div class="dm-icon">☕</div>
+    <h2 id="dm-title">rekordbocks is free</h2>
+    <p>
+      If it's saved you time fixing your library, a coffee keeps the project going.<br>
+      No pressure — it's always free.
+    </p>
+    <div class="dm-actions">
+      <a href="https://buymeacoffee.com/hombreplata" target="_blank" rel="noopener"
+         class="dm-coffee" id="dm-coffee-link">☕ &nbsp;Buy me a coffee</a>
+      <button class="dm-dismiss" id="dm-dismiss">Maybe later</button>
+    </div>
+  </div>
+</div>
+<script>
+  (function () {
+    function dismissDonation() {
+      document.getElementById('donation-overlay').classList.remove('visible');
+      fetch('/api/dismiss_donation', { method: 'POST' });
+    }
+    document.getElementById('dm-dismiss').addEventListener('click', dismissDonation);
+    document.getElementById('dm-coffee-link').addEventListener('click', dismissDonation);
+    document.getElementById('donation-overlay').addEventListener('click', function (e) {
+      if (e.target === this) dismissDonation();
+    });
+  })();
+</script>
+{% endif %}
 </body>
 </html>
