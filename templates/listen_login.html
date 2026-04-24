@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>rekordbocks — listen</title>
+  <style>
+    :root {
+      --bg:     #0d1117;
+      --panel:  #161b22;
+      --border: #30363d;
+      --accent: #00e5ff;
+      --text:   #e6edf3;
+      --dim:    #7d8590;
+      --red:    #f85149;
+      --green:  #3fb950;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Avenir Next', Avenir, 'Century Gothic', sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 320px;
+      padding: 40px 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 32px;
+    }
+
+    .brand {
+      text-align: center;
+    }
+    .brand .icon { font-size: 28px; color: var(--accent); }
+    .brand .name { font-size: 15px; font-weight: 600; margin-top: 8px; letter-spacing: 0.04em; }
+    .brand .sub  { font-size: 12px; color: var(--dim); margin-top: 4px; }
+
+    .pin-display {
+      display: flex;
+      gap: 14px;
+    }
+
+    .pin-dot {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      border: 2px solid var(--border);
+      background: transparent;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .pin-dot.filled { background: var(--accent); border-color: var(--accent); }
+    .pin-dot.error  { background: var(--red);    border-color: var(--red); }
+
+    .keypad {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      width: 100%;
+    }
+
+    .key {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 22px;
+      font-weight: 500;
+      height: 64px;
+      cursor: pointer;
+      transition: background 0.1s, transform 0.08s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
+    }
+    .key:active { background: #21262d; transform: scale(0.94); }
+    .key.del { font-size: 18px; color: var(--dim); }
+    .key.empty { visibility: hidden; pointer-events: none; }
+
+    .msg {
+      font-size: 13px;
+      color: var(--dim);
+      text-align: center;
+      line-height: 1.6;
+    }
+    .msg.error { color: var(--red); }
+    .msg.info  { color: var(--dim); }
+    .msg a { color: var(--accent); text-decoration: none; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+
+  <div class="brand">
+    <div class="icon">◈</div>
+    <div class="name">rekordbocks</div>
+    <div class="sub">Remote Listener</div>
+  </div>
+
+  {% if no_pin %}
+
+  <div class="msg info">
+    No listener PIN is configured.<br>
+    Go to <a href="/setup">Setup &amp; Paths</a> on your desktop to set one.
+  </div>
+
+  {% else %}
+
+  <div class="pin-display" id="pin-display">
+    <div class="pin-dot" id="d0"></div>
+    <div class="pin-dot" id="d1"></div>
+    <div class="pin-dot" id="d2"></div>
+    <div class="pin-dot" id="d3"></div>
+  </div>
+
+  {% if error %}
+  <div class="msg error" id="err-msg">Incorrect PIN</div>
+  {% else %}
+  <div class="msg" id="err-msg" style="visibility:hidden">·</div>
+  {% endif %}
+
+  <div class="keypad">
+    <button class="key" onclick="addDigit('1')">1</button>
+    <button class="key" onclick="addDigit('2')">2</button>
+    <button class="key" onclick="addDigit('3')">3</button>
+    <button class="key" onclick="addDigit('4')">4</button>
+    <button class="key" onclick="addDigit('5')">5</button>
+    <button class="key" onclick="addDigit('6')">6</button>
+    <button class="key" onclick="addDigit('7')">7</button>
+    <button class="key" onclick="addDigit('8')">8</button>
+    <button class="key" onclick="addDigit('9')">9</button>
+    <div class="key empty"></div>
+    <button class="key" onclick="addDigit('0')">0</button>
+    <button class="key del" onclick="delDigit()">⌫</button>
+  </div>
+
+  <form id="pin-form" method="POST" action="/listen/login" style="display:none">
+    <input type="hidden" name="pin" id="pin-value">
+  </form>
+
+  <script>
+    let pin = '';
+    const MAX = 4;
+
+    function updateDots() {
+      for (let i = 0; i < MAX; i++) {
+        const dot = document.getElementById('d' + i);
+        dot.classList.toggle('filled', i < pin.length);
+        dot.classList.remove('error');
+      }
+      document.getElementById('err-msg').style.visibility = 'hidden';
+    }
+
+    function addDigit(d) {
+      if (pin.length >= MAX) return;
+      pin += d;
+      updateDots();
+      if (pin.length === MAX) {
+        setTimeout(submit, 120);
+      }
+    }
+
+    function delDigit() {
+      pin = pin.slice(0, -1);
+      updateDots();
+    }
+
+    function submit() {
+      document.getElementById('pin-value').value = pin;
+      document.getElementById('pin-form').submit();
+    }
+
+    // Keyboard support for desktop testing
+    document.addEventListener('keydown', e => {
+      if (e.key >= '0' && e.key <= '9') addDigit(e.key);
+      if (e.key === 'Backspace') delDigit();
+    });
+
+    {% if error %}
+    // Shake dots to show wrong PIN
+    for (let i = 0; i < MAX; i++) document.getElementById('d' + i).classList.add('error');
+    {% endif %}
+  </script>
+
+  {% endif %}
+
+</div>
+</body>
+</html>

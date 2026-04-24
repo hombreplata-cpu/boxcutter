@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% block title %}Remote Listener — rekordbox-tools{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Remote Listener</h1>
+  <p>Stream your Rekordbox playlists to your iPhone while you're out.</p>
+</div>
+<div class="divider"></div>
+
+{% if rb_running %}
+<div id="rb-warning" style="display:block">
+  <span class="rb-icon">⚠</span>
+  <strong>Rekordbox is currently open.</strong>
+  Close it before leaving — the listener reads from the same database and may show stale data while Rekordbox is active.
+</div>
+{% endif %}
+
+<!-- Status cards -->
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:28px;">
+
+  <div class="card" style="margin:0;">
+    <div class="card-label">PIN Status</div>
+    {% if pin_set %}
+    <div style="font-family:var(--mono);font-size:22px;color:var(--green);font-weight:600;margin-bottom:6px;">✓ Configured</div>
+    <div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);">PIN is set. Your listener is ready.</div>
+    {% else %}
+    <div style="font-family:var(--mono);font-size:22px;color:var(--orange);font-weight:600;margin-bottom:6px;">⚑ Not set</div>
+    <div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);">Set a PIN in <a href="/setup" style="color:var(--accent);">Setup &amp; Paths</a> to enable the listener.</div>
+    {% endif %}
+  </div>
+
+  <div class="card" style="margin:0;">
+    <div class="card-label">Tailscale IP</div>
+    {% if tailscale_ip %}
+    <div style="font-family:var(--mono);font-size:18px;color:var(--accent);font-weight:600;margin-bottom:6px;word-break:break-all;">{{ tailscale_ip }}</div>
+    <div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);">Tailscale is running. You're good to go.</div>
+    {% else %}
+    <div style="font-family:var(--mono);font-size:22px;color:var(--red);font-weight:600;margin-bottom:6px;">✗ Not detected</div>
+    <div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);">Install and start Tailscale — see setup below.</div>
+    {% endif %}
+  </div>
+
+</div>
+
+<!-- Mobile URL -->
+{% if pin_set and tailscale_ip %}
+<div class="card" style="background:rgba(0,229,255,0.05);border-color:var(--accent-dim);">
+  <div class="card-label">Your Listener URL</div>
+  <div style="font-family:var(--mono);font-size:15px;color:var(--accent);margin-bottom:8px;word-break:break-all;">
+    http://{{ tailscale_ip }}:{{ port }}/listen
+  </div>
+  <div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);line-height:1.7;">
+    Open this URL in Safari on your iPhone. Bookmark it for quick access.<br>
+    <strong style="color:var(--text);">Keep this server running</strong> when you head out — the app must stay open in the background.
+  </div>
+  <button onclick="copyUrl()" class="btn btn-secondary" style="margin-top:14px;font-size:12px;padding:8px 18px;" id="copy-btn">
+    Copy URL
+  </button>
+</div>
+{% endif %}
+
+<!-- Setup guide -->
+<div class="card" style="margin-top:0;">
+  <div class="card-label">Setup Guide</div>
+
+  <div style="font-family:var(--mono);font-size:13px;line-height:2;color:var(--text-dim);">
+
+    <div style="margin-bottom:20px;">
+      <div style="color:var(--accent);font-weight:600;margin-bottom:6px;">Step 1 — Install Tailscale on this PC</div>
+      <div>Download from <span style="color:var(--text);">tailscale.com</span> and sign in with a free account.</div>
+      <div>Tailscale creates a private encrypted tunnel between your devices — no port forwarding needed.</div>
+    </div>
+
+    <div style="margin-bottom:20px;">
+      <div style="color:var(--accent);font-weight:600;margin-bottom:6px;">Step 2 — Install Tailscale on your iPhone</div>
+      <div>Search <span style="color:var(--text);">"Tailscale"</span> in the App Store. It's free.</div>
+      <div>Sign in with the <strong style="color:var(--text);">same account</strong> you used on your PC.</div>
+    </div>
+
+    <div style="margin-bottom:20px;">
+      <div style="color:var(--accent);font-weight:600;margin-bottom:6px;">Step 3 — Set a listener PIN</div>
+      <div>Go to <a href="/setup" style="color:var(--accent);">Setup &amp; Paths</a> and enter a 4-digit PIN under <strong style="color:var(--text);">Remote Listener</strong>.</div>
+      <div>This PIN protects access to your music from your phone.</div>
+    </div>
+
+    <div style="margin-bottom:20px;">
+      <div style="color:var(--accent);font-weight:600;margin-bottom:6px;">Step 4 — When you're ready to head out</div>
+      <div>1. Close Rekordbox if it's open.</div>
+      <div>2. Leave this app running (minimise the window — don't close it).</div>
+      <div>3. On your iPhone, open the listener URL in Safari and enter your PIN.</div>
+    </div>
+
+    <div style="border-top:1px solid var(--border);padding-top:16px;color:var(--dim);font-size:12px;line-height:1.8;">
+      <strong style="color:var(--text);">Why Tailscale?</strong>
+      Your audio files stay on your home PC — nothing is uploaded to any cloud service.
+      Tailscale routes your iPhone's requests directly to this server over an encrypted private connection.
+      Only devices signed into your Tailscale account can connect.
+    </div>
+
+  </div>
+</div>
+
+<script>
+  {% if tailscale_ip and pin_set %}
+  const listenerUrl = 'http://{{ tailscale_ip }}:{{ port }}/listen';
+  function copyUrl() {
+    navigator.clipboard.writeText(listenerUrl).then(() => {
+      const btn = document.getElementById('copy-btn');
+      btn.textContent = 'Copied!';
+      setTimeout(() => { btn.textContent = 'Copy URL'; }, 2000);
+    });
+  }
+  {% endif %}
+</script>
+
+{% endblock %}

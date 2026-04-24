@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>rekordbocks — listen</title>
+  <style>
+    :root {
+      --bg:      #0d1117;
+      --panel:   #161b22;
+      --hover:   #21262d;
+      --border:  #30363d;
+      --accent:  #00e5ff;
+      --text:    #e6edf3;
+      --dim:     #7d8590;
+      --green:   #3fb950;
+      --red:     #f85149;
+      --safe-b:  env(safe-area-inset-bottom, 0px);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Avenir Next', Avenir, 'Century Gothic', sans-serif;
+      overflow: hidden;
+    }
+
+    /* ── App shell ───────────────────────────────────────────────── */
+    #app {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      height: 100dvh;
+    }
+
+    /* ── Header ──────────────────────────────────────────────────── */
+    #header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 16px;
+      padding-top: calc(14px + env(safe-area-inset-top, 0px));
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      min-height: 56px;
+    }
+
+    #back-btn {
+      background: none;
+      border: none;
+      color: var(--accent);
+      font-size: 20px;
+      cursor: pointer;
+      padding: 4px 8px 4px 0;
+      display: none;
+      line-height: 1;
+    }
+
+    #header-title {
+      font-size: 16px;
+      font-weight: 600;
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    #shuffle-btn {
+      background: none;
+      border: none;
+      color: var(--dim);
+      font-size: 18px;
+      cursor: pointer;
+      padding: 4px;
+      display: none;
+      transition: color 0.15s;
+    }
+    #shuffle-btn.on { color: var(--accent); }
+
+    #logout-btn {
+      background: none;
+      border: none;
+      color: var(--dim);
+      font-size: 13px;
+      cursor: pointer;
+      padding: 4px 0 4px 8px;
+      font-family: inherit;
+    }
+
+    /* ── Content area ────────────────────────────────────────────── */
+    #content {
+      flex: 1;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
+    }
+
+    /* ── Playlist tree ───────────────────────────────────────────── */
+    .tree-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      transition: background 0.1s;
+      user-select: none;
+    }
+    .tree-item:active { background: var(--hover); }
+
+    .tree-icon { font-size: 16px; flex-shrink: 0; }
+    .tree-name { font-size: 15px; flex: 1; }
+    .tree-chevron { color: var(--dim); font-size: 13px; flex-shrink: 0; }
+
+    .tree-folder-children {
+      padding-left: 32px;
+      border-left: 2px solid var(--border);
+      margin-left: 16px;
+    }
+    .tree-folder-children.collapsed { display: none; }
+
+    /* ── Track list ──────────────────────────────────────────────── */
+    .track-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 13px 16px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      transition: background 0.1s;
+      user-select: none;
+    }
+    .track-item:active { background: var(--hover); }
+    .track-item.playing { background: rgba(0, 229, 255, 0.06); }
+    .track-item.playing .track-title { color: var(--accent); }
+
+    .track-idx {
+      font-size: 12px;
+      color: var(--dim);
+      width: 22px;
+      text-align: right;
+      flex-shrink: 0;
+    }
+    .track-item.playing .track-idx { color: var(--accent); }
+
+    .track-info { flex: 1; min-width: 0; }
+    .track-title {
+      font-size: 14px;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .track-meta {
+      font-size: 12px;
+      color: var(--dim);
+      margin-top: 3px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .track-dur {
+      font-size: 12px;
+      color: var(--dim);
+      flex-shrink: 0;
+    }
+
+    /* ── Mini-player ─────────────────────────────────────────────── */
+    #mini-player {
+      display: none;
+      flex-shrink: 0;
+      background: var(--panel);
+      border-top: 1px solid var(--border);
+      padding: 10px 16px;
+      padding-bottom: calc(10px + var(--safe-b));
+      cursor: pointer;
+    }
+
+    .mini-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .mini-art {
+      width: 40px;
+      height: 40px;
+      background: var(--hover);
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+
+    .mini-info { flex: 1; min-width: 0; }
+    .mini-title {
+      font-size: 13px;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .mini-artist {
+      font-size: 11px;
+      color: var(--dim);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .mini-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .mini-btn {
+      background: none;
+      border: none;
+      color: var(--text);
+      font-size: 22px;
+      cursor: pointer;
+      padding: 4px;
+      line-height: 1;
+      transition: color 0.1s;
+    }
+    .mini-btn:active { color: var(--accent); }
+    .mini-btn.dim { color: var(--dim); font-size: 18px; }
+
+    .mini-seekbar {
+      height: 2px;
+      background: var(--border);
+      border-radius: 1px;
+      margin-top: 8px;
+      overflow: hidden;
+    }
+    .mini-seekfill {
+      height: 100%;
+      background: var(--accent);
+      border-radius: 1px;
+      width: 0%;
+      transition: width 0.5s linear;
+    }
+
+    /* ── Full player sheet ───────────────────────────────────────── */
+    #player-sheet {
+      position: fixed;
+      inset: 0;
+      background: var(--bg);
+      display: flex;
+      flex-direction: column;
+      transform: translateY(100%);
+      transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+      z-index: 100;
+    }
+    #player-sheet.open { transform: translateY(0); }
+
+    .sheet-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      padding-top: calc(16px + env(safe-area-inset-top, 0px));
+      flex-shrink: 0;
+    }
+
+    .sheet-close {
+      background: none;
+      border: none;
+      color: var(--dim);
+      font-size: 24px;
+      cursor: pointer;
+      padding: 4px;
+      line-height: 1;
+    }
+
+    .sheet-playlist {
+      font-size: 12px;
+      color: var(--dim);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .sheet-body {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 0 32px;
+      gap: 0;
+      overflow: hidden;
+    }
+
+    .sheet-art {
+      width: min(220px, 56vw);
+      height: min(220px, 56vw);
+      background: var(--panel);
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 64px;
+      flex-shrink: 0;
+      margin-bottom: 28px;
+    }
+
+    .sheet-title {
+      font-size: 20px;
+      font-weight: 700;
+      text-align: center;
+      width: 100%;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-bottom: 6px;
+    }
+
+    .sheet-artist {
+      font-size: 15px;
+      color: var(--dim);
+      text-align: center;
+      margin-bottom: 6px;
+    }
+
+    .sheet-tags {
+      font-size: 13px;
+      color: var(--dim);
+      display: flex;
+      gap: 12px;
+      margin-bottom: 28px;
+    }
+
+    .sheet-tag {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 2px 8px;
+      font-size: 12px;
+    }
+
+    .sheet-seek {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin-bottom: 24px;
+    }
+
+    .seek-track {
+      width: 100%;
+      height: 4px;
+      background: var(--border);
+      border-radius: 2px;
+      cursor: pointer;
+      position: relative;
+    }
+
+    .seek-fill {
+      height: 100%;
+      background: var(--accent);
+      border-radius: 2px;
+      width: 0%;
+      pointer-events: none;
+    }
+
+    .seek-thumb {
+      position: absolute;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 14px;
+      height: 14px;
+      background: var(--text);
+      border-radius: 50%;
+      left: 0%;
+      pointer-events: none;
+      transition: opacity 0.15s;
+    }
+
+    .seek-times {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: var(--dim);
+    }
+
+    .sheet-controls {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 24px;
+      flex-shrink: 0;
+      padding-bottom: calc(16px + var(--safe-b));
+    }
+
+    .ctrl-btn {
+      background: none;
+      border: none;
+      color: var(--text);
+      cursor: pointer;
+      padding: 8px;
+      line-height: 1;
+      transition: color 0.1s, transform 0.1s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .ctrl-btn:active { transform: scale(0.88); }
+    .ctrl-btn.skip { font-size: 28px; color: var(--dim); }
+    .ctrl-btn.skip:active { color: var(--text); }
+
+    .play-btn {
+      width: 64px;
+      height: 64px;
+      background: var(--accent);
+      border-radius: 50%;
+      border: none;
+      color: var(--bg);
+      font-size: 26px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.1s, transform 0.1s;
+      flex-shrink: 0;
+    }
+    .play-btn:active { background: #0097a7; transform: scale(0.93); }
+
+    /* ── RB warning banner ───────────────────────────────────────── */
+    #rb-banner {
+      display: none;
+      background: #2e1a0e;
+      border-bottom: 2px solid var(--red);
+      padding: 10px 16px;
+      font-size: 13px;
+      color: var(--red);
+      line-height: 1.5;
+      flex-shrink: 0;
+      animation: rb-pulse 2.5s ease-in-out infinite;
+    }
+    #rb-banner strong { color: #ff8a80; }
+    @keyframes rb-pulse {
+      0%, 100% { border-bottom-color: var(--red); }
+      50%       { border-bottom-color: #ff8a80; }
+    }
+
+    /* ── Loading / error states ──────────────────────────────────── */
+    .state-msg {
+      padding: 48px 24px;
+      text-align: center;
+      font-size: 14px;
+      color: var(--dim);
+      line-height: 1.6;
+    }
+
+    .spinner {
+      width: 28px;
+      height: 28px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      margin: 0 auto 16px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- Rekordbox running warning (non-dismissible — clears automatically when RB closes) -->
+  <div id="rb-banner">
+    ⚠ <strong>Rekordbox is open on your PC.</strong> Library edits are disabled. Close Rekordbox, then
+    <button id="rb-check-btn" onclick="manualRbCheck()" style="background:none;border:none;color:#ff8a80;font-family:inherit;font-size:inherit;font-weight:600;text-decoration:underline;cursor:pointer;padding:0;">check again</button>.
+  </div>
+
+  <!-- Header -->
+  <div id="header">
+    <button id="back-btn" onclick="goBack()">‹</button>
+    <div id="header-title">My Library</div>
+    <button id="shuffle-btn" onclick="toggleShuffle()" title="Shuffle">⇀</button>
+    <button id="logout-btn" onclick="location.href='/listen/logout'">Sign out</button>
+  </div>
+
+  <!-- Scrollable content -->
+  <div id="content">
+    <div class="state-msg"><div class="spinner"></div>Loading your library…</div>
+  </div>
+
+  <!-- Mini-player bar -->
+  <div id="mini-player" onclick="openSheet()">
+    <div class="mini-row">
+      <div class="mini-art">♪</div>
+      <div class="mini-info">
+        <div class="mini-title" id="mini-title">—</div>
+        <div class="mini-artist" id="mini-artist">—</div>
+      </div>
+      <div class="mini-controls" onclick="event.stopPropagation()">
+        <button class="mini-btn dim" onclick="prevTrack()">⏮</button>
+        <button class="mini-btn" id="mini-play-btn" onclick="togglePlay()">▶</button>
+        <button class="mini-btn dim" onclick="nextTrack()">⏭</button>
+      </div>
+    </div>
+    <div class="mini-seekbar">
+      <div class="mini-seekfill" id="mini-seekfill"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Full-screen player sheet -->
+<div id="player-sheet">
+  <div class="sheet-header">
+    <button class="sheet-close" onclick="closeSheet()">⌄</button>
+    <div class="sheet-playlist" id="sheet-playlist-name">—</div>
+    <div style="width:32px"></div>
+  </div>
+  <div class="sheet-body">
+    <div class="sheet-art">♪</div>
+    <div class="sheet-title" id="sheet-title">—</div>
+    <div class="sheet-artist" id="sheet-artist">—</div>
+    <div class="sheet-tags" id="sheet-tags"></div>
+    <div class="sheet-seek">
+      <div class="seek-track" id="seek-track" onclick="seekClick(event)">
+        <div class="seek-fill" id="seek-fill"></div>
+        <div class="seek-thumb" id="seek-thumb"></div>
+      </div>
+      <div class="seek-times">
+        <span id="time-cur">0:00</span>
+        <span id="time-rem">—</span>
+      </div>
+    </div>
+    <div class="sheet-controls">
+      <button class="ctrl-btn skip" onclick="prevTrack()">⏮</button>
+      <button class="play-btn" id="sheet-play-btn" onclick="togglePlay()">▶</button>
+      <button class="ctrl-btn skip" onclick="nextTrack()">⏭</button>
+    </div>
+  </div>
+</div>
+
+<!-- Hidden audio element -->
+<audio id="audio" preload="auto"></audio>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+let tree       = [];          // full playlist tree
+let tracks     = [];          // tracks in current playlist
+let trackIdx   = -1;          // currently playing track index
+let shuffle    = false;
+let shuffleOrder = [];        // shuffled index array
+let shufflePos   = 0;
+let currentPlaylistName = '';
+let currentView = 'playlists'; // 'playlists' | 'tracks'
+
+const audio = document.getElementById('audio');
+
+// ── Rekordbox lock ─────────────────────────────────────────────────────────
+// Latches true when RB is detected open; persists in sessionStorage so
+// navigating playlists doesn't silently reset it. Clears automatically
+// when polling confirms RB has closed.
+
+let rbLocked = sessionStorage.getItem('rb_locked') === 'true';
+
+function setRbLocked(locked) {
+  rbLocked = locked;
+  sessionStorage.setItem('rb_locked', locked ? 'true' : 'false');
+  document.getElementById('rb-banner').style.display = locked ? 'block' : 'none';
+}
+
+// Restore persisted lock state immediately on page load
+if (rbLocked) document.getElementById('rb-banner').style.display = 'block';
+
+function pollRekordboxStatus() {
+  return fetch('/api/rekordbox_status')
+    .then(r => r.json())
+    .then(data => {
+      if (data.running) setRbLocked(true);
+      else if (rbLocked) setRbLocked(false);
+    })
+    .catch(() => {});  // Network error — leave lock state unchanged
+}
+
+function manualRbCheck() {
+  const btn = document.getElementById('rb-check-btn');
+  btn.textContent = 'checking…';
+  btn.disabled = true;
+  pollRekordboxStatus().finally(() => {
+    if (rbLocked) {
+      btn.textContent = 'check again';
+      btn.disabled = false;
+    }
+  });
+}
+
+// Poll every 30 s only while the tab is visible — iOS suspends timers when
+// backgrounded anyway, but this makes the intent explicit and avoids waking
+// the network stack while the screen is off.
+setInterval(() => {
+  if (document.visibilityState === 'visible') pollRekordboxStatus();
+}, 30_000);
+
+// Guard for all future write operations (ratings, playlist edits, tags, etc.)
+// Returns true if safe to proceed; returns false and surfaces a reason if not.
+function checkEditAllowed() {
+  if (rbLocked) {
+    alert('Rekordbox is open on your PC.\n\nClose it first — edits cannot be written to the database while Rekordbox has it locked.');
+    return false;
+  }
+  return true;
+}
+
+// ── Initialisation ─────────────────────────────────────────────────────────
+async function init() {
+  try {
+    const res = await fetch('/api/listen/tree');
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+    tree = data.tree || [];
+    if (data.rekordbox_running) setRbLocked(true);
+    renderPlaylists();
+  } catch (e) {
+    showError('Could not load your library.<br>' + esc(e.message));
+  }
+}
+
+// ── Playlist tree rendering ────────────────────────────────────────────────
+function renderPlaylists() {
+  currentView = 'playlists';
+  document.getElementById('header-title').textContent = 'My Library';
+  document.getElementById('back-btn').style.display = 'none';
+  document.getElementById('shuffle-btn').style.display = 'none';
+  document.getElementById('logout-btn').style.display = '';
+
+  const el = document.getElementById('content');
+  if (!tree.length) {
+    el.innerHTML = '<div class="state-msg">No playlists found in your Rekordbox library.</div>';
+    return;
+  }
+  el.innerHTML = renderTreeNodes(tree);
+}
+
+function renderTreeNodes(nodes) {
+  let html = '';
+  for (const node of nodes) {
+    if (node.type === 'folder') {
+      html += `
+        <div class="tree-item" onclick="toggleFolder(this)">
+          <span class="tree-icon">📁</span>
+          <span class="tree-name">${esc(node.name)}</span>
+          <span class="tree-chevron">›</span>
+        </div>
+        <div class="tree-folder-children collapsed">
+          ${renderTreeNodes(node.children || [])}
+        </div>`;
+    } else {
+      html += `
+        <div class="tree-item" onclick="openPlaylist(${node.id}, ${JSON.stringify(esc(node.name))})">
+          <span class="tree-icon" style="font-size:13px;color:var(--dim)">♫</span>
+          <span class="tree-name">${esc(node.name)}</span>
+          <span class="tree-chevron">›</span>
+        </div>`;
+    }
+  }
+  return html;
+}
+
+function toggleFolder(el) {
+  const children = el.nextElementSibling;
+  children.classList.toggle('collapsed');
+  const chevron = el.querySelector('.tree-chevron');
+  chevron.textContent = children.classList.contains('collapsed') ? '›' : '⌄';
+}
+
+// ── Track list ─────────────────────────────────────────────────────────────
+async function openPlaylist(pid, name) {
+  currentPlaylistName = name;
+  document.getElementById('header-title').textContent = name;
+  document.getElementById('back-btn').style.display = '';
+  document.getElementById('shuffle-btn').style.display = '';
+  document.getElementById('logout-btn').style.display = 'none';
+  document.getElementById('content').innerHTML = '<div class="state-msg"><div class="spinner"></div>Loading tracks…</div>';
+  currentView = 'tracks';
+
+  try {
+    const res = await fetch(`/api/listen/playlist/${pid}/tracks`);
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+    tracks = data.tracks || [];
+    renderTracks();
+    document.getElementById('sheet-playlist-name').textContent = name;
+  } catch (e) {
+    showError('Could not load tracks.<br>' + esc(e.message));
+  }
+}
+
+function renderTracks() {
+  if (!tracks.length) {
+    document.getElementById('content').innerHTML = '<div class="state-msg">This playlist is empty.</div>';
+    return;
+  }
+  let html = '';
+  for (let i = 0; i < tracks.length; i++) {
+    const t = tracks[i];
+    const meta = [t.artist, t.bpm ? t.bpm + ' BPM' : '', t.key].filter(Boolean).join('  ·  ');
+    const active = i === trackIdx;
+    html += `
+      <div class="track-item${active ? ' playing' : ''}" id="ti-${i}" onclick="playTrack(${i})">
+        <div class="track-idx">${active ? '▶' : i + 1}</div>
+        <div class="track-info">
+          <div class="track-title">${esc(t.title)}</div>
+          ${meta ? `<div class="track-meta">${esc(meta)}</div>` : ''}
+        </div>
+        <div class="track-dur">${fmtDur(t.duration)}</div>
+      </div>`;
+  }
+  document.getElementById('content').innerHTML = html;
+}
+
+function goBack() {
+  renderPlaylists();
+}
+
+// ── Playback ───────────────────────────────────────────────────────────────
+function playTrack(idx) {
+  trackIdx = idx;
+  const t = tracks[idx];
+
+  audio.src = `/api/stream/${t.id}`;
+  audio.load();
+  audio.play().catch(() => {});
+
+  // Update UI immediately
+  updateNowPlayingUI(t);
+  renderTracks();
+
+  document.getElementById('mini-player').style.display = '';
+}
+
+function updateNowPlayingUI(t) {
+  const title  = t.title || '—';
+  const artist = t.artist || '';
+  const bpm    = t.bpm ? `${t.bpm} BPM` : '';
+  const key    = t.key || '';
+
+  document.getElementById('mini-title').textContent  = title;
+  document.getElementById('mini-artist').textContent = artist || (bpm || key);
+
+  document.getElementById('sheet-title').textContent  = title;
+  document.getElementById('sheet-artist').textContent = artist;
+
+  const tags = [bpm, key].filter(Boolean);
+  document.getElementById('sheet-tags').innerHTML = tags.map(x => `<span class="sheet-tag">${esc(x)}</span>`).join('');
+}
+
+function togglePlay() {
+  if (audio.paused) {
+    audio.play().catch(() => {});
+  } else {
+    audio.pause();
+  }
+}
+
+function nextTrack() {
+  if (!tracks.length) return;
+  if (shuffle) {
+    shufflePos = (shufflePos + 1) % shuffleOrder.length;
+    playTrack(shuffleOrder[shufflePos]);
+  } else {
+    playTrack((trackIdx + 1) % tracks.length);
+  }
+}
+
+function prevTrack() {
+  if (!tracks.length) return;
+  // If more than 3 seconds in, restart; else go to previous
+  if (audio.currentTime > 3) {
+    audio.currentTime = 0;
+    return;
+  }
+  if (shuffle) {
+    shufflePos = (shufflePos - 1 + shuffleOrder.length) % shuffleOrder.length;
+    playTrack(shuffleOrder[shufflePos]);
+  } else {
+    playTrack((trackIdx - 1 + tracks.length) % tracks.length);
+  }
+}
+
+function toggleShuffle() {
+  shuffle = !shuffle;
+  const btn = document.getElementById('shuffle-btn');
+  btn.classList.toggle('on', shuffle);
+  if (shuffle) {
+    shuffleOrder = [...Array(tracks.length).keys()];
+    for (let i = shuffleOrder.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffleOrder[i], shuffleOrder[j]] = [shuffleOrder[j], shuffleOrder[i]];
+    }
+    shufflePos = shuffleOrder.indexOf(trackIdx);
+    if (shufflePos < 0) shufflePos = 0;
+  }
+}
+
+// ── Audio event listeners ──────────────────────────────────────────────────
+audio.addEventListener('play', () => {
+  document.getElementById('mini-play-btn').textContent  = '⏸';
+  document.getElementById('sheet-play-btn').textContent = '⏸';
+});
+
+audio.addEventListener('pause', () => {
+  document.getElementById('mini-play-btn').textContent  = '▶';
+  document.getElementById('sheet-play-btn').textContent = '▶';
+});
+
+audio.addEventListener('ended', () => nextTrack());
+
+audio.addEventListener('timeupdate', () => {
+  const dur = audio.duration || 0;
+  const cur = audio.currentTime || 0;
+  const pct = dur ? (cur / dur) * 100 : 0;
+
+  document.getElementById('mini-seekfill').style.width  = pct + '%';
+  document.getElementById('seek-fill').style.width      = pct + '%';
+  document.getElementById('seek-thumb').style.left      = pct + '%';
+
+  document.getElementById('time-cur').textContent = fmtDur(Math.floor(cur));
+  document.getElementById('time-rem').textContent = dur ? fmtDur(Math.floor(dur)) : '—';
+});
+
+// ── Seeking ────────────────────────────────────────────────────────────────
+function seekClick(e) {
+  const rect = e.currentTarget.getBoundingClientRect();
+  const pct  = (e.clientX - rect.left) / rect.width;
+  if (audio.duration) audio.currentTime = pct * audio.duration;
+}
+
+// ── Player sheet ───────────────────────────────────────────────────────────
+function openSheet() {
+  document.getElementById('player-sheet').classList.add('open');
+}
+
+function closeSheet() {
+  document.getElementById('player-sheet').classList.remove('open');
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+function fmtDur(secs) {
+  if (!secs && secs !== 0) return '—';
+  const m = Math.floor(secs / 60);
+  const s = Math.floor(secs % 60).toString().padStart(2, '0');
+  return `${m}:${s}`;
+}
+
+function esc(s) {
+  if (!s && s !== 0) return '';
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function showError(msg) {
+  document.getElementById('content').innerHTML = `<div class="state-msg">${msg}</div>`;
+}
+
+// ── Media Session API (lock screen controls on iOS 16+) ───────────────────
+audio.addEventListener('play', updateMediaSession);
+
+function updateMediaSession() {
+  if (!('mediaSession' in navigator) || trackIdx < 0) return;
+  const t = tracks[trackIdx];
+  if (!t) return;
+  navigator.mediaSession.metadata = new MediaMetadata({
+    title:  t.title  || '',
+    artist: t.artist || '',
+    album:  currentPlaylistName,
+  });
+  navigator.mediaSession.setActionHandler('previoustrack', prevTrack);
+  navigator.mediaSession.setActionHandler('nexttrack',     nextTrack);
+  navigator.mediaSession.setActionHandler('play',  () => audio.play());
+  navigator.mediaSession.setActionHandler('pause', () => audio.pause());
+}
+
+// ── Boot ───────────────────────────────────────────────────────────────────
+init();
+</script>
+
+</body>
+</html>
