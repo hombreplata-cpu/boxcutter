@@ -78,7 +78,7 @@
   }
   .stats-bar {
     display: grid;
-    grid-template-columns: auto auto 1fr;
+    grid-template-columns: auto auto auto 1fr;
     gap: 16px;
     align-items: center;
     margin-bottom: 20px;
@@ -120,6 +120,63 @@
     font-size: 11px;
     color: var(--text-dim);
     margin-top: 4px;
+  }
+  .stat-tile-value.warn {
+    color: #f7b731;
+  }
+  .low-bitrate-panel {
+    margin-bottom: 20px;
+  }
+  .low-bitrate-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    user-select: none;
+  }
+  .low-bitrate-header .card-label {
+    color: #f7b731;
+    margin-bottom: 0;
+  }
+  .lb-toggle {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+  .low-bitrate-list {
+    margin-top: 12px;
+    max-height: 280px;
+    overflow-y: auto;
+  }
+  .lb-row {
+    display: grid;
+    grid-template-columns: 72px 1fr;
+    align-items: center;
+    gap: 12px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+    font-family: var(--mono);
+    font-size: 12px;
+  }
+  .lb-row:last-child { border-bottom: none; }
+  .lb-bitrate {
+    color: #f7b731;
+    font-weight: 700;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+  .lb-title {
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .lb-artist {
+    color: var(--text-dim);
+    font-size: 11px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .chart-tile {
     background: var(--surface);
@@ -177,6 +234,11 @@
     <div class="stat-tile-value loading" id="stat-size">Loading…</div>
     <div class="stat-tile-sub" id="stat-size-sub"></div>
   </div>
+  <div class="stat-tile">
+    <div class="stat-tile-label">Low bitrate</div>
+    <div class="stat-tile-value loading" id="stat-lowbitrate">Loading…</div>
+    <div class="stat-tile-sub" id="stat-lowbitrate-sub"></div>
+  </div>
   <div class="chart-tile">
     <div>
       <div class="chart-tile-label">File types</div>
@@ -184,6 +246,14 @@
     </div>
     <svg id="pie-chart" width="80" height="80" viewBox="0 0 80 80" style="flex-shrink:0;display:none"></svg>
   </div>
+</div>
+
+<div class="card low-bitrate-panel" id="low-bitrate-panel" style="display:none;">
+  <div class="low-bitrate-header" id="lb-header">
+    <div class="card-label">Low Bitrate Tracks</div>
+    <span class="lb-toggle" id="lb-toggle">hide ▲</span>
+  </div>
+  <div class="low-bitrate-list" id="low-bitrate-list"></div>
 </div>
 
 <div class="card" style="margin-bottom:20px;">
@@ -309,23 +379,21 @@
 
     if (entries.length === 0) {
       legendEl.textContent = '—';
-      return;
+    } else {
+      const slices = entries.map(([label, value], i) => ({
+        label, value, color: PIE_COLORS[i % PIE_COLORS.length],
+      }));
+      drawPie(svgEl, slices);
+      legendEl.innerHTML = slices.map(sl =>
+        `<span class="chart-legend-item">
+          <span class="legend-dot" style="background:${sl.color}"></span>
+          ${sl.label} <span style="color:var(--text)">${fmtNum(sl.value)}</span>
+        </span>`
+      ).join('');
     }
 
-    const slices = entries.map(([label, value], i) => ({
-      label, value, color: PIE_COLORS[i % PIE_COLORS.length],
-    }));
-
-    drawPie(svgEl, slices);
-
-    legendEl.innerHTML = slices.map(sl =>
-      `<span class="chart-legend-item">
-        <span class="legend-dot" style="background:${sl.color}"></span>
-        ${sl.label} <span style="color:var(--text)">${fmtNum(sl.value)}</span>
-      </span>`
-    ).join('');
-
     renderTopPlayed(data.top_played || []);
+    renderLowBitrate(data.low_bitrate_tracks || []);
   }
 
   function renderTopPlayed(tracks) {
@@ -348,12 +416,49 @@
     ).join('');
   }
 
+  function renderLowBitrate(tracks) {
+    const lbEl = document.getElementById('stat-lowbitrate');
+    const lbSub = document.getElementById('stat-lowbitrate-sub');
+    lbEl.textContent = fmtNum(tracks.length);
+    lbEl.classList.remove('loading', 'error');
+
+    if (tracks.length === 0) {
+      lbSub.textContent = 'All tracks ≥ 320 kbps';
+      return;
+    }
+
+    lbEl.classList.add('warn');
+    lbSub.textContent = '< 320 kbps';
+
+    const panel = document.getElementById('low-bitrate-panel');
+    const listEl = document.getElementById('low-bitrate-list');
+    panel.style.display = 'block';
+    listEl.innerHTML = tracks.map(t => `
+      <div class="lb-row">
+        <span class="lb-bitrate">${t.bitrate} kbps</span>
+        <div>
+          <div class="lb-title">${esc(t.title || '—')}</div>
+          <div class="lb-artist">${esc(t.artist || '—')}</div>
+        </div>
+      </div>`
+    ).join('');
+
+    const header = document.getElementById('lb-header');
+    const toggle = document.getElementById('lb-toggle');
+    let open = true;
+    header.addEventListener('click', () => {
+      open = !open;
+      listEl.style.display = open ? '' : 'none';
+      toggle.textContent = open ? 'hide ▲' : 'show ▼';
+    });
+  }
+
   function esc(s) {
     return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
   function renderError(msg) {
-    ['stat-tracks', 'stat-size'].forEach(id => {
+    ['stat-tracks', 'stat-size', 'stat-lowbitrate'].forEach(id => {
       const el = document.getElementById(id);
       el.textContent = 'Unavailable';
       el.classList.remove('loading');
