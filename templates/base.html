@@ -102,6 +102,17 @@
       border-top: 1px solid var(--border);
     }
 
+    .donate-link {
+      display: block;
+      margin-bottom: 10px;
+      font-family: var(--mono);
+      font-size: 13px;
+      color: #f4a261;
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+    .donate-link:hover { color: #e76f51; }
+
     .quit-btn {
       background: none;
       border: 1px solid var(--border);
@@ -832,6 +843,7 @@
     <a href="/backup_cleaner" class="{% if 'backup_cleaner' in request.path %}active{% endif %}">⌦ &nbsp;Backup Cleaner</a>
   </div>
   <div class="sidebar-footer">
+    <a href="https://buymeacoffee.com/hombreplata" target="_blank" rel="noopener" class="donate-link">☕ &nbsp;Buy me a coffee &hearts;</a>
     v1.0.1
     {% if is_frozen %}
     <form id="quit-form" action="/shutdown" method="post" style="margin-top:10px;">
