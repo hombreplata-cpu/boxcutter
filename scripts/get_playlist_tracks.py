@@ -104,7 +104,9 @@ def main():
                 content = db.get_content().filter_by(ID=content_id).first()
                 if content:
                     tracks.append(_build_track(content))
-            print(json.dumps({"playlist_name": "All Tracks", "playlist_id": "all", "tracks": tracks}))
+            print(
+                json.dumps({"playlist_name": "All Tracks", "playlist_id": "all", "tracks": tracks})
+            )
         else:
             playlist = db.get_playlist().filter_by(ID=playlist_id).first()
             if not playlist:
