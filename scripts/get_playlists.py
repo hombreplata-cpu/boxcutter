@@ -3,7 +3,7 @@ get_playlists.py — Print Rekordbox playlists as JSON to stdout.
 
 Called by app.py's /api/playlists endpoint as a subprocess so that
 pyrekordbox is imported in the same Python environment that runs all
-other rekordbox-tools scripts.
+other BoxCutter scripts.
 
 Output: JSON array of {"id": str, "name": str} objects, one per line.
 Errors: non-zero exit code + error message on stderr.

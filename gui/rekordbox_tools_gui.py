@@ -1,7 +1,7 @@
 """
 rekordbox_tools_gui.py
 
-Lexicon-inspired GUI launcher for rekordbox-tools.
+Lexicon-inspired GUI launcher for BoxCutter.
 Provides a visual interface for configuring and running all four scripts
 without needing to touch the command line.
 
@@ -26,7 +26,7 @@ from tkinter import font as tkfont
 
 # ─────────────────────────── Config persistence ────────────────────────────
 
-CONFIG_FILE = Path.home() / ".rekordbox_tools_config.json"
+CONFIG_FILE = Path.home() / ".boxcutter_config.json"
 
 DEFAULT_CONFIG = {
     "music_root": "",
@@ -84,7 +84,7 @@ SCRIPTS_DIR = Path(__file__).parent / "scripts"
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("rekordbox-tools")
+        self.title("BoxCutter")
         self.geometry("1100x740")
         self.minsize(900, 600)
         self.configure(bg=BG)
@@ -121,7 +121,7 @@ class App(tk.Tk):
         logo_frame.pack(fill="x")
         tk.Label(logo_frame, text="◈", font=(FONT_MONO, 22), fg=ACCENT, bg=BG_PANEL).pack()
         tk.Label(
-            logo_frame, text="rekordbox-tools", font=(FONT_MONO, 11, "bold"), fg=TEXT, bg=BG_PANEL
+            logo_frame, text="BoxCutter", font=(FONT_MONO, 11, "bold"), fg=TEXT, bg=BG_PANEL
         ).pack()
         tk.Label(
             logo_frame, text="for Rekordbox 7", font=(FONT_MONO, 9), fg=TEXT_DIM, bg=BG_PANEL
@@ -517,7 +517,7 @@ class App(tk.Tk):
 
     def _save_paths(self):
         save_config(self.config_data)
-        messagebox.showinfo("Saved", "Paths saved to ~/.rekordbox_tools_config.json")
+        messagebox.showinfo("Saved", "Paths saved to ~/.boxcutter_config.json")
 
     # RELOCATE PAGE ──────────────────────────────────────────────────────────
     def _build_page_relocate(self):

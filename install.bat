@@ -1,10 +1,10 @@
 @echo off
 setlocal enabledelayedexpansion
-title rekordbox-tools installer
+title BoxCutter installer
 
 echo.
 echo  ======================================
-echo   rekordbox-tools  --  Installer
+echo   BoxCutter  --  Installer
 echo  ======================================
 echo.
 
@@ -81,7 +81,7 @@ echo  -------------------------------------------------------
 echo   Rekordbox database setup
 echo  -------------------------------------------------------
 echo.
-echo  rekordbox-tools needs one-time access to your Rekordbox
+echo  BoxCutter needs one-time access to your Rekordbox
 echo  database key. Make sure Rekordbox is installed first.
 echo.
 echo  Press any key to run the key setup now.
@@ -104,7 +104,7 @@ echo  ======================================
 echo   Installation complete!
 echo  ======================================
 echo.
-echo  To launch rekordbox-tools anytime, run:
+echo  To launch BoxCutter anytime, run:
 echo.
 echo      start.bat
 echo.

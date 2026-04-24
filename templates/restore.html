@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Restore Backup — rekordbocks{% endblock %}
+{% block title %}Restore Backup — BoxCutter{% endblock %}
 
 {% block content %}
 <div class="page-header">
@@ -10,7 +10,7 @@
 
 <div class="card">
   <div class="card-label">How backups work</div>
-  <p style="margin-bottom:12px;">Every tool that writes to the database creates a timestamped copy of <code>master.db</code> in the <code>rekordbocks-backups/</code> folder before the first change. Stream Rekordbox writes (ratings, tags, playlists) create one backup per session.</p>
+  <p style="margin-bottom:12px;">Every tool that writes to the database creates a timestamped copy of <code>master.db</code> in the <code>boxcutter-backups/</code> folder before the first change. Stream Rekordbox writes (ratings, tags, playlists) create one backup per session.</p>
   <p>Backup filenames look like: <code>master_backup_relocate_20250512_143022.db</code></p>
 </div>
 
@@ -19,7 +19,7 @@
   <ol style="padding-left:20px;line-height:2;">
     <li><strong>Close Rekordbox completely</strong> before touching any database files.</li>
     <li>Open File Explorer and paste this into the address bar:<br>
-      <code style="background:var(--input-bg);padding:2px 8px;border-radius:4px;">%APPDATA%\Pioneer\rekordbox\rekordbocks-backups\</code>
+      <code style="background:var(--input-bg);padding:2px 8px;border-radius:4px;">%APPDATA%\Pioneer\rekordbox\boxcutter-backups\</code>
     </li>
     <li>Find the timestamped backup you want to restore (newest is at the top when sorted by date).</li>
     <li>Copy it to <code>%APPDATA%\Pioneer\rekordbox\</code> (one folder up).</li>
@@ -33,7 +33,7 @@
   <ol style="padding-left:20px;line-height:2;">
     <li><strong>Quit Rekordbox completely.</strong></li>
     <li>Open Finder → Go → Go to Folder, then enter:<br>
-      <code style="background:var(--input-bg);padding:2px 8px;border-radius:4px;">~/Library/Application Support/Pioneer/rekordbox/rekordbocks-backups/</code>
+      <code style="background:var(--input-bg);padding:2px 8px;border-radius:4px;">~/Library/Application Support/Pioneer/rekordbox/boxcutter-backups/</code>
     </li>
     <li>Find the timestamped backup you want to restore.</li>
     <li>Copy it one folder up to the <code>rekordbox/</code> folder.</li>

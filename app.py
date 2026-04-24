@@ -1,5 +1,5 @@
 """
-app.py — rekordbox-tools web server
+app.py — BoxCutter web server
 
 Start with:
     python app.py
@@ -43,7 +43,7 @@ from version import __version__ as _app_version
 
 app = Flask(__name__)
 
-CONFIG_FILE = Path.home() / ".rekordbox_tools_config.json"
+CONFIG_FILE = Path.home() / ".boxcutter_config.json"
 SCRIPTS_DIR = Path(__file__).parent / "scripts"
 
 DEFAULT_CONFIG = {
@@ -59,7 +59,7 @@ DEFAULT_CONFIG = {
     "listen_pin": "",  # Remote listener PIN (4 digits; empty = listener not configured)
 }
 
-HISTORY_FILE = Path.home() / ".rekordbox_tools_history.json"
+HISTORY_FILE = Path.home() / ".boxcutter_history.json"
 
 TOOL_LABELS = {
     "relocate": "Repath Tracks",
@@ -165,9 +165,9 @@ def save_history_entry(entry):
 
 
 def create_db_backup(db, tool_name: str) -> Path:
-    """Create a timestamped backup in rekordbocks-backups/ next to master.db."""
+    """Create a timestamped backup in boxcutter-backups/ next to master.db."""
     db_path = Path(db.engine.url.database)
-    backup_dir = db_path.parent / "rekordbocks-backups"
+    backup_dir = db_path.parent / "boxcutter-backups"
     backup_dir.mkdir(exist_ok=True)
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     dest = backup_dir / f"master_backup_{tool_name}_{ts}.db"
@@ -904,7 +904,7 @@ def api_playlists():
     """Return all normal (non-folder, non-smart) Rekordbox playlists as JSON.
 
     Runs get_playlists.py as a subprocess so pyrekordbox is imported in the
-    same Python environment used by all other rekordbox-tools scripts.
+    same Python environment used by all other BoxCutter scripts.
     """
     script_path = SCRIPTS_DIR / "get_playlists.py"
     cfg = load_config()
@@ -936,7 +936,7 @@ def api_stats():
     """Return library stats (track count, file type breakdown, total size) as JSON.
 
     Runs get_stats.py as a subprocess so pyrekordbox is imported in the
-    same Python environment used by all other rekordbox-tools scripts.
+    same Python environment used by all other BoxCutter scripts.
     """
     script_path = SCRIPTS_DIR / "get_stats.py"
     cfg = load_config()
@@ -1326,7 +1326,7 @@ def _port_pid(port: int) -> int | None:
 
 
 def _is_our_app(pid: int) -> bool:
-    """Return True if *pid*'s command line contains app.py (rekordbox-tools)."""
+    """Return True if *pid*'s command line contains app.py (BoxCutter)."""
     try:
         if platform.system() == "Windows":
             result = subprocess.run(
@@ -1383,7 +1383,7 @@ def resolve_server_port(preferred: int = 5000) -> int:
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    print("\n  rekordbox-tools")
+    print("\n  BoxCutter")
     print("  -------------------------------")
     _port = resolve_server_port()
     print(f"  Starting server at http://localhost:{_port}")

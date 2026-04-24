@@ -1,4 +1,4 @@
-# rekordbox-tools
+# BoxCutter
 
 A locally-hosted web app for DJs who use **Rekordbox 7 on Windows or macOS**. Six maintenance tools for managing large music libraries — relocate tracks, clean up dead files, fix metadata, strip injected URLs from tags, and more. Runs entirely on your machine. No account, no cloud, no internet required.
 
@@ -12,34 +12,28 @@ A locally-hosted web app for DJs who use **Rekordbox 7 on Windows or macOS**. Si
 
 #### Option A — Packaged installer (no Python required)
 
-1. Go to the [Releases page](https://github.com/hombreplata-cpu/rekordbocks/releases) and download **`rekordbox-tools-windows.exe`**.
-2. Double-click the `.exe` to launch. Your browser will open at `http://localhost:5000` automatically.
+1. Go to the [Releases page](https://github.com/hombreplata-cpu/boxcutter/releases) and download **`BoxCutter-Setup-<version>.exe`**.
+2. Run the installer — it installs to your user folder, no admin rights needed.
+3. Launch BoxCutter from the Start Menu or Desktop shortcut. Your browser opens at `http://localhost:5000` automatically.
 
 > **Windows SmartScreen warning:** Because the binary is unsigned, Windows may show a "Windows protected your PC" prompt. Click **More info → Run anyway** to proceed. This is expected for open-source tools distributed outside the Microsoft Store.
 
 #### Option B — Run from source (requires Python)
 
-##### Prerequisites
-
+**Prerequisites:**
 - **Windows 10 or 11**
 - **Python 3.9 or higher** — [download from python.org](https://www.python.org/downloads/)
-  - On the Python installer screen, check **"Add Python to PATH"** before clicking Install. This is required. If you skipped it, uninstall Python and reinstall with that box checked.
+  - On the Python installer screen, check **"Add Python to PATH"** before clicking Install.
 - **Rekordbox 7** installed and launched at least once (so its database exists on disk)
 
-Go to the [Releases page](https://github.com/hombreplata-cpu/rekordbocks/releases) and download the latest **Source code (zip)**. Extract it anywhere — Desktop or `C:\Tools\` works well.
+Download the latest **Source code (zip)** from the [Releases page](https://github.com/hombreplata-cpu/boxcutter/releases), extract it anywhere, then:
 
-Double-click **`install.bat`** to install dependencies, then double-click **`start.bat`** to launch.
+```
+install.bat   ← run once to install dependencies
+start.bat     ← run anytime to launch
+```
 
-> **About the SQLCipher step:** Rekordbox encrypts its database. `pyrekordbox` handles decryption automatically, but it needs a one-time setup to locate the key. The installer runs `python -m pyrekordbox install-sqlcipher` for you. If this step fails, see [Troubleshooting](#troubleshooting) below.
-
-#### Step — First-run setup (both options)
-
-On first launch you'll be taken to a **Setup** screen. Enter the paths to:
-
-- Your **Rekordbox database** (`master.db`) — usually at `%APPDATA%\Pioneer\rekordbox\master.db`
-- Your **music folder(s)** — wherever your audio files live on disk
-
-These paths are saved locally and pre-filled on every future launch.
+> **About the SQLCipher step:** Rekordbox encrypts its database. `pyrekordbox` handles decryption automatically, but needs a one-time setup to locate the key. The installer runs this for you.
 
 ---
 
@@ -47,40 +41,35 @@ These paths are saved locally and pre-filled on every future launch.
 
 #### Option A — Packaged DMG (no Python required)
 
-1. Go to the [Releases page](https://github.com/hombreplata-cpu/rekordbocks/releases) and download **`rekordbox-tools-mac.dmg`**.
-2. Open the `.dmg` and drag **rekordbox-tools** to your Applications folder.
+1. Go to the [Releases page](https://github.com/hombreplata-cpu/boxcutter/releases) and download **`BoxCutter-<version>.dmg`**.
+2. Open the `.dmg` and drag **BoxCutter** to your Applications folder.
 3. Double-click to launch. Your browser will open at `http://localhost:5000` automatically.
 
 > **macOS Gatekeeper warning:** Because the app is unsigned, macOS may block it on first launch. Go to **System Settings → Privacy & Security**, scroll down to the blocked app notice, and click **Open Anyway**.
 
-> **Apple Silicon (M1/M2/M3) note:** The packaged DMG is built on an Intel runner and runs via Rosetta 2 on Apple Silicon. It should work transparently, but if you hit issues, use Option B below.
-
 #### Option B — Run from source (requires Python)
 
-##### Prerequisites
-
+**Prerequisites:**
 - **macOS 11 (Big Sur) or later**
-- **Python 3.9 or higher** — install via [python.org](https://www.python.org/downloads/) or [Homebrew](https://brew.sh/) (`brew install python`)
+- **Python 3.9 or higher** — [python.org](https://www.python.org/downloads/) or `brew install python`
 - **Rekordbox 7** installed and launched at least once
-- **Homebrew** recommended — needed as a fallback if the SQLCipher step fails (see below)
 
-Go to the [Releases page](https://github.com/hombreplata-cpu/rekordbocks/releases), download the latest **Source code (zip)**, and extract it.
-
-Open Terminal, `cd` into the extracted folder, and run:
+Download the latest **Source code (zip)** from the [Releases page](https://github.com/hombreplata-cpu/boxcutter/releases), extract it, then:
 
 ```bash
-chmod +x install.sh
-./install.sh
+chmod +x install.sh && ./install.sh
 ./start.sh
 ```
 
 > **Apple Silicon SQLCipher fallback:** If `install.sh` fails at the SQLCipher step, run `brew install sqlcipher` first, then re-run `./install.sh`.
 
-#### Step — First-run setup (both options)
+---
+
+### First-run setup (both options)
 
 On first launch you'll be taken to a **Setup** screen. Enter the paths to:
 
-- Your **Rekordbox database** (`master.db`) — usually at `~/Library/Application Support/Pioneer/rekordbox/master.db`
+- Your **Rekordbox database** (`master.db`) — usually at `%APPDATA%\Pioneer\rekordbox\master.db` (Windows) or `~/Library/Application Support/Pioneer/rekordbox/master.db` (macOS)
 - Your **music folder(s)** — wherever your audio files live on disk
 
 These paths are saved locally and pre-filled on every future launch.
@@ -104,7 +93,7 @@ These paths are saved locally and pre-filled on every future launch.
 
 Every tool is designed to be recoverable:
 
-- **Automatic backups** — every script that writes to `master.db` creates a timestamped backup at `%APPDATA%\Pioneer\rekordbox\` before touching anything
+- **Automatic backups** — every script that writes to `master.db` creates a timestamped backup in `boxcutter-backups/` next to `master.db` before touching anything
 - **Dry run mode** — preview exactly what will change before committing
 - **Soft deletes only** — tracks are marked deleted (`rb_local_deleted=1`), never destroyed
 - **Files moved, not deleted** — Library Cleanup moves files to a review folder on your Desktop
@@ -118,7 +107,7 @@ To restore from a backup: close Rekordbox, copy the backup file over `master.db`
 ### Upgrading a format (e.g. MP3 → FLAC)
 1. Download the new files into your target folder
 2. Close Rekordbox
-3. Open rekordbox-tools → **Relocate Tracks** → enter source and target paths → **Dry Run**
+3. Open BoxCutter → **Relocate Tracks** → enter source and target paths → **Dry Run**
 4. Review the output — confirm matches look correct
 5. Click **Run**
 6. Open Rekordbox — all cues, beatgrids, and playlists intact
@@ -154,22 +143,18 @@ Pre-built SQLCipher wheels sometimes don't exist for ARM. Install SQLCipher via 
 brew install sqlcipher
 ./install.sh
 ```
-If Homebrew isn't installed, get it from [brew.sh](https://brew.sh/).
 
 **"Rekordbox is open" warning banner appears**
 Close Rekordbox completely before running any tool. The banner disappears automatically once Rekordbox is no longer running.
 
-**App won't start / port already in use (Windows)**
-Another process is using port 5000. Run `netstat -ano | findstr :5000` in a terminal to find it, then close that process, or edit `app.py` line 1 to change the port.
-
-**App won't start / port already in use (macOS)**
-Run `lsof -ti tcp:5000` in Terminal to find the PID using port 5000, then `kill <PID>` to free it.
+**App won't start / port already in use**
+Another process is using port 5000. BoxCutter will attempt to free it automatically if the conflict is a previous BoxCutter instance. For other apps, close the conflicting process or find a free port manually.
 
 **Track matching misses files**
-Use the `--prefer-ext` option in Relocate Tracks to prioritise a specific format when multiple files match the same track name (e.g. prefer `.flac` over `.mp3`).
+Use the **Prefer Extension** option in Relocate Tracks to prioritise a specific format when multiple files match the same track name (e.g. prefer `.flac` over `.mp3`).
 
 **Something went wrong with the database**
-Each tool shows a "Something broke?" restore panel at the bottom of its page with step-by-step recovery instructions.
+Each tool has a built-in **Restore Backup** page with step-by-step recovery instructions, or navigate directly to `/restore`.
 
 ---
 
