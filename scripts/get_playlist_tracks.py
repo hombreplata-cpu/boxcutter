@@ -62,12 +62,10 @@ def main():
         sys.exit(1)
 
     all_tracks_mode = playlist_id == "all"
-    if not all_tracks_mode:
-        try:
-            playlist_id = int(playlist_id)
-        except ValueError:
-            print("--playlist-id must be an integer", file=sys.stderr)
-            sys.exit(1)
+    if not all_tracks_mode and not playlist_id.lstrip("-").isdigit():
+        # Keep as string — Rekordbox stores IDs as strings internally
+        print("--playlist-id must be an integer", file=sys.stderr)
+        sys.exit(1)
 
     try:
         db = MasterDatabase(path=db_path)
@@ -83,9 +81,10 @@ def main():
                 with contextlib.suppress(Exception):
                     bpm = int(float(content.BPM))
             key = ""
-            if content.Tonality:
+            tonality = getattr(content, "Tonality", None)
+            if tonality:
                 with contextlib.suppress(Exception):
-                    key = TONALITY_CAMELOT.get(int(content.Tonality), "")
+                    key = TONALITY_CAMELOT.get(int(tonality), "")
             return {
                 "id": content.ID,
                 "title": content.Title or "",
@@ -116,7 +115,7 @@ def main():
             rows = db.session.execute(
                 text(
                     "SELECT ContentID FROM DjmdSongPlaylist "
-                    "WHERE PlaylistID = :pid ORDER BY TrackNo"
+                    "WHERE PlaylistID = :pid AND rb_local_deleted = 0 ORDER BY TrackNo"
                 ),
                 {"pid": playlist_id},
             ).fetchall()
