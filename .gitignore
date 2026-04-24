@@ -43,3 +43,8 @@ master.db
 .claude/
 CLAUDE.md
 CONTEXT.md
+ARCHITECTURE.md
+"product adjustments.md"
+
+# One-off migration scripts (ALAC issue resolved in utils.py — not needed)
+scripts/rekordbox_fix_alac_to_flac.py

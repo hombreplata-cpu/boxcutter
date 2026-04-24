@@ -81,9 +81,10 @@ def main():
                 with contextlib.suppress(Exception):
                     bpm = int(float(content.BPM))
             key = ""
-            if content.Tonality:
+            tonality = getattr(content, "Tonality", None)
+            if tonality:
                 with contextlib.suppress(Exception):
-                    key = TONALITY_CAMELOT.get(int(content.Tonality), "")
+                    key = TONALITY_CAMELOT.get(int(tonality), "")
             return {
                 "id": content.ID,
                 "title": content.Title or "",
