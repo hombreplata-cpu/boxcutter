@@ -998,7 +998,7 @@ def _tailscale_ip() -> str:
             )
             if result.returncode == 0 and result.stdout.strip():
                 return result.stdout.strip()
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001, S112
             continue
     return ""
 
