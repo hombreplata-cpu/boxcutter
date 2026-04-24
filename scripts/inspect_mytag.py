@@ -32,7 +32,7 @@ def dump_table(engine, table_name):
         print(f"    {c['name']:30s} {str(c['type'])}")
 
     with engine.connect() as conn:
-        rows = conn.execute(text(f"SELECT * FROM {table_name} LIMIT 10")).fetchall()  # noqa: S608 — table_name is caller-controlled (hardcoded)
+        rows = conn.execute(text(f"SELECT * FROM {table_name} LIMIT 10")).fetchall()  # noqa: S608  # nosec B608 — table_name is caller-controlled (hardcoded)
     print(f"\n  Sample rows ({min(len(rows), 10)} of up to 10):")
     if not rows:
         print("    (empty table)")
@@ -64,7 +64,7 @@ def main():
         with engine.connect() as conn:
             for table in ["djmdMyTag", "djmdSongMyTag"]:
                 if table in tables:
-                    count = conn.execute(text(f"SELECT COUNT(*) FROM {table}")).scalar()  # noqa: S608 — table is hardcoded in the loop above
+                    count = conn.execute(text(f"SELECT COUNT(*) FROM {table}")).scalar()  # noqa: S608  # nosec B608 — table is hardcoded in the loop above
                     print(f"  {table}: {count} rows")
 
     except Exception as exc:

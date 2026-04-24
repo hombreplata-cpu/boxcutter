@@ -43,7 +43,7 @@ def _already_running(port: int) -> bool:
 
 
 def _start_flask():
-    app.run(port=PORT, debug=False, use_reloader=False)
+    app.run(host="0.0.0.0", port=PORT, debug=False, use_reloader=False)  # noqa: S104  # nosec B104 — intentional: Tailscale requires binding to all interfaces
 
 
 def _wait_for_server():

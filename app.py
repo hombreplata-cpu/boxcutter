@@ -103,7 +103,7 @@ def save_config(data):
 
 
 def config_is_complete(cfg):
-    return bool(cfg.get("music_root") and cfg.get("flac_root"))
+    return bool(cfg.get("music_root") and cfg.get("flac_root") and cfg.get("db_path"))
 
 
 # ── Session secret key ────────────────────────────────────────────────────────
@@ -188,7 +188,9 @@ def _open_db(cfg=None):
     if cfg is None:
         cfg = load_config()
     db_path = clean_path(cfg.get("db_path", ""))
-    return MasterDatabase(path=db_path or None)
+    if not db_path:
+        raise RuntimeError("Rekordbox database path is not configured. Go to Setup & Paths.")
+    return MasterDatabase(path=db_path)
 
 
 def _next_song_mytag_id(db) -> str:
@@ -220,7 +222,7 @@ def rekordbox_is_running():
             return "rekordbox.exe" in out.lower()
         else:
             result = subprocess.run(
-                ["pgrep", "-x", "rekordbox"],
+                ["pgrep", "-xi", "rekordbox"],
                 capture_output=True,
                 **_POPEN_FLAGS,
             )
@@ -238,6 +240,7 @@ def inject_globals():
     return {
         "is_frozen": getattr(sys, "frozen", False),
         "show_donation": not cfg.get("donation_shown", False),
+        "app_version": _app_version,
     }
 
 
@@ -249,6 +252,8 @@ def handle_exception(exc):
     body = traceback.format_exc()
     ctx = {"Request": f"{request.method} {request.path}"}
     log_path = write_crash_log("route", body, context=ctx)
+    if request.path.startswith("/api/"):
+        return jsonify({"error": str(exc), "log_path": str(log_path) if log_path else None}), 500
     return render_template("error.html", log_path=log_path), 500
 
 
@@ -735,7 +740,10 @@ def api_track_playlist_remove(content_id, playlist_id):
 
 @app.route("/restore")
 def restore():
-    return render_template("restore.html")
+    cfg = load_config()
+    db_path = clean_path(cfg.get("db_path", ""))
+    backup_dir = str(Path(db_path).parent / "boxcutter-backups") if db_path else None
+    return render_template("restore.html", backup_dir=backup_dir)
 
 
 @app.route("/api/dismiss_donation", methods=["POST"])
@@ -824,6 +832,8 @@ def api_run(script_name):
         args += ["--watch-dir", watch_dir, "--playlist-id", playlist_id]
 
     db_path = clean_path(cfg.get("db_path", ""))
+    if script_name != "strip_comments" and not db_path:
+        return jsonify({"error": "Database path not configured — go to Setup & Paths."}), 400
     if db_path:
         args += ["--db-path", db_path]
 
@@ -936,8 +946,10 @@ def api_playlists():
     """
     script_path = SCRIPTS_DIR / "get_playlists.py"
     cfg = load_config()
-    cmd = [sys.executable, str(script_path)]
     db_path = clean_path(cfg.get("db_path", ""))
+    if not db_path:
+        return jsonify({"error": "Database path not configured — go to Setup & Paths."}), 400
+    cmd = [sys.executable, str(script_path)]
     if db_path:
         cmd += ["--db-path", db_path]
     try:
@@ -969,8 +981,10 @@ def api_stats():
     """
     script_path = SCRIPTS_DIR / "get_stats.py"
     cfg = load_config()
-    cmd = [sys.executable, str(script_path)]
     db_path = clean_path(cfg.get("db_path", ""))
+    if not db_path:
+        return jsonify({"error": "Database path not configured — go to Setup & Paths."}), 400
+    cmd = [sys.executable, str(script_path)]
     if db_path:
         cmd += ["--db-path", db_path]
     try:
@@ -1039,7 +1053,7 @@ def api_history_clear():
 def api_backups():
     cfg = load_config()
     db_path = clean_path(cfg.get("db_path", ""))
-    backup_dir = get_rekordbox_backup_dir(db_path)
+    backup_dir = get_rekordbox_backup_dir(db_path) / "boxcutter-backups"
     if not backup_dir.exists():
         return jsonify({"error": f"Directory not found: {backup_dir}"}), 404
     now = datetime.now()
@@ -1074,7 +1088,7 @@ def api_backups_clean():
     dry_run = bool(data.get("dry_run", False))
     cfg = load_config()
     db_path = clean_path(cfg.get("db_path", ""))
-    backup_dir = get_rekordbox_backup_dir(db_path)
+    backup_dir = get_rekordbox_backup_dir(db_path) / "boxcutter-backups"
     if not backup_dir.exists():
         return jsonify({"error": f"Directory not found: {backup_dir}"}), 404
     now = datetime.now()
@@ -1125,6 +1139,8 @@ def _tailscale_ip() -> str:
     candidates = ["tailscale"]
     if platform.system() == "Windows":
         candidates.append(r"C:\Program Files\Tailscale\tailscale.exe")
+    elif platform.system() == "Darwin":
+        candidates.append("/Applications/Tailscale.app/Contents/MacOS/Tailscale")
 
     for cmd in candidates:
         try:
@@ -1457,4 +1473,4 @@ if __name__ == "__main__":
     print("  Press Ctrl+C to stop\n")
     threading.Timer(1.2, lambda: webbrowser.open(f"http://localhost:{_port}")).start()
     # Bind to 0.0.0.0 so the /listen endpoint is reachable over Tailscale
-    app.run(debug=False, port=_port, host="0.0.0.0")  # noqa: S104 — intentional; Tailscale is the security layer
+    app.run(debug=False, port=_port, host="0.0.0.0")  # noqa: S104  # nosec B104 — intentional; Tailscale is the security layer

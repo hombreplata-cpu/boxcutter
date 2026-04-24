@@ -18,11 +18,11 @@
   <div class="card-label">How to restore — Windows</div>
   <ol style="padding-left:20px;line-height:2;">
     <li><strong>Close Rekordbox completely</strong> before touching any database files.</li>
-    <li>Open File Explorer and paste this into the address bar:<br>
-      <code style="background:var(--input-bg);padding:2px 8px;border-radius:4px;">%APPDATA%\Pioneer\rekordbox\boxcutter-backups\</code>
+    <li>Open File Explorer and navigate to your backups folder:<br>
+      <code style="background:var(--input-bg);padding:2px 8px;border-radius:4px;">{{ backup_dir or "Configure DB path in Setup first" }}</code>
     </li>
     <li>Find the timestamped backup you want to restore (newest is at the top when sorted by date).</li>
-    <li>Copy it to <code>%APPDATA%\Pioneer\rekordbox\</code> (one folder up).</li>
+    <li>Copy it one folder up (to the folder containing <code>master.db</code>).</li>
     <li>Rename the copy to <code>master.db</code>, replacing the current file.</li>
     <li>Open Rekordbox — it loads from the restored file.</li>
   </ol>
@@ -32,11 +32,11 @@
   <div class="card-label">How to restore — macOS</div>
   <ol style="padding-left:20px;line-height:2;">
     <li><strong>Quit Rekordbox completely.</strong></li>
-    <li>Open Finder → Go → Go to Folder, then enter:<br>
-      <code style="background:var(--input-bg);padding:2px 8px;border-radius:4px;">~/Library/Application Support/Pioneer/rekordbox/boxcutter-backups/</code>
+    <li>Open Finder and navigate to your backups folder:<br>
+      <code style="background:var(--input-bg);padding:2px 8px;border-radius:4px;">{{ backup_dir or "Configure DB path in Setup first" }}</code>
     </li>
     <li>Find the timestamped backup you want to restore.</li>
-    <li>Copy it one folder up to the <code>rekordbox/</code> folder.</li>
+    <li>Copy it one folder up (to the folder containing <code>master.db</code>).</li>
     <li>Rename the copy to <code>master.db</code>, replacing the current file.</li>
     <li>Open Rekordbox — it loads from the restored file.</li>
   </ol>

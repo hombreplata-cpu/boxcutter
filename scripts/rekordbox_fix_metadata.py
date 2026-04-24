@@ -26,19 +26,7 @@ from datetime import datetime
 from pathlib import Path
 
 from pyrekordbox import Rekordbox6Database as MasterDatabase
-from utils import EXT_TO_FILETYPE
-
-FILETYPE_LABELS = {
-    1: "MP3",
-    4: "AAC/M4A",
-    5: "WAV",
-    6: "FLAC",
-    7: "AIFF",
-    8: "OGG",
-    9: "WMA",
-    10: "MP4",
-    11: "ALAC",
-}
+from utils import EXT_TO_FILETYPE, FILETYPE_LABELS
 
 
 def run(args):
@@ -51,11 +39,13 @@ def run(args):
 
     if not args.dry_run:
         try:
-            db_path = Path(db.engine.url.database)
+            db_path_obj = Path(db.engine.url.database)
+            backup_dir = db_path_obj.parent / "boxcutter-backups"
+            backup_dir.mkdir(exist_ok=True)
             ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-            backup = db_path.with_name(f"master_backup_{ts}.db")
-            shutil.copy2(db_path, backup)
-            print(f"[backup] {backup}")
+            backup_path = backup_dir / f"master_backup_fix_metadata_{ts}.db"
+            shutil.copy2(db_path_obj, backup_path)
+            print(f"[backup] {backup_path}")
         except Exception as e:
             print(f"[backup] WARNING: {e}")
 

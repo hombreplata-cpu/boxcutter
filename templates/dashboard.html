@@ -259,11 +259,12 @@
 <div class="card" style="margin-bottom:20px;">
   <div class="card-label">Saved Paths</div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-family:var(--mono);font-size:13px;">
-    <div><span style="color:var(--text-dim)">Music Root &nbsp;</span><span style="color:var(--text)">{{ cfg.music_root or '—' }}</span></div>
-    <div><span style="color:var(--text-dim)">FLAC Root &nbsp;&nbsp;</span><span style="color:var(--text)">{{ cfg.flac_root or '—' }}</span></div>
-    <div><span style="color:var(--text-dim)">MP3 Root &nbsp;&nbsp;&nbsp;</span><span style="color:var(--text)">{{ cfg.mp3_root or '—' }}</span></div>
-    <div><span style="color:var(--text-dim)">DELETE Folder </span><span style="color:var(--text)">{{ cfg.delete_dir or '—' }}</span></div>
-    <div><span style="color:var(--text-dim)">Watch Folder &nbsp;</span><span style="color:var(--text)">{{ cfg.watch_dir or '—' }}</span></div>
+    <div><span style="color:var(--text-dim)">Rekordbox DB &nbsp;</span><span style="color:var(--text)">{{ cfg.db_path or '—' }}</span></div>
+    <div><span style="color:var(--text-dim)">Music Root &nbsp;&nbsp;</span><span style="color:var(--text)">{{ cfg.music_root or '—' }}</span></div>
+    <div><span style="color:var(--text-dim)">FLAC Root &nbsp;&nbsp;&nbsp;</span><span style="color:var(--text)">{{ cfg.flac_root or '—' }}</span></div>
+    <div><span style="color:var(--text-dim)">MP3 Root &nbsp;&nbsp;&nbsp;&nbsp;</span><span style="color:var(--text)">{{ cfg.mp3_root or '—' }}</span></div>
+    <div><span style="color:var(--text-dim)">DELETE Folder &nbsp;</span><span style="color:var(--text)">{{ cfg.delete_dir or '—' }}</span></div>
+    <div><span style="color:var(--text-dim)">Watch Folder &nbsp;&nbsp;</span><span style="color:var(--text)">{{ cfg.watch_dir or '—' }}</span></div>
   </div>
   <div style="margin-top:12px;">
     <a href="/setup" style="font-family:var(--mono);font-size:12px;color:var(--accent);text-decoration:none;">⚙ Edit paths →</a>
@@ -459,13 +460,14 @@
       el.classList.remove('loading');
       el.classList.add('error');
     });
-    document.getElementById('chart-legend').textContent = msg || 'Could not load stats';
+    const legendEl = document.getElementById('chart-legend');
+    legendEl.innerHTML = (msg || 'Could not load stats') + ' — <a href="/setup" style="color:var(--accent)">Set path in Setup →</a>';
     const tp = document.getElementById('top-played-list');
     if (tp) tp.innerHTML = '<div class="top-played-empty">Could not load stats.</div>';
   }
 
   fetch('/api/stats')
-    .then(r => r.json())
+    .then(r => r.ok ? r.json() : r.text().then(t => { try { return JSON.parse(t); } catch { return {error: 'Server error — check Setup & Paths'}; } }))
     .then(data => {
       if (data.error) { renderError(data.error); return; }
       renderStats(data);

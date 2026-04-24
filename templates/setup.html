@@ -20,6 +20,22 @@
 
 <form method="POST">
   <div class="card">
+    <div class="card-label">Rekordbox Database</div>
+
+    <div class="path-row">
+      <label>Database Path <span style="color:var(--red)">*required</span></label>
+      <input class="path-input" type="text" name="db_path"
+             value="{{ cfg.db_path }}"
+             placeholder="e.g. C:\Users\You\AppData\Roaming\Pioneer\rekordbox\master.db">
+    </div>
+    <div class="path-hint">
+      Path to your Rekordbox <code>master.db</code> file. Required — all DB tools and stats depend on it, and backups are stored next to this file.<br>
+      <strong style="color:var(--text);">Windows:</strong> Open File Explorer → paste <code>%APPDATA%\Pioneer\rekordbox</code> in the address bar → find <code>master.db</code>. If synced via Dropbox or OneDrive, check Rekordbox → Preferences → Advanced for the library path.<br>
+      <strong style="color:var(--text);">macOS:</strong> Default path is <code>~/Library/Application Support/Pioneer/rekordbox/master.db</code>. If custom, check Rekordbox → Preferences → Advanced.
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:0;">
     <div class="card-label">Library Roots</div>
 
     <div class="path-row">
@@ -61,14 +77,6 @@
              placeholder="e.g. C:\Users\You\Downloads\NewMusic">
     </div>
     <div class="path-hint">Folder scanned by Add New Tracks — audio files here not yet in Rekordbox will be added to a playlist</div>
-
-    <div class="path-row">
-      <label>Rekordbox DB Path <span style="color:var(--text-dim)">(optional)</span></label>
-      <input class="path-input" type="text" name="db_path"
-             value="{{ cfg.db_path }}"
-             placeholder="e.g. C:\Users\You\Dropbox\rekordbox\master.db">
-    </div>
-    <div class="path-hint">Leave blank to auto-detect (default: %APPDATA%\Pioneer\rekordbox\master.db). Set this if your DB lives in Dropbox, OneDrive, or a custom location.</div>
   </div>
 
   <div class="card" style="margin-top:0;">
@@ -90,18 +98,9 @@
     </div>
   </div>
 
-  <div class="card" style="margin-top:0;">
-    <div class="card-label">Where to find Rekordbox files</div>
-    <div style="font-family:var(--mono);font-size:11px;line-height:2;color:var(--text-dim);">
-      <div><span style="color:var(--text)">DB (Windows)&nbsp;&nbsp;</span> %APPDATA%\Pioneer\rekordbox\master.db</div>
-      <div><span style="color:var(--text)">DB (macOS)&nbsp;&nbsp;&nbsp;&nbsp;</span> ~/Library/Pioneer/rekordbox/master.db</div>
-      <div><span style="color:var(--text)">Backups&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span> Same folder as master.db — timestamped automatically</div>
-    </div>
-  </div>
-
   <div class="btn-row">
     <button type="submit" class="btn btn-primary">Save Paths</button>
-    {% if cfg.music_root and cfg.flac_root %}
+    {% if cfg.music_root and cfg.flac_root and cfg.db_path %}
     <a href="/" style="font-family:var(--mono);font-size:11px;color:var(--text-dim);text-decoration:none;padding:10px 0;">← Back to dashboard</a>
     {% endif %}
   </div>
