@@ -13,7 +13,6 @@ import threading
 import time
 import urllib.error
 import urllib.request
-import webbrowser  # used for single-instance fallback
 
 from crash_logger import write_crash_log  # noqa: E402
 
@@ -58,10 +57,9 @@ def _wait_for_server():
 
 
 if __name__ == "__main__":
-    # Single-instance guard: if BoxCutter is already running, focus that window
-    # in the default browser and exit rather than spawning a second app window.
+    # Single-instance guard: if BoxCutter is already running, exit silently.
+    # The existing window is already open — no need to open anything new.
     if _already_running(PORT):
-        webbrowser.open(f"http://localhost:{PORT}")
         sys.exit(0)
 
     import webview
