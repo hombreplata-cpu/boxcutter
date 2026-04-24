@@ -43,6 +43,12 @@ from version import __version__ as _app_version
 
 app = Flask(__name__)
 
+# Suppress console windows spawned by subprocesses when running as a
+# windowed exe (console=False in app.spec). No-op on macOS/Linux.
+_POPEN_FLAGS: dict = (
+    {"creationflags": subprocess.CREATE_NO_WINDOW} if sys.platform == "win32" else {}
+)
+
 CONFIG_FILE = Path.home() / ".boxcutter_config.json"
 SCRIPTS_DIR = Path(__file__).parent / "scripts"
 
@@ -209,12 +215,14 @@ def rekordbox_is_running():
                 text=True,
                 encoding="utf-8",
                 errors="replace",
+                **_POPEN_FLAGS,
             )
             return "rekordbox.exe" in out.lower()
         else:
             result = subprocess.run(
                 ["pgrep", "-x", "rekordbox"],
                 capture_output=True,
+                **_POPEN_FLAGS,
             )
             return result.returncode == 0
     except Exception:
@@ -419,7 +427,7 @@ def api_apply_update():
         # Open the DMG in Finder — user drags BoxCutter.app to Applications
         subprocess.Popen(["open", path])  # noqa: S603
         return jsonify({"ok": True, "manual": True})
-    subprocess.Popen([path, "/SILENT"])  # noqa: S603 — list form, no shell; path is server-controlled
+    subprocess.Popen([path, "/SILENT"], **_POPEN_FLAGS)  # noqa: S603 — list form, no shell; path is server-controlled
     threading.Timer(1.0, lambda: os._exit(0)).start()  # noqa: SLF001 — intentional hard exit so installer can replace files
     return jsonify({"ok": True, "manual": False})
 
@@ -843,6 +851,7 @@ def api_run(script_name):
             encoding="utf-8",
             errors="replace",
             env=env,
+            **_POPEN_FLAGS,
         )
         report_lines = []
         in_report = False
@@ -939,6 +948,7 @@ def api_playlists():
             encoding="utf-8",
             errors="replace",
             timeout=15,
+            **_POPEN_FLAGS,
         )
         if result.returncode != 0:
             msg = result.stderr.strip() or "Unknown error reading playlists"
@@ -971,6 +981,7 @@ def api_stats():
             encoding="utf-8",
             errors="replace",
             timeout=15,
+            **_POPEN_FLAGS,
         )
         if result.returncode != 0:
             msg = result.stderr.strip() or "Unknown error reading database stats"
@@ -1122,6 +1133,7 @@ def _tailscale_ip() -> str:
                 capture_output=True,
                 text=True,
                 timeout=3,
+                **_POPEN_FLAGS,
             )
             if result.returncode == 0 and result.stdout.strip():
                 return result.stdout.strip()
@@ -1198,7 +1210,13 @@ def api_listen_tree():
         cmd += ["--db-path", db_path]
     try:
         result = subprocess.run(
-            cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=15
+            cmd,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=15,
+            **_POPEN_FLAGS,
         )
         if result.returncode != 0:
             return jsonify({"error": result.stderr.strip() or "Failed to read playlists"}), 500
@@ -1224,7 +1242,13 @@ def api_listen_all_tracks():
         cmd += ["--db-path", db_path]
     try:
         result = subprocess.run(
-            cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30
+            cmd,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+            **_POPEN_FLAGS,
         )
         if result.returncode != 0:
             return jsonify({"error": result.stderr.strip() or "Failed to read tracks"}), 500
@@ -1247,7 +1271,13 @@ def api_listen_tracks(pid):
         cmd += ["--db-path", db_path]
     try:
         result = subprocess.run(
-            cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30
+            cmd,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+            **_POPEN_FLAGS,
         )
         if result.returncode != 0:
             return jsonify({"error": result.stderr.strip() or "Failed to read tracks"}), 500
@@ -1270,7 +1300,13 @@ def api_stream(track_id):
         cmd += ["--db-path", db_path]
     try:
         result = subprocess.run(
-            cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=10
+            cmd,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=10,
+            **_POPEN_FLAGS,
         )
         if result.returncode != 0:
             return jsonify({"error": "Track not found"}), 404
@@ -1325,6 +1361,7 @@ def _port_pid(port: int) -> int | None:
                 capture_output=True,
                 text=True,
                 timeout=5,
+                **_POPEN_FLAGS,
             )
             for line in result.stdout.splitlines():
                 if f":{port}" in line and "LISTENING" in line:
@@ -1336,6 +1373,7 @@ def _port_pid(port: int) -> int | None:
                 capture_output=True,
                 text=True,
                 timeout=5,
+                **_POPEN_FLAGS,
             )
             if result.returncode == 0 and result.stdout.strip():
                 return int(result.stdout.strip().splitlines()[0])
@@ -1353,6 +1391,7 @@ def _is_our_app(pid: int) -> bool:
                 capture_output=True,
                 text=True,
                 timeout=5,
+                **_POPEN_FLAGS,
             )
         else:
             result = subprocess.run(
@@ -1360,6 +1399,7 @@ def _is_our_app(pid: int) -> bool:
                 capture_output=True,
                 text=True,
                 timeout=5,
+                **_POPEN_FLAGS,
             )
         return "app.py" in result.stdout
     except Exception:  # noqa: S110
@@ -1390,9 +1430,16 @@ def resolve_server_port(preferred: int = 5000) -> int:
         return preferred
     if _is_our_app(pid):
         if platform.system() == "Windows":
-            subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True, timeout=5)
+            subprocess.run(
+                ["taskkill", "/F", "/PID", str(pid)],
+                capture_output=True,
+                timeout=5,
+                **_POPEN_FLAGS,
+            )
         else:
-            subprocess.run(["kill", "-9", str(pid)], capture_output=True, timeout=5)
+            subprocess.run(
+                ["kill", "-9", str(pid)], capture_output=True, timeout=5, **_POPEN_FLAGS
+            )
         print(f"  Stopped previous instance (PID {pid})")
         return preferred
     print(f"  Port {preferred} in use by another app — finding a free port")

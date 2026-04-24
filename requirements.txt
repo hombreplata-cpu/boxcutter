@@ -1,3 +1,4 @@
 flask>=3.0.0
 pyrekordbox>=0.3.0
 mutagen>=1.47.0
+pywebview>=5.0

@@ -13,6 +13,7 @@ a = Analysis(
         ("static", "static"),
     ],
     hiddenimports=collect_submodules("pyrekordbox")
+    + collect_submodules("webview")
     + [
         "sqlcipher3",
         "engineio.async_drivers.threading",

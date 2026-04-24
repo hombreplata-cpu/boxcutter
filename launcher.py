@@ -2,8 +2,8 @@
 launcher.py — PyInstaller entry point for BoxCutter
 
 Starts Flask in a background thread, waits until the server is ready,
-then opens the browser. The main thread blocks on the Flask thread so
-the process stays alive until Flask exits.
+then opens the app in a native pywebview window (frozen binary only).
+The main thread blocks inside webview.start() until the window is closed.
 """
 
 import os
@@ -12,7 +12,6 @@ import threading
 import time
 import urllib.error
 import urllib.request
-import webbrowser
 
 from crash_logger import write_crash_log  # noqa: E402
 
@@ -40,19 +39,28 @@ def _start_flask():
     app.run(port=PORT, debug=False, use_reloader=False)
 
 
-def _wait_and_open():
+def _wait_for_server():
     url = f"http://localhost:{PORT}"
     for _ in range(30):
         try:
             urllib.request.urlopen(url, timeout=1)  # noqa: S310  # nosec B310 — always http://localhost, no user input
-            break
+            return
         except (urllib.error.URLError, OSError):
             time.sleep(0.5)
-    webbrowser.open(url)
 
 
 if __name__ == "__main__":
+    import webview
+
     flask_thread = threading.Thread(target=_start_flask, daemon=True)
     flask_thread.start()
-    _wait_and_open()
-    flask_thread.join()
+    _wait_for_server()
+
+    window = webview.create_window(
+        "BoxCutter",
+        f"http://localhost:{PORT}",
+        width=1280,
+        height=820,
+        min_size=(900, 600),
+    )
+    webview.start()
