@@ -74,6 +74,9 @@ jobs:
           SQLCIPHER_PATH: /usr/local/opt/sqlcipher
         run: pip install sqlcipher3
 
+      - name: Generate macOS icon
+        run: iconutil -c icns assets/icons/icon.iconset -o static/boxcutter.icns
+
       - name: Build app bundle
         run: pyinstaller app.spec
 

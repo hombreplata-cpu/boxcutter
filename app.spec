@@ -10,6 +10,7 @@ a = Analysis(
     datas=[
         ("templates", "templates"),
         ("scripts", "scripts"),
+        ("static", "static"),
     ],
     hiddenimports=collect_submodules("pyrekordbox")
     + [
@@ -38,6 +39,7 @@ exe = EXE(
     strip=False,
     upx=True,
     console=False,
+    icon="static/favicon.ico",
 )
 
 coll = COLLECT(
@@ -55,4 +57,5 @@ app = BUNDLE(
     coll,
     name="BoxCutter.app",
     bundle_identifier="com.boxcutter.app",
+    icon="static/boxcutter.icns",
 )
