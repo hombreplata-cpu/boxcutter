@@ -1,12 +1,12 @@
-# Contributing to rekordbox-tools
+# Contributing to BoxCutter
 
 Thanks for your interest in contributing. These tools are built by DJs for DJs — practical, safe, and focused on real library management problems.
 
 ## Dev setup
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/rekordbox-tools
-cd rekordbox-tools
+git clone https://github.com/YOUR_USERNAME/boxcutter
+cd boxcutter
 python -m venv venv
 source venv/bin/activate   # Windows: venv\Scripts\activate
 pip install -r requirements.txt
@@ -31,4 +31,4 @@ Please include:
 
 ## Pull requests
 
-Open an issue first for significant changes. Small fixes and new matching strategies for `rekordbox_relocate.py` are always welcome.
+Open an issue first for significant changes. Small fixes and new matching strategies for `relocate.py` are always welcome.

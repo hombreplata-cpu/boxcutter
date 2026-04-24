@@ -1,5 +1,5 @@
 """
-rekordbox_add_new.py — Add New Tracks to Playlist
+add_new.py — Add New Tracks to Playlist
 
 Scans a watch directory for audio files not yet in the Rekordbox database
 and inserts them into both the library and a chosen playlist. When Rekordbox
@@ -7,7 +7,7 @@ next opens the tracks appear as if dragged in manually; only analysis
 (Right-click → Analyze Tracks) is required.
 
 Usage:
-    python rekordbox_add_new.py --watch-dir DIR --playlist-id ID [--dry-run]
+    python add_new.py --watch-dir DIR --playlist-id ID [--dry-run]
 """
 
 import argparse

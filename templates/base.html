@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{% block title %}rekordbocks{% endblock %}</title>
+  <title>{% block title %}BoxCutter{% endblock %}</title>
   <style>
     :root {
       --bg:         #0d1117;
@@ -968,7 +968,7 @@
 <nav class="sidebar" id="sidebar">
   <div class="sidebar-logo">
     <div class="icon">◈</div>
-    <div class="name">rekordbocks</div>
+    <div class="name">BoxCutter</div>
     <div class="sub">for Rekordbox 7</div>
   </div>
   <div class="nav">
@@ -992,7 +992,7 @@
     v1.0.1
     {% if is_frozen %}
     <form id="quit-form" action="/shutdown" method="post" style="margin-top:10px;">
-      <button type="submit" class="quit-btn" onclick="return confirm('Close rekordbox-tools? Your browser tab will stop working.')">✕ &nbsp;Quit App</button>
+      <button type="submit" class="quit-btn" onclick="return confirm('Close BoxCutter? Your browser tab will stop working.')">✕ &nbsp;Quit App</button>
     </form>
     {% endif %}
   </div>
@@ -1760,7 +1760,7 @@
       <span style="color:var(--text-dim);">Crash log saved to:</span>
       <code style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text);">${logPath}</code>
       <button onclick="navigator.clipboard.writeText('${logPath.replace(/'/g,"\\'")}').then(()=>this.textContent='Copied!')" style="background:none;border:1px solid var(--border);color:var(--text-dim);font-family:var(--mono);font-size:11px;padding:4px 10px;border-radius:4px;cursor:pointer;white-space:nowrap;">Copy path</button>
-      <a href="https://github.com/hombreplata-cpu/rekordbocks/issues" target="_blank" style="color:var(--accent);font-size:11px;white-space:nowrap;">Open issue ↗</a>
+      <a href="https://github.com/hombreplata-cpu/boxcutter/issues" target="_blank" style="color:var(--accent);font-size:11px;white-space:nowrap;">Open issue ↗</a>
       <button onclick="this.parentElement.remove()" style="background:none;border:none;color:var(--text-dim);font-size:16px;cursor:pointer;padding:0 4px;">✕</button>
     `;
   }
@@ -1862,7 +1862,7 @@
 <div id="donation-overlay" class="visible" role="dialog" aria-modal="true" aria-labelledby="dm-title">
   <div id="donation-modal">
     <div class="dm-icon">☕</div>
-    <h2 id="dm-title">rekordbocks is free</h2>
+    <h2 id="dm-title">BoxCutter is free</h2>
     <p>
       If it's saved you time fixing your library, a coffee keeps the project going.<br>
       No pressure — it's always free.

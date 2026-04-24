@@ -1,5 +1,5 @@
 """
-rekordbox_fix_metadata.py
+fix_metadata.py
 --------------------------
 Fixes stale FileType and FileSize in djmdContent for tracks whose
 FolderPath is correct but whose cached metadata doesn't match the
@@ -8,7 +8,7 @@ actual file on disk — causing Rekordbox to show them as broken.
 Uses pyrekordbox so database encryption is handled transparently.
 
 Usage:
-    python rekordbox_fix_metadata.py [--dry-run] [--verbose] [--ids 123,456]
+    python fix_metadata.py [--dry-run] [--verbose] [--ids 123,456]
 
 Options:
     --dry-run   Show what would change without writing to DB

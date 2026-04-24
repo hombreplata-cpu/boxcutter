@@ -2,7 +2,7 @@
 set -e
 
 echo ""
-echo "  rekordbox-tools — macOS installer"
+echo "  BoxCutter — macOS installer"
 echo "  -----------------------------------"
 
 # Python check
@@ -57,5 +57,5 @@ fi
 
 echo ""
 echo "  Installation complete."
-echo "  Run ./start.sh to launch rekordbox-tools."
+echo "  Run ./start.sh to launch BoxCutter."
 echo ""

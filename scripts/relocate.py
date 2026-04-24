@@ -1,4 +1,4 @@
-# rekordbox_relocate.py
+# relocate.py
 #
 # Bulk-relocate track file paths inside the Rekordbox 7 database (master.db)
 # to a target directory containing higher-quality files (e.g. FLAC).
@@ -11,10 +11,10 @@
 # USAGE
 # -----
 #   # Dry run first — nothing is written:
-#   python rekordbox_relocate.py --target-root "D:\Music\FLAC" --dry-run
+#   python relocate.py --target-root "D:\Music\FLAC" --dry-run
 #
 #   # Migrate MP3s that have a FLAC equivalent (strict: only FLAC accepted):
-#   python rekordbox_relocate.py \
+#   python relocate.py \
 #       --target-root "D:\Music\FLAC" \
 #       --source-root "D:\Music\MP3" \
 #       --source-ext mp3 \
@@ -22,7 +22,7 @@
 #       --dry-run
 #
 #   # Live run (remove --dry-run to apply):
-#   python rekordbox_relocate.py \
+#   python relocate.py \
 #       --target-root "D:\Music\FLAC" \
 #       --source-root "D:\Music\MP3" \
 #       --source-ext mp3 \

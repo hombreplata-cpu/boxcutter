@@ -1,4 +1,4 @@
-# BUILD_LOOP — rekordbox-tools
+# BUILD_LOOP — BoxCutter
 
 This document defines the standard loop for planning, implementing, and shipping
 changes to this repo. Follow it every session.

@@ -1,4 +1,4 @@
-# rekordbox_cleanup.py
+# cleanup.py
 #
 # Finds audio files inside --scan-root that are NOT referenced by any active
 # track in Rekordbox, and moves them to a DELETE folder for review.
@@ -6,10 +6,10 @@
 # USAGE
 # -----
 #   # Dry run first - nothing is moved:
-#   python rekordbox_cleanup.py --scan-root "D:\Music" --dry-run
+#   python cleanup.py --scan-root "D:\Music" --dry-run
 #
 #   # Live run:
-#   python rekordbox_cleanup.py --scan-root "D:\Music"
+#   python cleanup.py --scan-root "D:\Music"
 #
 # OPTIONS
 #   --scan-root     Folder to scan for unreferenced files (required)

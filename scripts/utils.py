@@ -1,5 +1,5 @@
 """
-Shared constants used across rekordbox-tools scripts.
+Shared constants used across BoxCutter scripts.
 
 Keep this file as the single source of truth for file-type mappings.
 When adding a new audio format, update EXT_TO_FILETYPE and FILETYPE_LABELS

@@ -1,4 +1,4 @@
-# rekordbox-tools
+# BoxCutter
 
 A locally-hosted web app for DJs who use **Rekordbox 7 on Windows or macOS**. Six maintenance tools for managing large music libraries — relocate tracks, clean up dead files, fix metadata, strip injected URLs from tags, and more. Runs entirely on your machine. No account, no cloud, no internet required.
 
@@ -12,7 +12,7 @@ A locally-hosted web app for DJs who use **Rekordbox 7 on Windows or macOS**. Si
 
 #### Option A — Packaged installer (no Python required)
 
-1. Go to the [Releases page](https://github.com/hombreplata-cpu/rekordbocks/releases) and download **`rekordbox-tools-windows.exe`**.
+1. Go to the [Releases page](https://github.com/hombreplata-cpu/boxcutter/releases) and download **`boxcutter-windows.exe`**.
 2. Double-click the `.exe` to launch. Your browser will open at `http://localhost:5000` automatically.
 
 > **Windows SmartScreen warning:** Because the binary is unsigned, Windows may show a "Windows protected your PC" prompt. Click **More info → Run anyway** to proceed. This is expected for open-source tools distributed outside the Microsoft Store.
@@ -26,7 +26,7 @@ A locally-hosted web app for DJs who use **Rekordbox 7 on Windows or macOS**. Si
   - On the Python installer screen, check **"Add Python to PATH"** before clicking Install. This is required. If you skipped it, uninstall Python and reinstall with that box checked.
 - **Rekordbox 7** installed and launched at least once (so its database exists on disk)
 
-Go to the [Releases page](https://github.com/hombreplata-cpu/rekordbocks/releases) and download the latest **Source code (zip)**. Extract it anywhere — Desktop or `C:\Tools\` works well.
+Go to the [Releases page](https://github.com/hombreplata-cpu/boxcutter/releases) and download the latest **Source code (zip)**. Extract it anywhere — Desktop or `C:\Tools\` works well.
 
 Double-click **`install.bat`** to install dependencies, then double-click **`start.bat`** to launch.
 
@@ -47,8 +47,8 @@ These paths are saved locally and pre-filled on every future launch.
 
 #### Option A — Packaged DMG (no Python required)
 
-1. Go to the [Releases page](https://github.com/hombreplata-cpu/rekordbocks/releases) and download **`rekordbox-tools-mac.dmg`**.
-2. Open the `.dmg` and drag **rekordbox-tools** to your Applications folder.
+1. Go to the [Releases page](https://github.com/hombreplata-cpu/boxcutter/releases) and download **`boxcutter-mac.dmg`**.
+2. Open the `.dmg` and drag **BoxCutter** to your Applications folder.
 3. Double-click to launch. Your browser will open at `http://localhost:5000` automatically.
 
 > **macOS Gatekeeper warning:** Because the app is unsigned, macOS may block it on first launch. Go to **System Settings → Privacy & Security**, scroll down to the blocked app notice, and click **Open Anyway**.
@@ -64,7 +64,7 @@ These paths are saved locally and pre-filled on every future launch.
 - **Rekordbox 7** installed and launched at least once
 - **Homebrew** recommended — needed as a fallback if the SQLCipher step fails (see below)
 
-Go to the [Releases page](https://github.com/hombreplata-cpu/rekordbocks/releases), download the latest **Source code (zip)**, and extract it.
+Go to the [Releases page](https://github.com/hombreplata-cpu/boxcutter/releases), download the latest **Source code (zip)**, and extract it.
 
 Open Terminal, `cd` into the extracted folder, and run:
 
@@ -118,7 +118,7 @@ To restore from a backup: close Rekordbox, copy the backup file over `master.db`
 ### Upgrading a format (e.g. MP3 → FLAC)
 1. Download the new files into your target folder
 2. Close Rekordbox
-3. Open rekordbox-tools → **Relocate Tracks** → enter source and target paths → **Dry Run**
+3. Open BoxCutter → **Relocate Tracks** → enter source and target paths → **Dry Run**
 4. Review the output — confirm matches look correct
 5. Click **Run**
 6. Open Rekordbox — all cues, beatgrids, and playlists intact
