@@ -39,7 +39,7 @@ def main():
 
         nodes = []
         for p in all_items:
-            if p.Attribute not in (0, 1):  # skip smart playlists (4) and others
+            if p.Attribute not in (0, 1, 4):  # 0=playlist, 1=folder, 4=intelligent playlist
                 continue
             nodes.append(
                 {
@@ -47,6 +47,7 @@ def main():
                     "name": p.Name,
                     "type": "folder" if p.Attribute == 1 else "playlist",
                     "parent_id": _safe_int(p.ParentID),
+                    "smart": p.Attribute == 4,
                 }
             )
 
