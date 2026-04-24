@@ -40,7 +40,7 @@ exe = EXE(
     strip=False,
     upx=True,
     console=False,
-    icon="static/favicon.ico",
+    icon="static/boxcutter.ico",
 )
 
 coll = COLLECT(

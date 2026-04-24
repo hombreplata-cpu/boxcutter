@@ -47,12 +47,12 @@ jobs:
       - name: Compile installer
         shell: pwsh
         run: |
-          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DAppVersion=$env:VERSION installer\boxcutter.iss
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DAppVersion=$env:VERSION installer\windows\boxcutter.iss
 
       - name: Upload to release
         uses: softprops/action-gh-release@v2
         with:
-          files: installer\Output\BoxCutter-Setup-${{ env.VERSION }}.exe
+          files: installer\windows\Output\BoxCutter-Setup-${{ env.VERSION }}.exe
 
   build-mac:
     runs-on: macos-latest
