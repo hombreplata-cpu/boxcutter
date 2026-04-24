@@ -1,4 +1,4 @@
-# app.spec — PyInstaller build spec for rekordbox-tools
+# app.spec — PyInstaller build spec for BoxCutter (one-dir)
 from PyInstaller.utils.hooks import collect_submodules
 
 block_cipher = None
@@ -30,10 +30,9 @@ pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.zipfiles,
-    a.datas,
-    name="rekordbox-tools",
+    [],
+    exclude_binaries=True,
+    name="BoxCutter",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -41,9 +40,19 @@ exe = EXE(
     console=False,
 )
 
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.datas,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    name="BoxCutter",
+)
+
 # macOS .app bundle — ignored on Windows
 app = BUNDLE(
-    exe,
-    name="rekordbox-tools.app",
-    bundle_identifier="com.rekordbox-tools.app",
+    coll,
+    name="BoxCutter.app",
+    bundle_identifier="com.boxcutter.app",
 )
