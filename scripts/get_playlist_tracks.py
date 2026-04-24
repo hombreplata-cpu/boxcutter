@@ -61,74 +61,81 @@ def main():
         print("--playlist-id required", file=sys.stderr)
         sys.exit(1)
 
-    try:
-        playlist_id = int(playlist_id)
-    except ValueError:
-        print("--playlist-id must be an integer", file=sys.stderr)
-        sys.exit(1)
+    all_tracks_mode = playlist_id == "all"
+    if not all_tracks_mode:
+        try:
+            playlist_id = int(playlist_id)
+        except ValueError:
+            print("--playlist-id must be an integer", file=sys.stderr)
+            sys.exit(1)
 
     try:
         db = MasterDatabase(path=db_path)
 
-        playlist = db.get_playlist().filter_by(ID=playlist_id).first()
-        if not playlist:
-            print(f"Playlist {playlist_id} not found", file=sys.stderr)
-            sys.exit(1)
-
-        # Use raw SQL for the playlist→track join — stable across pyrekordbox versions
-        rows = db.session.execute(
-            text(
-                "SELECT ContentID FROM DjmdSongPlaylist "
-                "WHERE PlaylistID = :pid ORDER BY TrackNo"
-            ),
-            {"pid": playlist_id},
-        ).fetchall()
-
-        tracks = []
-        for (content_id,) in rows:
-            content = db.get_content().filter_by(ID=content_id, rb_local_deleted=0).first()
-            if not content:
-                continue
-
-            # Artist via FK query
+        def _build_track(content):
             artist_name = ""
             if content.ArtistID:
                 artist = db.get_artist().filter_by(ID=content.ArtistID).first()
                 if artist:
                     artist_name = artist.Name or ""
-
-            # BPM
             bpm = None
             if content.BPM:
                 with contextlib.suppress(Exception):
                     bpm = int(float(content.BPM))
-
-            # Key (Tonality integer → Camelot)
             key = ""
             if content.Tonality:
                 with contextlib.suppress(Exception):
                     key = TONALITY_CAMELOT.get(int(content.Tonality), "")
+            return {
+                "id": content.ID,
+                "title": content.Title or "",
+                "artist": artist_name,
+                "bpm": bpm,
+                "key": key,
+                "duration": fmt_duration(content.TotalTime),
+            }
 
-            tracks.append(
-                {
-                    "id": content.ID,
-                    "title": content.Title or "",
-                    "artist": artist_name,
-                    "bpm": bpm,
-                    "key": key,
-                    "duration": fmt_duration(content.TotalTime),
-                }
+        if all_tracks_mode:
+            rows = db.session.execute(
+                text("SELECT ID FROM DjmdContent WHERE rb_local_deleted = 0 ORDER BY Title")
+            ).fetchall()
+            tracks = []
+            for (content_id,) in rows:
+                content = db.get_content().filter_by(ID=content_id).first()
+                if content:
+                    tracks.append(_build_track(content))
+            print(
+                json.dumps({"playlist_name": "All Tracks", "playlist_id": "all", "tracks": tracks})
             )
+        else:
+            playlist = db.get_playlist().filter_by(ID=playlist_id).first()
+            if not playlist:
+                print(f"Playlist {playlist_id} not found", file=sys.stderr)
+                sys.exit(1)
 
-        print(
-            json.dumps(
-                {
-                    "playlist_name": playlist.Name,
-                    "playlist_id": playlist_id,
-                    "tracks": tracks,
-                }
+            rows = db.session.execute(
+                text(
+                    "SELECT ContentID FROM DjmdSongPlaylist "
+                    "WHERE PlaylistID = :pid ORDER BY TrackNo"
+                ),
+                {"pid": playlist_id},
+            ).fetchall()
+
+            tracks = []
+            for (content_id,) in rows:
+                content = db.get_content().filter_by(ID=content_id, rb_local_deleted=0).first()
+                if content:
+                    tracks.append(_build_track(content))
+
+            print(
+                json.dumps(
+                    {
+                        "playlist_name": playlist.Name,
+                        "playlist_id": playlist_id,
+                        "tracks": tracks,
+                    }
+                )
             )
-        )
     except Exception as exc:
         print(str(exc), file=sys.stderr)
         sys.exit(1)

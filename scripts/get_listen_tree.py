@@ -8,10 +8,18 @@ import sys
 from pyrekordbox import Rekordbox6Database as MasterDatabase
 
 
+def _safe_int(val, default=0):
+    """Convert val to int; return default for None, 'root', or other non-numeric strings."""
+    try:
+        return int(val) if val else default
+    except (ValueError, TypeError):
+        return default
+
+
 def build_tree(nodes, parent_id=0):
     children = []
     for node in nodes:
-        if (node["parent_id"] or 0) == parent_id:
+        if node["parent_id"] == parent_id:
             if node["type"] == "folder":
                 node["children"] = build_tree(nodes, node["id"])
             children.append(node)
@@ -35,10 +43,10 @@ def main():
                 continue
             nodes.append(
                 {
-                    "id": p.ID,
+                    "id": _safe_int(p.ID),
                     "name": p.Name,
                     "type": "folder" if p.Attribute == 1 else "playlist",
-                    "parent_id": p.ParentID or 0,
+                    "parent_id": _safe_int(p.ParentID),
                 }
             )
 
