@@ -13,7 +13,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
-import webbrowser
+import webbrowser  # used for single-instance fallback
 
 from crash_logger import write_crash_log  # noqa: E402
 
@@ -77,13 +77,4 @@ if __name__ == "__main__":
         height=820,
         min_size=(900, 600),
     )
-
-    # Route target="_blank" links to the system browser instead of spawning
-    # new pywebview windows.
-    def _on_new_window(event):
-        webbrowser.open(event.url)
-        event.cancel()
-
-    window.events.new_window_requested += _on_new_window
-
     webview.start()
