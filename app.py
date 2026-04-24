@@ -16,8 +16,11 @@ import signal
 import socket
 import subprocess
 import sys
+import tempfile
 import threading
 import traceback
+import urllib.error
+import urllib.request
 import uuid
 import webbrowser
 from datetime import datetime
@@ -36,6 +39,7 @@ from flask import (
 )
 
 from crash_logger import write_crash_log
+from version import __version__ as _app_version
 
 app = Flask(__name__)
 
@@ -64,6 +68,11 @@ TOOL_LABELS = {
     "fix_metadata": "Fix Metadata",
     "add_new": "Add New Tracks",
 }
+
+GITHUB_RELEASES_URL = "https://api.github.com/repos/hombreplata-cpu/boxcutter/releases/latest"
+GITHUB_DOWNLOAD_PREFIX = "https://github.com/hombreplata-cpu/boxcutter/releases/download/"
+
+_update_state: dict = {"path": None}  # stores downloaded installer path until applied
 
 
 def load_config():
@@ -295,6 +304,105 @@ def api_config():
 def api_rekordbox_status():
     """Check whether rekordbox.exe is currently running."""
     return jsonify({"running": rekordbox_is_running()})
+
+
+# ── Auto-updater routes ───────────────────────────────────────────────────────
+
+
+def _version_gt(a: str, b: str) -> bool:
+    """Return True if version string a is strictly greater than b."""
+
+    def parse(v):
+        try:
+            return tuple(int(x) for x in v.strip().split("."))
+        except Exception:
+            return (0,)
+
+    return parse(a) > parse(b)
+
+
+@app.route("/api/update_check")
+def api_update_check():
+    """Check GitHub for a newer release. No-ops in dev mode (not frozen)."""
+    if not getattr(sys, "frozen", False):
+        return jsonify({"available": False})
+    try:
+        req = urllib.request.Request(  # noqa: S310 — URL is a hard-coded constant
+            GITHUB_RELEASES_URL,
+            headers={
+                "Accept": "application/vnd.github+json",
+                "User-Agent": f"BoxCutter/{_app_version}",
+            },
+        )
+        with urllib.request.urlopen(req, timeout=5) as resp:  # noqa: S310  # nosec B310 — hard-coded GitHub API URL
+            data = json.loads(resp.read().decode())
+        tag = data.get("tag_name", "").lstrip("v")
+        download_url = ""
+        for asset in data.get("assets", []):
+            name = asset.get("name", "")
+            if name.startswith("BoxCutter-Setup-") and name.endswith(".exe"):
+                download_url = asset.get("browser_download_url", "")
+                break
+        if not download_url or not _version_gt(tag, _app_version):
+            return jsonify({"available": False})
+        return jsonify({"available": True, "version": tag, "download_url": download_url})
+    except Exception:  # noqa: BLE001 — any network/parse failure → no update banner
+        return jsonify({"available": False})
+
+
+@app.route("/api/download_update")
+def api_download_update():
+    """Stream download of the installer to a temp file, emitting progress as SSE."""
+    url = request.args.get("url", "")
+    if not url.startswith(GITHUB_DOWNLOAD_PREFIX):
+        return jsonify({"error": "Invalid download URL"}), 400
+
+    def stream():
+        try:
+            req = urllib.request.Request(  # noqa: S310 — URL validated against hard-coded prefix above
+                url, headers={"User-Agent": f"BoxCutter/{_app_version}"}
+            )
+            with urllib.request.urlopen(req, timeout=30) as resp:  # noqa: S310  # nosec B310 — URL validated against hard-coded prefix
+                total = int(resp.headers.get("Content-Length", 0))
+                tmp = tempfile.NamedTemporaryFile(
+                    suffix=".exe",
+                    prefix="BoxCutter-Setup-",
+                    delete=False,
+                    dir=tempfile.gettempdir(),
+                )
+                downloaded = 0
+                while True:
+                    chunk = resp.read(65536)
+                    if not chunk:
+                        break
+                    tmp.write(chunk)
+                    downloaded += len(chunk)
+                    payload = {"downloaded": downloaded}
+                    if total:
+                        payload["total"] = total
+                    yield f"data: {json.dumps(payload)}\n\n"
+                tmp.close()
+                _update_state["path"] = tmp.name
+                yield "data: %%DONE%%\n\n"
+        except Exception as exc:  # noqa: BLE001
+            yield f"data: {json.dumps({'error': str(exc)})}\n\n"
+
+    return Response(
+        stream(),
+        mimetype="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@app.route("/api/apply_update", methods=["POST"])
+def api_apply_update():
+    """Launch the downloaded installer silently, then exit this process."""
+    path = _update_state.get("path")
+    if not path or not Path(path).exists():
+        return jsonify({"error": "No update ready"}), 400
+    subprocess.Popen([path, "/SILENT"])  # noqa: S603 — list form, no shell; path is server-controlled
+    threading.Timer(1.0, lambda: os._exit(0)).start()  # noqa: SLF001 — intentional hard exit so installer can replace files
+    return jsonify({"ok": True})
 
 
 # ── My Tag Manager routes ─────────────────────────────────────────────────────
