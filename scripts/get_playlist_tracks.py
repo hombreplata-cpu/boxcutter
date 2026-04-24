@@ -10,10 +10,18 @@ from pyrekordbox import Rekordbox6Database as MasterDatabase
 from sqlalchemy import text
 
 
-def fmt_duration(ms):
-    """Convert milliseconds to seconds."""
+def fmt_duration(val):
+    """Return track length in seconds.
+
+    Rekordbox-analyzed tracks store Length in seconds.
+    Tracks added by our script stored Length in ms (int(info.length * 1000)).
+    Values >= 10000 are unambiguously ms; divide those to get seconds.
+    """
     try:
-        return max(0, int(ms) // 1000)
+        val = int(val)
+        if val <= 0:
+            return 0
+        return val // 1000 if val >= 10000 else val
     except Exception:
         return 0
 
@@ -51,7 +59,11 @@ def main():
             bpm = None
             if content.BPM:
                 with contextlib.suppress(Exception):
-                    bpm = int(float(content.BPM))
+                    raw = float(content.BPM)
+                    # Rekordbox stores BPM × 100 (128 BPM → 12800).
+                    # Values > 500 are unambiguously × 100 storage.
+                    divided = raw / 100 if raw > 500 else raw
+                    bpm = int(divided) if divided == int(divided) else round(divided, 1)
             return {
                 "id": content.ID,
                 "title": content.Title or "",
@@ -59,6 +71,7 @@ def main():
                 "bpm": bpm,
                 "key": content.KeyName or "",
                 "duration": fmt_duration(content.Length),
+                "rating": content.Rating or 0,
             }
 
         if all_tracks_mode:

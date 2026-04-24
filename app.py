@@ -1159,6 +1159,36 @@ def api_stream(track_id):
     return send_file(file_path, mimetype=mime, conditional=True)
 
 
+@app.route("/api/tracks/<content_id>/cues")
+def api_track_cues(content_id):
+    """Return Rekordbox cue points for a track (read-only)."""
+    if not _listen_authed():
+        return jsonify({"error": "Unauthorized"}), 401
+    try:
+        from pyrekordbox.db6.tables import DjmdCue  # noqa: PLC0415
+
+        db = _open_db()
+        try:
+            cues = (
+                db.session.query(DjmdCue).filter_by(ContentID=content_id, rb_local_deleted=0).all()
+            )
+        except Exception:
+            cues = db.session.query(DjmdCue).filter_by(ContentID=content_id).all()
+        result = [
+            {
+                "id": str(c.ID),
+                "time_ms": int(c.InMsec or 0),
+                "kind": int(c.Kind or 0),
+                "comment": c.Comment or "",
+            }
+            for c in cues
+        ]
+        result.sort(key=lambda x: x["time_ms"])
+        return jsonify(result)
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
 def _port_pid(port: int) -> int | None:
     """Return the PID listening on *port*, or None if the port is free."""
     try:

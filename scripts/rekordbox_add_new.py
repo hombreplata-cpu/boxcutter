@@ -89,7 +89,8 @@ def read_audio_tags(fp):
         raw_bpm = _first(audio.get("bpm"))
         if raw_bpm:
             with contextlib.suppress(ValueError, TypeError):
-                tags["bpm"] = int(float(str(raw_bpm).strip()))
+                # Rekordbox stores BPM × 100 (e.g. 128 BPM → 12800)
+                tags["bpm"] = int(round(float(str(raw_bpm).strip()) * 100))
 
         # Year — take first 4 chars of the date tag
         raw_date = _first(audio.get("date"))
