@@ -3,6 +3,79 @@
 
 {% block head %}
 <style>
+  .dashboard-lower {
+    display: grid;
+    grid-template-columns: 1fr 300px;
+    gap: 20px;
+    align-items: start;
+  }
+  .top-played-panel {
+    background: var(--surface, var(--bg-panel));
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .top-played-header {
+    padding: 10px 16px;
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-hover);
+  }
+  .top-played-list {
+    max-height: 480px;
+    overflow-y: auto;
+  }
+  .top-played-row {
+    display: grid;
+    grid-template-columns: 28px 1fr auto;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 12px;
+    border-bottom: 1px solid var(--border);
+    font-family: var(--mono);
+    font-size: 12px;
+  }
+  .top-played-row:last-child { border-bottom: none; }
+  .tp-rank {
+    color: var(--text-dim);
+    font-size: 11px;
+    text-align: right;
+  }
+  .tp-rank.gold   { color: #f7b731; font-weight: 700; }
+  .tp-rank.silver { color: #a0aec0; font-weight: 700; }
+  .tp-rank.bronze { color: #c97a3a; font-weight: 700; }
+  .tp-meta { overflow: hidden; }
+  .tp-title {
+    color: var(--text);
+    font-size: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .tp-artist {
+    color: var(--text-dim);
+    font-size: 11px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .tp-count {
+    color: var(--accent);
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .top-played-empty {
+    padding: 20px 16px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-dim);
+  }
   .stats-bar {
     display: grid;
     grid-template-columns: auto auto 1fr;
@@ -127,32 +200,41 @@
   </div>
 </div>
 
-<div class="tool-grid">
-  <a href="/tool/add_new" class="tool-card">
-    <div class="tc-icon">＋</div>
-    <div class="tc-name">Add New Tracks</div>
-    <div class="tc-desc">Scan a watch folder for audio files not yet in Rekordbox and add them to a chosen playlist, ready for analysis.</div>
-  </a>
-  <a href="/tool/strip_comments" class="tool-card">
-    <div class="tc-icon">⊘</div>
-    <div class="tc-name">Strip URL Comments</div>
-    <div class="tc-desc">Remove URLs injected into MP3/FLAC comment tags by download services, leaving all other content intact.</div>
-  </a>
-  <a href="/tool/cleanup" class="tool-card">
-    <div class="tc-icon">⌫</div>
-    <div class="tc-name">Library Cleanup</div>
-    <div class="tc-desc">Find audio files on disk not referenced in Rekordbox and move them to a DELETE folder for review.</div>
-  </a>
-  <a href="/tool/relocate" class="tool-card">
-    <div class="tc-icon">⇄</div>
-    <div class="tc-name">Repath Tracks</div>
-    <div class="tc-desc">Re-point track paths in the Rekordbox database to a new folder. Replaces identical paths in bulk — does not move files. Preserves all cues, beatgrids, and playlists.</div>
-  </a>
-  <a href="/tool/fix_metadata" class="tool-card">
-    <div class="tc-icon">⚕</div>
-    <div class="tc-name">Fix Metadata</div>
-    <div class="tc-desc">Repairs Rekordbox's cached FileType and FileSize when they don't match the file on disk — common after converting formats (e.g. MP3 → FLAC) or re-encoding files in place. File paths must already be correct. Requires 'Analyze Tracks' in Rekordbox after running.</div>
-  </a>
+<div class="dashboard-lower">
+  <div class="tool-grid">
+    <a href="/tool/add_new" class="tool-card">
+      <div class="tc-icon">＋</div>
+      <div class="tc-name">Add New Tracks</div>
+      <div class="tc-desc">Scan a watch folder for audio files not yet in Rekordbox and add them to a chosen playlist, ready for analysis.</div>
+    </a>
+    <a href="/tool/strip_comments" class="tool-card">
+      <div class="tc-icon">⊘</div>
+      <div class="tc-name">Strip URL Comments</div>
+      <div class="tc-desc">Remove URLs injected into MP3/FLAC comment tags by download services, leaving all other content intact.</div>
+    </a>
+    <a href="/tool/cleanup" class="tool-card">
+      <div class="tc-icon">⌫</div>
+      <div class="tc-name">Library Cleanup</div>
+      <div class="tc-desc">Find audio files on disk not referenced in Rekordbox and move them to a DELETE folder for review.</div>
+    </a>
+    <a href="/tool/relocate" class="tool-card">
+      <div class="tc-icon">⇄</div>
+      <div class="tc-name">Repath Tracks</div>
+      <div class="tc-desc">Re-point track paths in the Rekordbox database to a new folder. Replaces identical paths in bulk — does not move files. Preserves all cues, beatgrids, and playlists.</div>
+    </a>
+    <a href="/tool/fix_metadata" class="tool-card">
+      <div class="tc-icon">⚕</div>
+      <div class="tc-name">Fix Metadata</div>
+      <div class="tc-desc">Repairs Rekordbox's cached FileType and FileSize when they don't match the file on disk — common after converting formats (e.g. MP3 → FLAC) or re-encoding files in place. File paths must already be correct. Requires 'Analyze Tracks' in Rekordbox after running.</div>
+    </a>
+  </div>
+
+  <div class="top-played-panel">
+    <div class="top-played-header">Top Played</div>
+    <div class="top-played-list" id="top-played-list">
+      <div class="top-played-empty">Loading…</div>
+    </div>
+  </div>
 </div>
 {% endblock %}
 
@@ -237,6 +319,32 @@
         ${sl.label} <span style="color:var(--text)">${fmtNum(sl.value)}</span>
       </span>`
     ).join('');
+
+    renderTopPlayed(data.top_played || []);
+  }
+
+  function renderTopPlayed(tracks) {
+    const el = document.getElementById('top-played-list');
+    if (!el) return;
+    if (tracks.length === 0) {
+      el.innerHTML = '<div class="top-played-empty">No play data — play some tracks in Rekordbox first.</div>';
+      return;
+    }
+    const rankClass = i => i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : '';
+    el.innerHTML = tracks.map((t, i) => `
+      <div class="top-played-row">
+        <span class="tp-rank ${rankClass(i)}">${i + 1}</span>
+        <div class="tp-meta">
+          <div class="tp-title">${esc(t.title || '—')}</div>
+          <div class="tp-artist">${esc(t.artist || '—')}</div>
+        </div>
+        <span class="tp-count">${fmtNum(t.play_count)}</span>
+      </div>`
+    ).join('');
+  }
+
+  function esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
   function renderError(msg) {
@@ -247,6 +355,8 @@
       el.classList.add('error');
     });
     document.getElementById('chart-legend').textContent = msg || 'Could not load stats';
+    const tp = document.getElementById('top-played-list');
+    if (tp) tp.innerHTML = '<div class="top-played-empty">Could not load stats.</div>';
   }
 
   fetch('/api/stats')
