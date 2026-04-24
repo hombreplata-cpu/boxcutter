@@ -10,12 +10,14 @@ Then open http://localhost:5000 in your browser.
 import json
 import os
 import platform
+import shutil
 import signal
 import socket
 import subprocess
 import sys
 import threading
 import traceback
+import uuid
 import webbrowser
 from datetime import datetime
 from pathlib import Path
@@ -48,6 +50,7 @@ TOOL_LABELS = {
     "strip_comments": "Strip URL Comments",
     "fix_metadata": "Fix Metadata",
     "add_new": "Add New Tracks",
+    "mytag": "My Tag Manager",
 }
 
 
@@ -115,6 +118,41 @@ def save_history_entry(entry):
             json.dump(history, f, indent=2)
     except Exception:  # noqa: S110 — history write failure is non-fatal; run continues normally
         pass
+
+
+def create_db_backup(db, tool_name: str) -> Path:
+    """Create a timestamped backup in rekordbocks-backups/ next to master.db."""
+    db_path = Path(db.engine.url.database)
+    backup_dir = db_path.parent / "rekordbocks-backups"
+    backup_dir.mkdir(exist_ok=True)
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    dest = backup_dir / f"master_backup_{tool_name}_{ts}.db"
+    shutil.copy2(db_path, dest)
+    return dest
+
+
+def _open_db(cfg=None):
+    """Open the Rekordbox database. Lazy-imports pyrekordbox to avoid breaking startup."""
+    from pyrekordbox import Rekordbox6Database as MasterDatabase  # noqa: PLC0415
+
+    if cfg is None:
+        cfg = load_config()
+    db_path = clean_path(cfg.get("db_path", ""))
+    return MasterDatabase(path=db_path or None)
+
+
+def _next_song_mytag_id(db) -> str:
+    """Generate the next available ID for a new DjmdSongMyTag row."""
+    try:
+        from sqlalchemy import text  # noqa: PLC0415
+
+        with db.engine.connect() as conn:
+            result = conn.execute(
+                text("SELECT MAX(CAST(ID AS INTEGER)) FROM djmdSongMyTag")
+            ).scalar()
+        return str((result or 0) + 1)
+    except Exception:
+        return str(uuid.uuid4())
 
 
 def rekordbox_is_running():
@@ -199,6 +237,7 @@ def tool(n):
         "strip_comments": ("Strip URL Comments", "strip_comments.html"),
         "fix_metadata": ("Fix Metadata", "fix_metadata.html"),
         "add_new": ("Add New Tracks", "add_new.html"),
+        "mytag": ("My Tag Manager", "mytag.html"),
     }
     if n not in tools:
         return redirect(url_for("index"))
@@ -217,6 +256,156 @@ def api_config():
 def api_rekordbox_status():
     """Check whether rekordbox.exe is currently running."""
     return jsonify({"running": rekordbox_is_running()})
+
+
+# ── My Tag Manager routes ─────────────────────────────────────────────────────
+
+
+@app.route("/api/mytags/backup", methods=["POST"])
+def api_mytags_backup():
+    """Create a DB backup before a My Tag editing session."""
+    if rekordbox_is_running():
+        return jsonify({"error": "Close Rekordbox before editing tags"}), 409
+    try:
+        db = _open_db()
+        backup_path = create_db_backup(db, "mytag")
+        return jsonify({"ok": True, "backup_path": str(backup_path)})
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/mytags")
+def api_mytags():
+    """Return all My Tags as a flat list (groups and children)."""
+    try:
+        db = _open_db()
+        try:
+            tags = db.get_my_tag().filter_by(rb_local_deleted=0).all()
+        except Exception:
+            tags = db.get_my_tag().all()
+        return jsonify(
+            [
+                {
+                    "id": t.ID,
+                    "name": t.Name,
+                    "parent_id": t.ParentID,
+                    "seq": t.Seq,
+                    "attribute": t.Attribute,
+                }
+                for t in tags
+            ]
+        )
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/tracks/search")
+def api_tracks_search():
+    """Search djmdContent by title or artist (case-insensitive, up to limit results)."""
+    q = request.args.get("q", "").strip()
+    limit = min(50, max(1, int(request.args.get("limit", 20))))
+    if not q:
+        return jsonify([])
+    try:
+        from pyrekordbox.db6.tables import DjmdArtist, DjmdContent  # noqa: PLC0415
+        from sqlalchemy import or_  # noqa: PLC0415
+
+        db = _open_db()
+        tracks = (
+            db.session.query(DjmdContent)
+            .outerjoin(DjmdArtist, DjmdContent.ArtistID == DjmdArtist.ID)
+            .filter(DjmdContent.rb_local_deleted == 0)
+            .filter(
+                or_(
+                    DjmdContent.Title.ilike(f"%{q}%"),
+                    DjmdArtist.Name.ilike(f"%{q}%"),
+                )
+            )
+            .limit(limit)
+            .all()
+        )
+        return jsonify(
+            [
+                {
+                    "id": t.ID,
+                    "title": t.Title or "",
+                    "artist": t.Artist.Name if t.Artist else "",
+                }
+                for t in tracks
+            ]
+        )
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/tracks/<content_id>/mytags")
+def api_track_mytags_get(content_id):
+    """Get all My Tags currently assigned to a track."""
+    try:
+        db = _open_db()
+        assignments = db.get_my_tag_songs(ContentID=content_id).all()
+        return jsonify(
+            [
+                {
+                    "assignment_id": a.ID,
+                    "tag_id": a.MyTagID,
+                    "tag_name": a.MyTagName or "",
+                }
+                for a in assignments
+            ]
+        )
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/tracks/<content_id>/mytags", methods=["POST"])
+def api_track_mytags_add(content_id):
+    """Assign a My Tag to a track."""
+    if rekordbox_is_running():
+        return jsonify({"error": "Close Rekordbox before editing tags"}), 409
+    data = request.get_json() or {}
+    mytag_id = str(data.get("mytag_id", "")).strip()
+    if not mytag_id:
+        return jsonify({"error": "mytag_id required"}), 400
+    try:
+        from pyrekordbox.db6.tables import DjmdSongMyTag  # noqa: PLC0415
+
+        db = _open_db()
+        existing = db.get_my_tag_songs(ContentID=content_id).filter_by(MyTagID=mytag_id).first()
+        if existing:
+            return jsonify({"error": "Tag already assigned to this track"}), 409
+        current = db.get_my_tag_songs(MyTagID=mytag_id).all()
+        track_no = max((a.TrackNo or 0 for a in current), default=0) + 1
+        new_id = _next_song_mytag_id(db)
+        row = DjmdSongMyTag(
+            ID=new_id,
+            MyTagID=mytag_id,
+            ContentID=content_id,
+            TrackNo=track_no,
+            UUID=str(uuid.uuid4()),
+        )
+        db.session.add(row)
+        db.commit()
+        return jsonify({"ok": True, "assignment_id": new_id})
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/tracks/<content_id>/mytags/<assignment_id>", methods=["DELETE"])
+def api_track_mytags_remove(content_id, assignment_id):
+    """Remove a My Tag assignment from a track."""
+    if rekordbox_is_running():
+        return jsonify({"error": "Close Rekordbox before editing tags"}), 409
+    try:
+        db = _open_db()
+        row = db.get_my_tag_songs(ID=assignment_id)
+        if not row or row.ContentID != content_id:
+            return jsonify({"error": "Assignment not found"}), 404
+        db.session.delete(row)
+        db.commit()
+        return jsonify({"ok": True})
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
 
 
 @app.route("/api/run/<script_name>")

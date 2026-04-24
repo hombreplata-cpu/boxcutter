@@ -807,12 +807,93 @@
       margin-top: 5px;
       text-align: right;
     }
+
+    /* ── Hamburger (mobile only) ── */
+    .hamburger {
+      display: none;
+      position: fixed;
+      top: 14px;
+      left: 14px;
+      z-index: 200;
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      width: 40px;
+      height: 40px;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      flex-direction: column;
+      gap: 5px;
+      padding: 0;
+    }
+    .hamburger span {
+      display: block;
+      width: 20px;
+      height: 2px;
+      background: var(--text);
+      border-radius: 2px;
+    }
+
+    /* ── Sidebar overlay (mobile) ── */
+    #sidebar-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 99;
+    }
+    #sidebar-overlay.visible { display: block; }
+
+    /* ── Mobile breakpoint ── */
+    @media (max-width: 768px) {
+      .hamburger { display: flex; }
+
+      .sidebar {
+        position: fixed;
+        left: -240px;
+        top: 0;
+        z-index: 100;
+        height: 100%;
+        overflow-y: auto;
+        transition: left 0.22s ease;
+        min-height: 0;
+      }
+      .sidebar.open { left: 0; }
+
+      .main {
+        margin-left: 0;
+        padding: 20px 16px 40px;
+        padding-top: 64px;
+      }
+
+      .tool-body { flex-direction: column; }
+      .btn-col {
+        flex-direction: row;
+        flex-wrap: wrap;
+        min-width: unset;
+        padding-top: 0;
+        width: 100%;
+      }
+      .btn-col .btn { flex: 1; min-width: 140px; }
+      .btn { min-height: 44px; }
+      .path-input, select, input[type=text], input[type=search] { font-size: 16px; }
+      .page-header h1 { font-size: 20px; }
+      .tool-grid { grid-template-columns: 1fr !important; }
+      .dashboard-lower { grid-template-columns: 1fr !important; }
+      .stats-bar { grid-template-columns: 1fr !important; }
+    }
   </style>
   {% block head %}{% endblock %}
 </head>
 <body>
 
-<nav class="sidebar">
+<button class="hamburger" id="hamburger-btn" aria-label="Open menu" onclick="toggleSidebar()">
+  <span></span><span></span><span></span>
+</button>
+<div id="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+<nav class="sidebar" id="sidebar">
   <div class="sidebar-logo">
     <div class="icon">◈</div>
     <div class="name">rekordbocks</div>
@@ -822,6 +903,7 @@
     <a href="/" class="{% if request.path == '/' %}active{% endif %}">⊞ &nbsp;Dashboard</a>
     <div class="nav-section">Tools</div>
     <a href="/tool/add_new"        class="{% if 'add_new' in request.path %}active{% endif %}">＋ &nbsp;Add New Tracks</a>
+    <a href="/tool/mytag"          class="{% if 'mytag' in request.path %}active{% endif %}">🏷 &nbsp;My Tag Manager</a>
     <a href="/tool/strip_comments" class="{% if 'strip_comments' in request.path %}active{% endif %}">⊘ &nbsp;Strip URL Comments</a>
     <a href="/tool/cleanup"        class="{% if 'cleanup' in request.path %}active{% endif %}">⌫ &nbsp;Library Cleanup</a>
     <a href="/tool/relocate"       class="{% if 'relocate' in request.path and 'remove' not in request.path %}active{% endif %}">⇄ &nbsp;Repath Tracks</a>
@@ -1670,6 +1752,22 @@
   // Check immediately on page load, then every 2.5 seconds
   checkRekordboxStatus();
   setInterval(checkRekordboxStatus, 2500);
+
+  // ── Mobile sidebar toggle ─────────────────────────────────────────────────
+
+  function toggleSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebar-overlay');
+    const isOpen  = sidebar.classList.toggle('open');
+    overlay.classList.toggle('visible', isOpen);
+  }
+
+  document.querySelectorAll('.sidebar .nav a').forEach(function (a) {
+    a.addEventListener('click', function () {
+      const sidebar = document.getElementById('sidebar');
+      if (sidebar.classList.contains('open')) toggleSidebar();
+    });
+  });
 
   // ── Restore panel toggle ─────────────────────────────────────────────────
 
