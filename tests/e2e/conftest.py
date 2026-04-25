@@ -1,9 +1,9 @@
 """
 Shared fixtures for Playwright E2E tests.
 
-live_server  — starts a real Flask server in a daemon thread on a free port,
-               using a temp config file so the user's ~/.boxcutter_config.json
-               is never touched.
+live_server  — starts app.py as a subprocess on a free port with an isolated
+               temp config file so the user's ~/.boxcutter_config.json is never
+               touched. Uses BOXCUTTER_CONFIG_PATH + BOXCUTTER_PORT env vars.
 browser      — session-scoped headless Chromium instance.
 page         — function-scoped Playwright page (new tab per test).
 """
@@ -11,16 +11,15 @@ page         — function-scoped Playwright page (new tab per test).
 import json
 import os
 import socket
+import subprocess
 import sys
-import threading
 import time
 from pathlib import Path
 
 import pytest
 from playwright.sync_api import sync_playwright
 
-# Make the repo root importable from this file's location (tests/e2e/)
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+REPO_ROOT = Path(__file__).parent.parent.parent
 
 
 def _find_free_port() -> int:
@@ -32,7 +31,7 @@ def _find_free_port() -> int:
 @pytest.fixture(scope="session")
 def live_server(tmp_path_factory):
     """
-    Start the Flask app on a free port with an isolated temp config.
+    Start app.py as a subprocess on a free port with a temp config.
     Yields the base URL, e.g. 'http://127.0.0.1:54321'.
     """
     tmp = tmp_path_factory.mktemp("e2e_config")
@@ -40,42 +39,40 @@ def live_server(tmp_path_factory):
     config_path.write_text(json.dumps({}), encoding="utf-8")
 
     port = _find_free_port()
-    os.environ["BOXCUTTER_CONFIG_PATH"] = str(config_path)
 
-    # Import app after setting the env var so CONFIG_FILE resolves to our temp path
-    import importlib
+    env = os.environ.copy()
+    env["BOXCUTTER_CONFIG_PATH"] = str(config_path)
+    env["BOXCUTTER_PORT"] = str(port)
+    env["BOXCUTTER_TESTING"] = "1"  # suppresses browser-open timer
 
-    import app as flask_app
+    proc = subprocess.Popen(
+        [sys.executable, "app.py"],
+        cwd=str(REPO_ROOT),
+        env=env,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
 
-    importlib.reload(flask_app)
-
-    def _run():
-        flask_app.app.run(
-            host="127.0.0.1",
-            port=port,
-            use_reloader=False,
-            threaded=True,
-            debug=False,
-        )
-
-    thread = threading.Thread(target=_run, daemon=True)
-    thread.start()
-
-    # Wait until the server is accepting connections (max 15 s)
-    deadline = time.time() + 15
+    # Wait until the server accepts connections (max 20 s)
+    deadline = time.time() + 20
     while time.time() < deadline:
         try:
             with socket.create_connection(("127.0.0.1", port), timeout=0.5):
                 break
         except OSError:
-            time.sleep(0.1)
+            time.sleep(0.15)
     else:
-        raise RuntimeError(f"Flask test server did not start on port {port} within 15 s")
+        proc.terminate()
+        raise RuntimeError(f"Flask test server did not start on port {port} within 20 s")
 
     base_url = f"http://127.0.0.1:{port}"
     yield base_url
 
-    os.environ.pop("BOXCUTTER_CONFIG_PATH", None)
+    proc.terminate()
+    try:
+        proc.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        proc.kill()
 
 
 @pytest.fixture(scope="session")

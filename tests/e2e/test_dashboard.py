@@ -17,12 +17,11 @@ TOOL_ROUTES = [
 
 
 def test_dashboard_loads_without_error(page, live_server):
-    page.goto(f"{live_server}/")
+    response = page.goto(f"{live_server}/")
+    assert response.status < 500, f"Dashboard returned HTTP {response.status}"
     assert page.title() != "", "Page title is empty — possible render failure"
-    # No error heading
     h1_text = page.locator("h1").first.inner_text()
     assert "error" not in h1_text.lower(), f"Error heading on dashboard: {h1_text!r}"
-    assert "500" not in page.content(), "500 error in dashboard response body"
 
 
 def test_all_tool_routes_return_without_500(page, live_server):
