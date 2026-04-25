@@ -39,6 +39,9 @@ logs/
 master_backup_*.db
 master.db
 
+# E2E test fixture — too large and contains personal library data
+tests/fixtures/*.db
+
 # Internal Claude docs
 .claude/
 CLAUDE.md
