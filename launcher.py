@@ -37,6 +37,7 @@ if getattr(sys, "frozen", False):
     # guard, producing no output and making every tool appear to silently do nothing).
     if len(sys.argv) > 1 and sys.argv[1].endswith(".py"):
         import runpy  # stdlib — always available in the bundle
+
         script_path = sys.argv[1]
         sys.path.insert(0, os.path.dirname(script_path))  # so `from utils import …` resolves
         sys.argv = sys.argv[1:]  # shift: script path becomes argv[0] for argparse
