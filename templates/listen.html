@@ -998,6 +998,10 @@ async function openPlaylist(pid, name) {
     const res = await fetch(`/api/listen/playlist/${pid}/tracks`);
     if (!res.ok) throw new Error(await res.text());
     const data = await res.json();
+    if (data.smart_unavailable) {
+      showError('Intelligent playlists are evaluated dynamically by Rekordbox and aren\'t stored in the database.<br><br>To browse this playlist, open it in Rekordbox on your PC.');
+      return;
+    }
     tracks = data.tracks || [];
     renderTracks();
   } catch (e) {
@@ -1070,14 +1074,14 @@ function playTrack(idx) {
   trackIdx = idx;
   const t = tracks[idx];
 
+  document.getElementById('mini-player').style.display = 'block';
+
   audio.src = `/api/stream/${t.id}`;
   audio.load();
   audio.play().catch(() => {});
 
   updateNowPlayingUI(t);
   renderTracks();
-
-  document.getElementById('mini-player').style.display = 'block';
 
   // Reset and reload waveform + cues for the new track
   cuePoints = [];
