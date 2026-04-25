@@ -929,7 +929,7 @@ function renderPlaylists() {
       for (const n of matching) {
         const icon = n.smart ? '⚡' : '♫';
         html += `
-          <div class="tree-item" onclick="openPlaylist(${n.id}, ${JSON.stringify(esc(n.name))})">
+          <div class="tree-item" data-name="${esc(n.name)}" onclick="openPlaylist(${n.id}, this.dataset.name)">
             <span class="tree-icon" style="font-size:13px;color:var(--dim)">${icon}</span>
             <span class="tree-name">${esc(n.name)}</span>
             <span class="tree-chevron">›</span>
@@ -959,7 +959,7 @@ function renderTreeNodes(nodes) {
     } else {
       const icon = node.smart ? '⚡' : '♫';
       html += `
-        <div class="tree-item" onclick="openPlaylist(${node.id}, ${JSON.stringify(esc(node.name))})">
+        <div class="tree-item" data-name="${esc(node.name)}" onclick="openPlaylist(${node.id}, this.dataset.name)">
           <span class="tree-icon" style="font-size:13px;color:var(--dim)">${icon}</span>
           <span class="tree-name">${esc(node.name)}</span>
           <span class="tree-chevron">›</span>
