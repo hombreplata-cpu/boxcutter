@@ -4,6 +4,10 @@ from unittest.mock import MagicMock
 
 import pytest
 
+# tests/ dir — makes helpers.py importable from test modules.
+sys.path.insert(0, str(Path(__file__).parent))
+# Repo root — needed by test_app.py and any test that imports app directly.
+sys.path.insert(0, str(Path(__file__).parent.parent))
 # Make scripts/ importable as a flat namespace (needed for `from utils import …`
 # inside scripts when they are imported as `scripts.rekordbox_xxx` in tests).
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
@@ -60,3 +64,76 @@ def mock_db(tmp_path, mock_content):
     db.get_content.return_value.filter_by.return_value.all.return_value = [mock_content]
     db.engine.url.database = str(tmp_path / "master.db")
     return db
+
+
+@pytest.fixture
+def flask_client(tmp_path):
+    """Flask test client with a fully configured mock config (db_path set)."""
+    from unittest.mock import patch
+
+    import app as flask_app
+
+    flask_app.app.config["TESTING"] = True
+    cfg = {
+        "db_path": "/fake/master.db",
+        "music_root": str(tmp_path / "music"),
+        "flac_root": str(tmp_path / "flac"),
+        "mp3_root": str(tmp_path / "mp3"),
+        "delete_dir": str(tmp_path / "DELETE"),
+        "watch_dir": str(tmp_path / "watch"),
+    }
+    with (
+        patch.object(flask_app, "load_config", return_value=cfg),
+        flask_app.app.test_client() as c,
+    ):
+        yield c
+
+
+@pytest.fixture
+def flask_client_no_paths(tmp_path):
+    """Flask test client: db_path set, but all other path fields empty.
+
+    Use for tests that check the app returns 400 when a required path param
+    is absent and there is no config fallback to hide the missing field.
+    """
+    from unittest.mock import patch
+
+    import app as flask_app
+
+    flask_app.app.config["TESTING"] = True
+    cfg = {
+        "db_path": "/fake/master.db",
+        "music_root": "",
+        "flac_root": "",
+        "mp3_root": "",
+        "delete_dir": "",
+        "watch_dir": "",
+    }
+    with (
+        patch.object(flask_app, "load_config", return_value=cfg),
+        flask_app.app.test_client() as c,
+    ):
+        yield c
+
+
+@pytest.fixture
+def flask_client_no_db(tmp_path):
+    """Flask test client where db_path is intentionally absent."""
+    from unittest.mock import patch
+
+    import app as flask_app
+
+    flask_app.app.config["TESTING"] = True
+    cfg = {
+        "db_path": "",
+        "music_root": str(tmp_path / "music"),
+        "flac_root": str(tmp_path / "flac"),
+        "mp3_root": str(tmp_path / "mp3"),
+        "delete_dir": str(tmp_path / "DELETE"),
+        "watch_dir": str(tmp_path / "watch"),
+    }
+    with (
+        patch.object(flask_app, "load_config", return_value=cfg),
+        flask_app.app.test_client() as c,
+    ):
+        yield c
