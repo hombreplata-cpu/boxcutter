@@ -50,7 +50,9 @@ _POPEN_FLAGS: dict = (
     {"creationflags": subprocess.CREATE_NO_WINDOW} if sys.platform == "win32" else {}
 )
 
-CONFIG_FILE = Path.home() / ".boxcutter_config.json"
+CONFIG_FILE = Path(
+    os.environ.get("BOXCUTTER_CONFIG_PATH", str(Path.home() / ".boxcutter_config.json"))
+)
 SCRIPTS_DIR = Path(__file__).parent / "scripts"
 
 
