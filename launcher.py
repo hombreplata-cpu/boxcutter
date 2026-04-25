@@ -30,6 +30,18 @@ sys.excepthook = _excepthook
 # Must set cwd before importing app so Flask resolves templates/static correctly
 if getattr(sys, "frozen", False):
     os.chdir(sys._MEIPASS)
+    # Script dispatch: app.py calls [sys.executable, script.py, ...] for every tool run.
+    # In the frozen binary sys.executable is BoxCutter.exe, not Python. Detect this case
+    # and execute the target script via runpy so the bundle's interpreter is used instead
+    # of starting a second GUI instance (which would exit silently via the single-instance
+    # guard, producing no output and making every tool appear to silently do nothing).
+    if len(sys.argv) > 1 and sys.argv[1].endswith(".py"):
+        import runpy  # stdlib — always available in the bundle
+        script_path = sys.argv[1]
+        sys.path.insert(0, os.path.dirname(script_path))  # so `from utils import …` resolves
+        sys.argv = sys.argv[1:]  # shift: script path becomes argv[0] for argparse
+        runpy.run_path(script_path, run_name="__main__")
+        sys.exit(0)
 
 from app import app  # noqa: E402
 
