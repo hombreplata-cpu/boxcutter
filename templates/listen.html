@@ -639,9 +639,49 @@
       margin: 0 auto 16px;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Track loading bar ───────────────────────────────────────── */
+    #track-load-bar {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      z-index: 1000;
+      pointer-events: none;
+      display: none;
+    }
+    #track-load-bar.loading {
+      display: block;
+      background: var(--border);
+      overflow: hidden;
+    }
+    #track-load-bar.loading::after {
+      content: '';
+      display: block;
+      height: 100%;
+      width: 45%;
+      background: var(--accent);
+      border-radius: 0 2px 2px 0;
+      animation: bar-slide 1.2s ease-in-out infinite;
+    }
+    @keyframes bar-slide {
+      0%   { margin-left: -45%; }
+      100% { margin-left: 100%; }
+    }
+    #track-load-bar.done {
+      display: block;
+      background: var(--accent);
+      animation: bar-done 0.45s ease-out forwards;
+    }
+    @keyframes bar-done {
+      0%   { opacity: 1; }
+      55%  { opacity: 1; }
+      100% { opacity: 0; }
+    }
   </style>
 </head>
 <body>
+
+<div id="track-load-bar"></div>
 
 <div id="app">
 
@@ -911,7 +951,7 @@ function renderTreeNodes(nodes) {
         <div class="tree-item" onclick="toggleFolder(this)">
           <span class="tree-icon">📁</span>
           <span class="tree-name">${esc(node.name)}</span>
-          <span class="tree-chevron">›</span>
+          <span class="tree-chevron" style="color:var(--dim);font-size:11px">▸</span>
         </div>
         <div class="tree-folder-children collapsed">
           ${renderTreeNodes(node.children || [])}
@@ -933,7 +973,7 @@ function toggleFolder(el) {
   const children = el.nextElementSibling;
   children.classList.toggle('collapsed');
   const chevron = el.querySelector('.tree-chevron');
-  chevron.textContent = children.classList.contains('collapsed') ? '›' : '⌄';
+  chevron.textContent = children.classList.contains('collapsed') ? '▸' : '▾';
 }
 
 // ── Track list ─────────────────────────────────────────────────────────────
@@ -1123,6 +1163,19 @@ audio.addEventListener('pause', () => {
 });
 
 audio.addEventListener('ended', () => nextTrack());
+
+// ── Track loading bar ──────────────────────────────────────────────────────
+const _loadBar = document.getElementById('track-load-bar');
+function _barLoading() { _loadBar.className = 'loading'; }
+function _barDone() {
+  _loadBar.className = 'done';
+  setTimeout(() => { if (_loadBar.className === 'done') _loadBar.className = ''; }, 450);
+}
+audio.addEventListener('loadstart', _barLoading);
+audio.addEventListener('waiting',   _barLoading);
+audio.addEventListener('canplay',   _barDone);
+audio.addEventListener('playing',   _barDone);
+audio.addEventListener('error',     () => { _loadBar.className = ''; });
 
 audio.addEventListener('timeupdate', () => {
   const dur = audio.duration || 0;
