@@ -17,11 +17,11 @@ def test_setup_saves_and_reloads_paths(page, live_server, tmp_path):
     page.locator("input[name='db_path']").fill(fake_db)
     page.locator("input[name='music_root']").fill(fake_music)
 
-    # Use requestSubmit() to bypass Playwright's click stability checks.
-    # The rekordbox-status poll (every 2.5 s) causes layout shifts that make
-    # force-click unreliable; submitting via the DOM API avoids that entirely.
-    page.evaluate("document.querySelector('form').requestSubmit()")
-    page.wait_for_load_state("load")
+    # expect_navigation() waits for the POST response to arrive before we
+    # issue the next goto, preventing "navigation interrupted by another
+    # navigation" errors when requestSubmit fires a redirect.
+    with page.expect_navigation():
+        page.evaluate("document.querySelector('form').requestSubmit()")
 
     # --- Reload and verify values persisted ---
     page.goto(f"{live_server}/setup")
