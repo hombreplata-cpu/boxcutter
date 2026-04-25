@@ -92,13 +92,24 @@ def main():
                 print(f"Playlist {playlist_id} not found", file=sys.stderr)
                 sys.exit(1)
 
-            rows = db.session.execute(
-                text(
-                    "SELECT ContentID FROM DjmdSongPlaylist "
-                    "WHERE PlaylistID = :pid AND rb_local_deleted = 0 ORDER BY TrackNo"
-                ),
-                {"pid": playlist_id},
-            ).fetchall()
+            is_smart = getattr(playlist, "Attribute", None) == 4
+            if is_smart:
+                # Smart playlists don't set rb_local_deleted on junction rows
+                rows = db.session.execute(
+                    text(
+                        "SELECT ContentID FROM DjmdSongPlaylist "
+                        "WHERE PlaylistID = :pid ORDER BY TrackNo"
+                    ),
+                    {"pid": playlist_id},
+                ).fetchall()
+            else:
+                rows = db.session.execute(
+                    text(
+                        "SELECT ContentID FROM DjmdSongPlaylist "
+                        "WHERE PlaylistID = :pid AND rb_local_deleted = 0 ORDER BY TrackNo"
+                    ),
+                    {"pid": playlist_id},
+                ).fetchall()
 
             tracks = []
             for (content_id,) in rows:
