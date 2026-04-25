@@ -94,35 +94,41 @@ def main():
 
             is_smart = getattr(playlist, "Attribute", None) == 4
 
-            rows = db.session.execute(
-                text(
-                    "SELECT ContentID FROM DjmdSongPlaylist "
-                    "WHERE PlaylistID = :pid AND rb_local_deleted = 0 ORDER BY TrackNo"
-                ),
-                {"pid": playlist_id},
-            ).fetchall()
-
-            tracks = []
-            for (content_id,) in rows:
-                content = db.get_content().filter_by(ID=content_id, rb_local_deleted=0).first()
-                if content:
-                    tracks.append(_build_track(content))
-
-            if is_smart and not tracks:
-                # Rekordbox evaluates intelligent playlists dynamically; their
-                # results are cached in DjmdSongPlaylist only after RB opens them.
-                # If the cache is empty, tell the UI so it can show a helpful message.
-                print(
-                    json.dumps(
-                        {
-                            "playlist_name": playlist.Name,
-                            "playlist_id": playlist_id,
-                            "tracks": [],
-                            "smart_unavailable": True,
-                        }
+            if is_smart:
+                smart_xml = getattr(playlist, "SmartList", None)
+                if not smart_xml:
+                    print(
+                        json.dumps(
+                            {
+                                "playlist_name": playlist.Name,
+                                "playlist_id": playlist_id,
+                                "tracks": [],
+                                "smart_unavailable": True,
+                            }
+                        )
                     )
+                    return
+                from pyrekordbox.db6.smartlist import SmartList  # noqa: PLC0415
+
+                sl = SmartList()
+                sl.parse(smart_xml)
+                contents = (
+                    db.get_content().filter_by(rb_local_deleted=0).filter(sl.filter_clause()).all()
                 )
-                return
+                tracks = [_build_track(c) for c in contents]
+            else:
+                rows = db.session.execute(
+                    text(
+                        "SELECT ContentID FROM DjmdSongPlaylist "
+                        "WHERE PlaylistID = :pid AND rb_local_deleted = 0 ORDER BY TrackNo"
+                    ),
+                    {"pid": playlist_id},
+                ).fetchall()
+                tracks = []
+                for (content_id,) in rows:
+                    content = db.get_content().filter_by(ID=content_id, rb_local_deleted=0).first()
+                    if content:
+                        tracks.append(_build_track(content))
 
             print(
                 json.dumps(
