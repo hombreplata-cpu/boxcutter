@@ -53,11 +53,19 @@ _POPEN_FLAGS: dict = (
 CONFIG_FILE = Path.home() / ".boxcutter_config.json"
 SCRIPTS_DIR = Path(__file__).parent / "scripts"
 
+
+def _default_delete_dir() -> str:
+    onedrive = Path.home() / "OneDrive" / "Desktop"
+    if onedrive.is_dir():
+        return str(onedrive / "DELETE")
+    return str(Path.home() / "Desktop" / "DELETE")
+
+
 DEFAULT_CONFIG = {
     "music_root": "",
     "flac_root": "",
     "mp3_root": "",
-    "delete_dir": str(Path.home() / "Desktop" / "DELETE"),
+    "delete_dir": _default_delete_dir(),
     "watch_dir": "",
     "db_path": "",
     "target_playlist_id": "",  # Add New Tracks: last-used playlist
@@ -89,6 +97,12 @@ def load_config():
                 data = json.load(f)
             cfg = DEFAULT_CONFIG.copy()
             cfg.update(data)
+            # Migrate stored delete_dir from the old non-OneDrive default to the
+            # correct OneDrive Desktop path on machines where OneDrive Desktop exists.
+            old_default = str(Path.home() / "Desktop" / "DELETE")
+            correct = _default_delete_dir()
+            if cfg.get("delete_dir") == old_default and correct != old_default:
+                cfg["delete_dir"] = correct
             return cfg
         except Exception:  # noqa: S110 — config load failure is expected; fall back to defaults
             pass
