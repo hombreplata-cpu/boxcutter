@@ -11,13 +11,15 @@ def test_setup_saves_and_reloads_paths(page, live_server, tmp_path):
     fake_music = str(tmp_path / "Music")
 
     page.goto(f"{live_server}/setup")
+    page.wait_for_load_state("load")
 
     # Fill in required fields
     page.locator("input[name='db_path']").fill(fake_db)
     page.locator("input[name='music_root']").fill(fake_music)
 
-    # Submit
-    page.locator("button[type='submit']").click()
+    # force=True bypasses Playwright's stability check, which can fail when
+    # the rekordbox-status polling (every 2.5 s) causes DOM layout shifts.
+    page.locator("button[type='submit']").click(force=True)
 
     # Should show the flash confirmation
     page.wait_for_selector(".flash", timeout=5000)

@@ -10,12 +10,14 @@ strip_comments needs no DB, so it works with a bare config.
 
 def test_strip_comments_streams_output_and_completes(page, live_server, tmp_path):
     page.goto(f"{live_server}/tool/strip_comments")
+    page.wait_for_load_state("load")
 
     # Point at an empty temp directory — script will scan 0 files and exit 0
     page.locator("#dir1").fill(str(tmp_path))
 
-    # Dry Run button calls run(true) → dry_run=1
-    page.locator("button.btn-secondary").click()
+    # force=True bypasses stability check — rekordbox-status polling causes
+    # DOM layout shifts that would otherwise make the click time out.
+    page.locator("button.btn-secondary").click(force=True)
 
     # Wait for the status label to reach 'Done' (max 30 s)
     status = page.locator("#status")
@@ -36,8 +38,9 @@ def test_strip_comments_streams_output_and_completes(page, live_server, tmp_path
 def test_strip_comments_sse_console_receives_output(page, live_server, tmp_path):
     """Console div must contain at least one line after a dry run."""
     page.goto(f"{live_server}/tool/strip_comments")
+    page.wait_for_load_state("load")
     page.locator("#dir1").fill(str(tmp_path))
-    page.locator("button.btn-secondary").click()
+    page.locator("button.btn-secondary").click(force=True)
 
     # Wait for Done
     page.wait_for_function(
