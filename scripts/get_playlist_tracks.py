@@ -64,6 +64,11 @@ def main():
                     # Values > 500 are unambiguously × 100 storage.
                     divided = raw / 100 if raw > 500 else raw
                     bpm = int(divided) if divided == int(divided) else round(divided, 1)
+            try:
+                raw_rating = content.Rating
+                rating = int(raw_rating) if raw_rating is not None else 0
+            except (TypeError, ValueError):
+                rating = 0
             return {
                 "id": content.ID,
                 "title": content.Title or "",
@@ -71,7 +76,7 @@ def main():
                 "bpm": bpm,
                 "key": content.KeyName or "",
                 "duration": fmt_duration(content.Length),
-                "rating": content.Rating or 0,
+                "rating": rating,
             }
 
         if all_tracks_mode:
