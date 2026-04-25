@@ -45,9 +45,51 @@ except ImportError:
 # Matches http://, https://, ftp://, and bare www. URLs
 URL_PATTERN = re.compile(r"(https?://|ftp://|www\.)\S+", re.IGNORECASE)
 
+# Known download/streaming service names used in injected boilerplate
+_SERVICES = (
+    r"(?:bandcamp|beatport|traxsource|juno(?:\s+download)?|bleep"
+    r"|soundcloud|spotify|tidal|deezer|youtube|apple\s+music|amazon\s+music)"
+)
 
+# Conservative: each pattern is fully anchored so the ENTIRE line must match.
+# Lines that mix boilerplate with other content are left alone.
+BOILERPLATE_PATTERNS = [
+    re.compile(rf"^visit\s+(?:our\s+|us\s+on\s+)?{_SERVICES}\b.*$", re.IGNORECASE),
+    re.compile(rf"^download(?:ed)?\s+from\s+{_SERVICES}\b.*$", re.IGNORECASE),
+    re.compile(rf"^(?:buy|purchase|get\s+it)\s+(?:on|at|from)\s+{_SERVICES}\b.*$", re.IGNORECASE),
+    re.compile(rf"^available\s+(?:on|at)\s+{_SERVICES}\b.*$", re.IGNORECASE),
+    re.compile(rf"^stream\s+(?:on|at)\s+{_SERVICES}\b.*$", re.IGNORECASE),
+    re.compile(rf"^support\s+.{{0,30}}\s+on\s+{_SERVICES}\b.*$", re.IGNORECASE),
+    re.compile(rf"^{_SERVICES}$", re.IGNORECASE),
+]
+
+
+def is_boilerplate_line(line: str) -> bool:
+    """Return True if the entire stripped line matches a known boilerplate pattern."""
+    stripped = line.strip()
+    return any(p.match(stripped) for p in BOILERPLATE_PATTERNS)
+
+
+def clean_text(text: str) -> str:
+    """Strip URLs and drop whole boilerplate lines. Returns cleaned text (may be empty)."""
+    cleaned = []
+    for line in text.splitlines():
+        line = URL_PATTERN.sub("", line).strip()
+        if line and is_boilerplate_line(line):
+            continue
+        cleaned.append(line)
+    return "\n".join(cleaned).strip()
+
+
+def needs_cleaning(text: str) -> bool:
+    """Return True if text contains a URL or any whole-line boilerplate."""
+    if URL_PATTERN.search(text):
+        return True
+    return any(is_boilerplate_line(line) for line in text.splitlines())
+
+
+# Kept for backward compatibility
 def strip_urls(text: str) -> str:
-    """Remove all URLs from a string. Returns stripped text (may be empty)."""
     return URL_PATTERN.sub("", text).strip()
 
 
@@ -81,8 +123,8 @@ def _process_id3(path: Path, write: bool) -> list:
         frame_changed = False
 
         for text in original:
-            if has_url(text):
-                cleaned = strip_urls(text)
+            if needs_cleaning(text):
+                cleaned = clean_text(text)
                 new_texts.append(cleaned)
                 changes.append({"field": key, "from_": text, "to_": cleaned})
                 frame_changed = True
@@ -132,8 +174,8 @@ def process_flac(path: Path, write: bool) -> list:
         field_changed = False
 
         for text in values:
-            if has_url(text):
-                cleaned = strip_urls(text)
+            if needs_cleaning(text):
+                cleaned = clean_text(text)
                 new_values.append(cleaned)
                 changes.append({"field": field.upper(), "from_": text, "to_": cleaned})
                 field_changed = True
@@ -177,8 +219,8 @@ def process_mp4(path: Path, write: bool) -> list:
     modified = False
 
     for text in values:
-        if isinstance(text, str) and has_url(text):
-            cleaned = strip_urls(text)
+        if isinstance(text, str) and needs_cleaning(text):
+            cleaned = clean_text(text)
             new_values.append(cleaned)
             changes.append({"field": "COMMENT", "from_": text, "to_": cleaned})
             modified = True
