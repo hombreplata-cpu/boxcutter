@@ -7,6 +7,7 @@ Start with:
 Then open http://localhost:5000 in your browser.
 """
 
+import contextlib
 import json
 import os
 import platform
@@ -384,6 +385,7 @@ def api_download_update():
         return jsonify({"error": "Invalid download URL"}), 400
 
     def stream():
+        tmp_path = None
         try:
             req = urllib.request.Request(  # noqa: S310 — URL validated against hard-coded prefix above
                 url, headers={"User-Agent": f"BoxCutter/{_app_version}"}
@@ -392,27 +394,35 @@ def api_download_update():
                 total = int(resp.headers.get("Content-Length", 0))
                 is_mac = platform.system() == "Darwin"
                 suffix = ".dmg" if is_mac else ".exe"
-                tmp = tempfile.NamedTemporaryFile(
+                with tempfile.NamedTemporaryFile(
                     suffix=suffix,
                     prefix="BoxCutter-",
                     delete=False,
                     dir=tempfile.gettempdir(),
-                )
-                downloaded = 0
-                while True:
-                    chunk = resp.read(65536)
-                    if not chunk:
-                        break
-                    tmp.write(chunk)
-                    downloaded += len(chunk)
-                    payload = {"downloaded": downloaded}
-                    if total:
-                        payload["total"] = total
-                    yield f"data: {json.dumps(payload)}\n\n"
-                tmp.close()
-                _update_state["path"] = tmp.name
+                ) as tmp:
+                    tmp_path = tmp.name
+                    downloaded = 0
+                    while True:
+                        chunk = resp.read(65536)
+                        if not chunk:
+                            break
+                        tmp.write(chunk)
+                        downloaded += len(chunk)
+                        payload = {"downloaded": downloaded}
+                        if total:
+                            payload["total"] = total
+                        yield f"data: {json.dumps(payload)}\n\n"
+                if total and downloaded != total:
+                    Path(tmp_path).unlink(missing_ok=True)
+                    tmp_path = None
+                    yield f"data: {json.dumps({'error': f'Download incomplete: got {downloaded} of {total} bytes'})}\n\n"
+                    return
+                _update_state["path"] = tmp_path
                 yield "data: %%DONE%%\n\n"
         except Exception as exc:  # noqa: BLE001
+            if tmp_path:
+                with contextlib.suppress(OSError):
+                    Path(tmp_path).unlink(missing_ok=True)
             yield f"data: {json.dumps({'error': str(exc)})}\n\n"
 
     return Response(
@@ -424,15 +434,29 @@ def api_download_update():
 
 @app.route("/api/apply_update", methods=["POST"])
 def api_apply_update():
-    """Launch the downloaded installer silently, then exit this process."""
+    """Launch the downloaded installer, then exit this process."""
     path = _update_state.get("path")
     if not path or not Path(path).exists():
         return jsonify({"error": "No update ready"}), 400
+    _update_state["path"] = None  # clear regardless of outcome
     if platform.system() == "Darwin":
         # Open the DMG in Finder — user drags BoxCutter.app to Applications
-        subprocess.Popen(["open", path])  # noqa: S603
+        try:
+            result = subprocess.run(["open", path], capture_output=True, timeout=5)  # noqa: S603
+            if result.returncode != 0:
+                err = result.stderr.decode(errors="replace").strip()
+                return jsonify({"error": f"Failed to open DMG: {err}"}), 500
+        except Exception as exc:  # noqa: BLE001
+            return jsonify({"error": str(exc)}), 500
+        finally:
+            with contextlib.suppress(OSError):
+                Path(path).unlink(missing_ok=True)
         return jsonify({"ok": True, "manual": True})
+    # Windows: Inno Setup loads itself into memory before running, so temp file
+    # can be deleted immediately after launch.
     subprocess.Popen([path, "/SILENT"], **_POPEN_FLAGS)  # noqa: S603 — list form, no shell; path is server-controlled
+    with contextlib.suppress(OSError):
+        Path(path).unlink(missing_ok=True)
     threading.Timer(1.0, lambda: os._exit(0)).start()  # noqa: SLF001 — intentional hard exit so installer can replace files
     return jsonify({"ok": True, "manual": False})
 
