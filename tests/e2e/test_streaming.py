@@ -20,14 +20,12 @@ def test_strip_comments_streams_output_and_completes(page, live_server, tmp_path
     page.locator("button.btn-secondary").click(force=True)
 
     # Wait for the status label to reach 'Done' (max 30 s)
-    status = page.locator("#status")
-    status.wait_for(timeout=30000)
     page.wait_for_function(
         "document.getElementById('status').textContent === 'Done'",
         timeout=30000,
     )
 
-    assert status.inner_text() == "Done"
+    assert page.locator("#status").inner_text() == "Done"
 
     # Crash banner must not be present
     assert (
