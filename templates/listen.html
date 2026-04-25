@@ -441,19 +441,6 @@
     .play-btn:active { background: #0097a7; transform: scale(0.93); }
 
     /* ── Track action sheet ─────────────────────────────────────── */
-    .track-more-btn {
-      background: none;
-      border: none;
-      color: var(--dim);
-      font-size: 18px;
-      cursor: pointer;
-      padding: 8px 6px;
-      line-height: 1;
-      flex-shrink: 0;
-      border-radius: 4px;
-    }
-    .track-more-btn:active { color: var(--text); background: var(--hover); }
-
     #action-sheet-backdrop {
       position: fixed;
       inset: 0;
@@ -578,6 +565,68 @@
       font-size: 13px;
       color: var(--dim);
     }
+
+    /* ── Action sheet waveform + controls ───────────────────────── */
+    .as-waveform {
+      padding: 0 20px;
+      margin-bottom: 6px;
+    }
+
+    #as-waveform-canvas {
+      width: 100%;
+      height: 56px;
+      cursor: pointer;
+      display: block;
+      border-radius: 4px;
+      touch-action: none;
+      background: var(--bg);
+    }
+
+    .as-seek-times {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: var(--dim);
+      padding: 3px 0 0;
+    }
+
+    .as-controls {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 20px;
+      padding: 8px 20px 14px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .as-ctrl-btn {
+      background: none;
+      border: none;
+      color: var(--dim);
+      font-size: 20px;
+      cursor: pointer;
+      padding: 6px;
+      line-height: 1;
+      transition: color 0.1s, transform 0.1s;
+    }
+    .as-ctrl-btn:active { color: var(--text); transform: scale(0.88); }
+
+    .as-play-btn {
+      width: 52px;
+      height: 52px;
+      background: var(--accent);
+      border-radius: 50%;
+      border: none;
+      color: var(--bg);
+      font-size: 22px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.1s, transform 0.1s;
+      flex-shrink: 0;
+    }
+    .as-play-btn:active { background: #0097a7; transform: scale(0.93); }
 
     /* ── RB warning banner ───────────────────────────────────────── */
     #rb-banner {
@@ -738,6 +787,24 @@
   <div class="as-handle"></div>
   <div class="as-title" id="as-title">—</div>
   <div class="as-body">
+    <!-- Waveform -->
+    <div class="as-waveform">
+      <canvas id="as-waveform-canvas"
+              onclick="asWaveformSeek(event)"
+              ontouchstart="asWaveformSeek(event)"></canvas>
+      <div class="as-seek-times">
+        <span id="as-time-cur">0:00</span>
+        <span id="as-time-rem">—</span>
+      </div>
+    </div>
+
+    <!-- Playback controls -->
+    <div class="as-controls">
+      <button class="as-ctrl-btn" onclick="prevTrack()">⏮</button>
+      <button class="as-play-btn" id="as-play-btn" onclick="togglePlay()">▶</button>
+      <button class="as-ctrl-btn" onclick="nextTrack()">⏭</button>
+    </div>
+
     <div class="as-section-label">Rate</div>
     <div class="as-stars" id="as-stars">
       <button class="star-btn" onclick="setStar(1)">★</button>
@@ -799,6 +866,7 @@ let shufflePos   = 0;
 let currentPlaylistName = '';
 let currentView = 'playlists'; // 'playlists' | 'tracks'
 let searchQuery  = '';         // current search filter
+let actionSheetOpen = false;
 
 // Waveform & cues
 let waveformCache   = {};     // trackId → Float32Array (800 samples) | null
@@ -1042,14 +1110,13 @@ function renderTracks() {
     const meta = [t.artist, t.bpm ? t.bpm + ' BPM' : '', t.key].filter(Boolean).join('  ·  ');
     const active = i === trackIdx;
     html += `
-      <div class="track-item${active ? ' playing' : ''}" id="ti-${i}" onclick="playTrack(${i})">
+      <div class="track-item${active ? ' playing' : ''}" id="ti-${i}" onclick="openActionSheet(${i})">
         <div class="track-idx">${active ? '▶' : pos + 1}</div>
         <div class="track-info">
           <div class="track-title">${esc(t.title)}</div>
           ${meta ? `<div class="track-meta">${esc(meta)}</div>` : ''}
         </div>
         <div class="track-dur">${fmtDur(t.duration)}</div>
-        <button class="track-more-btn" onclick="event.stopPropagation();openActionSheet(${i})">···</button>
       </div>`;
   }
   document.getElementById('content').innerHTML = html;
@@ -1071,6 +1138,7 @@ window.addEventListener('popstate', (e) => {
 
 // ── Playback ───────────────────────────────────────────────────────────────
 function playTrack(idx) {
+  const prevActionIdx = actionTrackIdx;
   trackIdx = idx;
   const t = tracks[idx];
 
@@ -1089,6 +1157,29 @@ function playTrack(idx) {
   drawWaveform();
   loadWaveformForTrack(t.id);
   loadCuesForTrack(t.id);
+
+  // If action sheet is open and the track changed externally (next/prev),
+  // refresh the action sheet content for the new track
+  if (actionSheetOpen && prevActionIdx !== idx) {
+    actionTrackIdx = idx;
+    document.getElementById('as-title').textContent = t.title || '—';
+    trackRating = ratingToStars(t.rating);
+    renderStars(trackRating);
+    trackTags = [];
+    trackPlaylists = [];
+    document.getElementById('as-tags-list').innerHTML = '<div class="as-loading">Loading…</div>';
+    document.getElementById('as-playlists-list').innerHTML = '<div class="as-loading">Loading…</div>';
+    setTimeout(resizeActionSheetWaveform, 50);
+    Promise.allSettled([
+      fetch(`/api/tracks/${t.id}/mytags`).then(r => r.json()),
+      fetch(`/api/tracks/${t.id}/playlists`).then(r => r.json()),
+    ]).then(([tagsRes, plRes]) => {
+      trackTags     = tagsRes.status === 'fulfilled' && !tagsRes.value.error ? tagsRes.value : [];
+      trackPlaylists = plRes.status === 'fulfilled'  && !plRes.value.error  ? plRes.value  : [];
+      renderTagsList();
+      renderPlaylistsList();
+    });
+  }
 }
 
 function updateNowPlayingUI(t) {
@@ -1159,11 +1250,13 @@ function toggleShuffle() {
 audio.addEventListener('play', () => {
   document.getElementById('mini-play-btn').textContent  = '⏸';
   document.getElementById('sheet-play-btn').textContent = '⏸';
+  document.getElementById('as-play-btn').textContent    = '⏸';
 });
 
 audio.addEventListener('pause', () => {
   document.getElementById('mini-play-btn').textContent  = '▶';
   document.getElementById('sheet-play-btn').textContent = '▶';
+  document.getElementById('as-play-btn').textContent    = '▶';
 });
 
 audio.addEventListener('ended', () => nextTrack());
@@ -1188,27 +1281,18 @@ audio.addEventListener('timeupdate', () => {
 
   document.getElementById('mini-seekfill').style.width = pct + '%';
 
-  document.getElementById('time-cur').textContent = fmtDur(Math.floor(cur));
-  document.getElementById('time-rem').textContent = dur
-    ? '-' + fmtDur(Math.max(0, Math.floor(dur - cur)))
-    : '—';
+  const curStr = fmtDur(Math.floor(cur));
+  const remStr = dur ? '-' + fmtDur(Math.max(0, Math.floor(dur - cur))) : '—';
+  document.getElementById('time-cur').textContent = curStr;
+  document.getElementById('time-rem').textContent = remStr;
+  document.getElementById('as-time-cur').textContent = curStr;
+  document.getElementById('as-time-rem').textContent = remStr;
 
   drawWaveform();
 });
 
 // ── Waveform ───────────────────────────────────────────────────────────────
-function resizeWaveformCanvas() {
-  const canvas = document.getElementById('waveform-canvas');
-  if (!canvas) return;
-  const dpr = window.devicePixelRatio || 1;
-  const w   = canvas.offsetWidth || 300;
-  canvas.width  = w * dpr;
-  canvas.height = 80 * dpr;
-  drawWaveform();
-}
-
-function drawWaveform() {
-  const canvas = document.getElementById('waveform-canvas');
+function _drawWaveformToCanvas(canvas) {
   if (!canvas || !canvas.width) return;
   const ctx = canvas.getContext('2d');
   const W   = canvas.width;
@@ -1220,23 +1304,33 @@ function drawWaveform() {
 
   const t = trackIdx >= 0 ? tracks[trackIdx] : null;
   const waveform = t ? waveformCache[t.id] : undefined;
+  const dpr = window.devicePixelRatio || 1;
 
-  if (waveform === undefined) {
-    // No track loaded yet
-    return;
-  }
-
-  if (waveform === null || waveformLoading) {
+  // Check waveformLoading BEFORE the undefined guard so the loading
+  // indicator shows while the fetch is in flight (cache entry is undefined
+  // until the fetch resolves, so the old undefined-first check would exit
+  // early and never render the loading state).
+  if (waveformLoading) {
     ctx.fillStyle = '#7d8590';
-    const dpr = window.devicePixelRatio || 1;
     ctx.font = `${12 * dpr}px Avenir Next, Avenir, sans-serif`;
     ctx.textAlign    = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(waveformLoading ? 'Loading waveform…' : 'Waveform unavailable', W / 2, H / 2);
+    ctx.fillText('Loading waveform…', W / 2, H / 2);
     return;
   }
 
-  const dur   = audio.duration  || 0;
+  if (waveform === undefined) return;  // no track loaded yet
+
+  if (waveform === null) {
+    ctx.fillStyle = '#7d8590';
+    ctx.font = `${12 * dpr}px Avenir Next, Avenir, sans-serif`;
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('Waveform unavailable', W / 2, H / 2);
+    return;
+  }
+
+  const dur   = audio.duration    || 0;
   const cur   = audio.currentTime || 0;
   const playX = dur ? Math.floor((cur / dur) * W) : 0;
 
@@ -1274,6 +1368,40 @@ function drawWaveform() {
   }
 }
 
+function drawWaveform() {
+  _drawWaveformToCanvas(document.getElementById('waveform-canvas'));
+  _drawWaveformToCanvas(document.getElementById('as-waveform-canvas'));
+}
+
+function resizeWaveformCanvas() {
+  const canvas = document.getElementById('waveform-canvas');
+  if (!canvas) return;
+  const dpr = window.devicePixelRatio || 1;
+  const w   = canvas.offsetWidth || 300;
+  canvas.width  = w * dpr;
+  canvas.height = 80 * dpr;
+  drawWaveform();
+}
+
+function resizeActionSheetWaveform() {
+  const canvas = document.getElementById('as-waveform-canvas');
+  if (!canvas) return;
+  const dpr = window.devicePixelRatio || 1;
+  const w   = canvas.offsetWidth || 300;
+  canvas.width  = w * dpr;
+  canvas.height = 56 * dpr;
+  _drawWaveformToCanvas(canvas);
+}
+
+function asWaveformSeek(e) {
+  e.preventDefault();
+  const canvas  = document.getElementById('as-waveform-canvas');
+  const rect    = canvas.getBoundingClientRect();
+  const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+  const pct     = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+  if (audio.duration) audio.currentTime = pct * audio.duration;
+}
+
 async function loadWaveformForTrack(trackId) {
   if (trackId in waveformCache) { drawWaveform(); return; }
   waveformLoading = true;
@@ -1308,17 +1436,35 @@ async function loadCuesForTrack(trackId) {
     const data = await r.json();
     if (Array.isArray(data)) {
       cuePoints = data
-        .filter(c => c.time_ms > 0)
+        .filter(c => c.time_ms >= 0)
         .map(c => ({ time_ms: c.time_ms, source: 'rb', id: c.id, comment: c.comment }));
     }
   } catch {}
   drawWaveform();
 }
 
-function addCue() {
+async function addCue() {
   const ms = Math.floor((audio.currentTime || 0) * 1000);
-  cuePoints.push({ time_ms: ms, source: 'session', id: 'sess_' + Date.now() });
+  const t  = trackIdx >= 0 ? tracks[trackIdx] : null;
+  if (!t) return;
+
+  const tempId = 'sess_' + Date.now();
+  cuePoints.push({ time_ms: ms, source: 'session', id: tempId });
   drawWaveform();
+
+  try {
+    const r    = await fetch(`/api/tracks/${t.id}/cues`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ time_ms: ms }),
+    });
+    const data = await r.json();
+    if (data.ok) {
+      const i = cuePoints.findIndex(c => c.id === tempId);
+      if (i >= 0) cuePoints[i] = { time_ms: ms, source: 'rb', id: data.id };
+      drawWaveform();
+    }
+  } catch { /* keep as session cue */ }
 }
 
 function waveformSeek(e) {
@@ -1387,11 +1533,17 @@ function updateMediaSession() {
 
 // ── Action sheet ───────────────────────────────────────────────────────────
 let actionTrackIdx = -1;
-let allMyTags      = [];   // [{id, name, parent_id}]
+let allMyTags      = [];   // [{id, name, parent_id, attribute}]
 let allPlaylists   = [];   // flattened [{id, name}] from tree
 let trackTags      = [];   // [{assignment_id, tag_id}]
 let trackPlaylists = [];   // [{playlist_id}]
 let trackRating    = 0;    // 0-5 stars
+
+function ratingToStars(rating) {
+  const r = Number(rating);
+  if (!r || r <= 0) return 0;
+  return Math.min(5, Math.max(1, Math.round(r / 51)));
+}
 
 function flattenPlaylists(nodes, out = []) {
   for (const n of nodes) {
@@ -1403,11 +1555,19 @@ function flattenPlaylists(nodes, out = []) {
 
 async function openActionSheet(idx) {
   actionTrackIdx = idx;
+  actionSheetOpen = true;
+
   const t = tracks[idx];
   document.getElementById('as-title').textContent = t.title || '—';
   document.getElementById('action-sheet-backdrop').classList.add('open');
   document.getElementById('action-sheet').classList.add('open');
   document.body.style.overflow = 'hidden';
+
+  // Start playback for this track
+  playTrack(idx);
+
+  // Size action sheet canvas after it's painted
+  setTimeout(resizeActionSheetWaveform, 50);
 
   // Reset state
   trackRating = 0;
@@ -1417,12 +1577,9 @@ async function openActionSheet(idx) {
   document.getElementById('as-tags-list').innerHTML = '<div class="as-loading">Loading…</div>';
   document.getElementById('as-playlists-list').innerHTML = '<div class="as-loading">Loading…</div>';
 
-  // Load rating from track data (if available from server, otherwise 0)
-  if (t.rating !== undefined) {
-    const RATING_TO_STAR = {0:0, 51:1, 102:2, 153:3, 204:4, 255:5};
-    trackRating = RATING_TO_STAR[t.rating] ?? 0;
-    renderStars(trackRating);
-  }
+  // Display rating from cached track data immediately
+  trackRating = ratingToStars(t.rating);
+  renderStars(trackRating);
 
   // Fetch all my tags (cached after first load)
   if (!allMyTags.length) {
@@ -1443,8 +1600,8 @@ async function openActionSheet(idx) {
     fetch(`/api/tracks/${t.id}/playlists`).then(r => r.json()),
   ]);
 
-  trackTags = tagsRes.status === 'fulfilled' && !tagsRes.value.error ? tagsRes.value : [];
-  trackPlaylists = plRes.status === 'fulfilled' && !plRes.value.error ? plRes.value : [];
+  trackTags     = tagsRes.status === 'fulfilled' && !tagsRes.value.error ? tagsRes.value : [];
+  trackPlaylists = plRes.status === 'fulfilled'  && !plRes.value.error  ? plRes.value  : [];
 
   renderTagsList();
   renderPlaylistsList();
@@ -1454,6 +1611,7 @@ function closeActionSheet() {
   document.getElementById('action-sheet-backdrop').classList.remove('open');
   document.getElementById('action-sheet').classList.remove('open');
   document.body.style.overflow = '';
+  actionSheetOpen = false;
   actionTrackIdx = -1;
 }
 
@@ -1471,19 +1629,25 @@ async function setStar(star) {
   renderStars(newRating);
   trackRating = newRating;
   try {
-    await fetch(`/api/tracks/${t.id}/rating`, {
+    const r = await fetch(`/api/tracks/${t.id}/rating`, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({rating: newRating}),
     });
+    if (r.ok) {
+      // Update in-memory track so reopening the action sheet shows current rating
+      tracks[actionTrackIdx].rating = newRating * 51;
+    }
   } catch { /* silent — UI already updated */ }
 }
 
 // Tags
 function renderTagsList() {
   const assignedIds = new Set(trackTags.map(a => String(a.tag_id)));
-  const parents  = allMyTags.filter(t => !t.parent_id || t.parent_id === '0' || t.parent_id === 0);
-  const children = allMyTags.filter(t => t.parent_id && t.parent_id !== '0' && t.parent_id !== 0);
+  // Rekordbox sets Attribute=0 for category groups, non-zero for leaf tags.
+  // Using attribute as the discriminator is more reliable than parent_id checks.
+  const parents  = allMyTags.filter(t => Number(t.attribute) === 0);
+  const children = allMyTags.filter(t => Number(t.attribute) !== 0);
 
   if (!children.length) {
     document.getElementById('as-tags-list').innerHTML = '<div class="as-empty">No My Tags found.</div>';

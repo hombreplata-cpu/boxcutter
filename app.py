@@ -1408,6 +1408,63 @@ def api_track_cues(content_id):
         return jsonify({"error": str(exc)}), 500
 
 
+@app.route("/api/tracks/<content_id>/cues", methods=["POST"])
+def api_track_cue_add(content_id):
+    """Add a memory cue point to a track and persist it to the Rekordbox DB."""
+    if not _listen_authed():
+        return jsonify({"error": "Unauthorized"}), 401
+    if rekordbox_is_running():
+        return jsonify({"error": "Close Rekordbox before editing"}), 409
+    data = request.get_json() or {}
+    try:
+        time_ms = int(data.get("time_ms", -1))
+    except (TypeError, ValueError):
+        return jsonify({"error": "time_ms must be an integer"}), 400
+    if time_ms < 0:
+        return jsonify({"error": "time_ms must be >= 0"}), 400
+    comment = str(data.get("comment", "")).strip()
+    try:
+        from pyrekordbox.db6.tables import DjmdCue  # noqa: PLC0415
+        from sqlalchemy import text  # noqa: PLC0415
+
+        db = _open_db()
+        _ensure_stream_backup(db)
+
+        with db.engine.connect() as conn:
+            result = conn.execute(text("SELECT MAX(CAST(ID AS INTEGER)) FROM DjmdCue")).scalar()
+        new_id = str((result or 0) + 1)
+
+        row = DjmdCue(
+            ID=new_id,
+            ContentID=content_id,
+            InMsec=time_ms,
+            InFrame=0,
+            InMpegFrame=0,
+            InMpegAbs=0,
+            OutMsec=-1,
+            OutFrame=-1,
+            OutMpegFrame=-1,
+            OutMpegAbs=-1,
+            Kind=0,  # 0 = memory cue
+            Color=0,
+            ColorTableIndex=0,
+            ActiveLoop=0,
+            Comment=comment,
+            BeatLoopSize=0,
+            CueMicrosec=0,
+            InPointSeekInfo="",
+            OutPointSeekInfo="",
+            ContentUUID="",
+            UUID=str(uuid.uuid4()),
+            rb_local_deleted=0,
+        )
+        db.session.add(row)
+        db.commit()
+        return jsonify({"ok": True, "id": new_id, "time_ms": time_ms})
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
 def _port_pid(port: int) -> int | None:
     """Return the PID listening on *port*, or None if the port is free."""
     try:
