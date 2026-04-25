@@ -17,7 +17,14 @@ from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from scripts.strip_comment_urls import URL_PATTERN, has_url, strip_urls  # noqa: E402
+from scripts.strip_comment_urls import (  # noqa: E402
+    URL_PATTERN,
+    clean_text,
+    has_url,
+    is_boilerplate_line,
+    needs_cleaning,
+    strip_urls,
+)
 from scripts.utils import MUSIC_EXTENSIONS  # noqa: E402
 
 # ---------------------------------------------------------------------------
@@ -419,3 +426,122 @@ def test_flac_file_processed_not_skipped(tmp_path):
         crawl([str(tmp_path)], write=False)
 
     mock_flac.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# is_boilerplate_line — whole-line pattern matching
+# ---------------------------------------------------------------------------
+
+
+def test_boilerplate_visit_bandcamp():
+    assert is_boilerplate_line("Visit Bandcamp")
+
+
+def test_boilerplate_visit_our_bandcamp():
+    assert is_boilerplate_line("Visit our Bandcamp")
+
+
+def test_boilerplate_downloaded_from_traxsource():
+    assert is_boilerplate_line("Downloaded from Traxsource")
+
+
+def test_boilerplate_download_from_beatport():
+    assert is_boilerplate_line("Download from Beatport")
+
+
+def test_boilerplate_buy_on_beatport():
+    assert is_boilerplate_line("Buy on Beatport")
+
+
+def test_boilerplate_purchase_from_juno():
+    assert is_boilerplate_line("Purchase from Juno")
+
+
+def test_boilerplate_available_on_spotify():
+    assert is_boilerplate_line("Available on Spotify")
+
+
+def test_boilerplate_stream_on_tidal():
+    assert is_boilerplate_line("Stream on Tidal")
+
+
+def test_boilerplate_bare_service_name():
+    assert is_boilerplate_line("Bandcamp")
+    assert is_boilerplate_line("Beatport")
+    assert is_boilerplate_line("SoundCloud")
+
+
+def test_boilerplate_mixed_content_not_flagged():
+    """A line that mixes boilerplate verb with other content should NOT be flagged."""
+    assert not is_boilerplate_line("Great track! Visit Bandcamp for more")
+
+
+def test_boilerplate_unknown_service_not_flagged():
+    """Service name not in the list should not be flagged."""
+    assert not is_boilerplate_line("Downloaded from my hard drive")
+    assert not is_boilerplate_line("Visit our website for bookings")
+
+
+def test_boilerplate_case_insensitive():
+    assert is_boilerplate_line("VISIT BANDCAMP")
+    assert is_boilerplate_line("downloaded from BEATPORT")
+
+
+# ---------------------------------------------------------------------------
+# needs_cleaning — detects URLs and boilerplate
+# ---------------------------------------------------------------------------
+
+
+def test_needs_cleaning_url():
+    assert needs_cleaning("https://beatport.com/track/123")
+
+
+def test_needs_cleaning_boilerplate_no_url():
+    assert needs_cleaning("Visit Bandcamp")
+    assert needs_cleaning("Downloaded from Traxsource")
+
+
+def test_needs_cleaning_plain_text():
+    assert not needs_cleaning("Best track of 2024")
+
+
+def test_needs_cleaning_unknown_service():
+    assert not needs_cleaning("Downloaded from my hard drive")
+
+
+# ---------------------------------------------------------------------------
+# clean_text — URL strip + boilerplate line removal
+# ---------------------------------------------------------------------------
+
+
+def test_clean_text_strips_url():
+    result = clean_text("Bought at https://beatport.com/track/123")
+    assert "https" not in result
+    assert "Bought at" in result
+
+
+def test_clean_text_drops_boilerplate_line():
+    assert clean_text("Visit Bandcamp") == ""
+    assert clean_text("Downloaded from Traxsource") == ""
+
+
+def test_clean_text_multiline_drops_boilerplate_preserves_other():
+    comment = "Amazing track\nVisit Bandcamp\nBest of 2024"
+    result = clean_text(comment)
+    assert "Amazing track" in result
+    assert "Best of 2024" in result
+    assert "Bandcamp" not in result
+
+
+def test_clean_text_mixed_content_line_preserved():
+    """A line with boilerplate verb but non-service text must not be dropped."""
+    text = "Great track! Visit our website for bookings"
+    assert clean_text(text) == text
+
+
+def test_clean_text_url_then_boilerplate_line():
+    comment = "https://beatport.com/track/1\nDownload from Beatport"
+    result = clean_text(comment)
+    assert "http" not in result
+    assert "Beatport" not in result
+    assert result == ""
