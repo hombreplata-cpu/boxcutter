@@ -632,8 +632,6 @@ def api_track_mytags_remove(content_id, assignment_id):
 _stream_session: dict = {"backup_path": None, "last_write": None}
 _STREAM_SESSION_TTL = 2 * 3600  # seconds
 
-_STAR_TO_RATING = {0: 0, 1: 51, 2: 102, 3: 153, 4: 204, 5: 255}
-
 
 def _ensure_stream_backup(db) -> Path:
     now = datetime.now()
@@ -676,7 +674,7 @@ def api_track_rating_set(content_id):
         track = db.session.query(DjmdContent).filter_by(ID=content_id, rb_local_deleted=0).first()
         if not track:
             return jsonify({"error": "Track not found"}), 404
-        track.Rating = _STAR_TO_RATING[int(stars)]
+        track.Rating = int(stars)
         db.commit()
         return jsonify({"ok": True})
     except Exception as exc:
