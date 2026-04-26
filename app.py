@@ -663,8 +663,12 @@ def api_track_rating_set(content_id):
     if rekordbox_is_running():
         return jsonify({"error": "Close Rekordbox before editing"}), 409
     data = request.get_json() or {}
-    stars = data.get("rating")
-    if stars is None or int(stars) not in range(6):
+    raw = data.get("rating")
+    try:
+        stars = int(raw)
+    except (TypeError, ValueError):
+        return jsonify({"error": "rating must be 0-5"}), 400
+    if stars not in range(6):
         return jsonify({"error": "rating must be 0-5"}), 400
     try:
         from pyrekordbox.db6.tables import DjmdContent  # noqa: PLC0415
@@ -674,7 +678,7 @@ def api_track_rating_set(content_id):
         track = db.session.query(DjmdContent).filter_by(ID=content_id, rb_local_deleted=0).first()
         if not track:
             return jsonify({"error": "Track not found"}), 404
-        track.Rating = int(stars)
+        track.Rating = stars
         db.commit()
         return jsonify({"ok": True})
     except Exception as exc:

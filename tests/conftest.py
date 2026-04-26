@@ -19,6 +19,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 _pyrekordbox_stub = MagicMock()
 sys.modules.setdefault("pyrekordbox", _pyrekordbox_stub)
 sys.modules.setdefault("pyrekordbox.db6", _pyrekordbox_stub)
+sys.modules.setdefault("pyrekordbox.db6.tables", MagicMock())
+sys.modules.setdefault("pyrekordbox.db6.smartlist", MagicMock())
 sys.modules.setdefault("pyrekordbox.anlz", _pyrekordbox_stub)
 
 
