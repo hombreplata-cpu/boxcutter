@@ -1,0 +1,24 @@
+# Pre-commit hooks for BoxCutter.
+#
+# Run `pre-commit install` once after cloning. Each commit will then run the
+# fast quality gate locally — ruff + invariant tests. Failures block the
+# commit, so violations never reach CI.
+#
+# To bypass intentionally (e.g. WIP), use `git commit --no-verify`.
+#
+# To run everything once across the repo:  pre-commit run --all-files
+# To run the same checks the gate uses:    python tools/check.py --fast
+
+repos:
+  - repo: local
+    hooks:
+      - id: bc-check-fast
+        name: BoxCutter fast checks (ruff + invariant tests)
+        entry: python tools/check.py --fast
+        language: system
+        pass_filenames: false
+        # Run on every commit, including those that touch only docs — the
+        # invariant tests are <2s and they stay accurate even when the
+        # change is doc-only.
+        always_run: true
+        stages: [commit]
