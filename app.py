@@ -226,8 +226,11 @@ def _write_secret_file(key: bytes) -> bool:
         SECRET_FILE.parent.mkdir(parents=True, exist_ok=True)
         tmp = SECRET_FILE.with_suffix(SECRET_FILE.suffix + ".tmp")
         # Open with restrictive perms from the start so the key is never world-readable
-        # even briefly. Windows ignores mode but inherits the user-only ACL of LocalAppData.
+        # even briefly. O_BINARY is required on Windows — otherwise the C runtime
+        # translates 0x0A bytes to 0x0D 0x0A and the 32-byte key becomes 33+ bytes.
         flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
+        if hasattr(os, "O_BINARY"):
+            flags |= os.O_BINARY
         if hasattr(os, "O_NOFOLLOW"):
             flags |= os.O_NOFOLLOW
         fd = os.open(str(tmp), flags, 0o600)
