@@ -409,7 +409,15 @@ def run(args):
 
             # Never touch a row whose path is already correct — avoids
             # invalidating Rekordbox analysis on tracks that don't need updating.
-            if new_path_stored == raw_path.replace("\\", "/"):
+            # Windows is case-insensitive: "D:/X/y.flac" and "d:/x/y.flac"
+            # refer to the same file. Trailing slash differences are also
+            # treated as equal. (R-09)
+            existing_normalised = raw_path.replace("\\", "/").rstrip("/")
+            new_normalised = new_path_stored.rstrip("/")
+            if platform.system() == "Windows":
+                existing_normalised = existing_normalised.lower()
+                new_normalised = new_normalised.lower()
+            if existing_normalised == new_normalised:
                 already_correct += 1
                 continue
 

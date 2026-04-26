@@ -102,16 +102,16 @@ def has_url(text: str) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def _process_id3(path: Path, write: bool) -> list:
-    """Return list of dicts: {field, from_, to_} for each URL-containing COMM frame."""
+def _process_id3(path: Path, write: bool) -> tuple:
+    """Return (changes, save_error). save_error is a string if tags.save() failed."""
     changes = []
     try:
         tags = ID3(str(path))
     except ID3NoHeaderError:
-        return changes
+        return changes, None
     except Exception as e:
         print(f"  [WARN] Could not read ID3 tags: {path}  ({e})")
-        return changes
+        return changes, None
 
     modified = False
     comm_keys = [k for k in tags if k.startswith("COMM")]
@@ -135,20 +135,22 @@ def _process_id3(path: Path, write: bool) -> list:
             frame.text = new_texts
             modified = True
 
+    save_error = None
     if modified and write:
         try:
             tags.save(str(path))
         except Exception as e:
             print(f"  [ERROR] Could not save {path}: {e}")
+            save_error = str(e)
 
-    return changes
+    return changes, save_error
 
 
-def process_mp3(path: Path, write: bool) -> list:
+def process_mp3(path: Path, write: bool) -> tuple:
     return _process_id3(path, write)
 
 
-def process_wav_aiff(path: Path, write: bool) -> list:
+def process_wav_aiff(path: Path, write: bool) -> tuple:
     return _process_id3(path, write)
 
 
@@ -157,14 +159,14 @@ def process_wav_aiff(path: Path, write: bool) -> list:
 # ---------------------------------------------------------------------------
 
 
-def process_flac(path: Path, write: bool) -> list:
-    """Return list of dicts: {field, from_, to_} for each URL-containing tag."""
+def process_flac(path: Path, write: bool) -> tuple:
+    """Return (changes, save_error)."""
     changes = []
     try:
         audio = FLAC(str(path))
     except Exception as e:
         print(f"  [WARN] Could not read FLAC tags: {path}  ({e})")
-        return changes
+        return changes, None
 
     modified = False
 
@@ -186,13 +188,15 @@ def process_flac(path: Path, write: bool) -> list:
             audio[field] = new_values
             modified = True
 
+    save_error = None
     if modified and write:
         try:
             audio.save()
         except Exception as e:
             print(f"  [ERROR] Could not save {path}: {e}")
+            save_error = str(e)
 
-    return changes
+    return changes, save_error
 
 
 # ---------------------------------------------------------------------------
@@ -200,18 +204,18 @@ def process_flac(path: Path, write: bool) -> list:
 # ---------------------------------------------------------------------------
 
 
-def process_mp4(path: Path, write: bool) -> list:
-    """Return list of dicts: {field, from_, to_} for each URL-containing comment atom."""
+def process_mp4(path: Path, write: bool) -> tuple:
+    """Return (changes, save_error)."""
     changes = []
     try:
         audio = MP4(str(path))
     except Exception as e:
         print(f"  [WARN] Could not read MP4 tags: {path}  ({e})")
-        return changes
+        return changes, None
 
     tags = audio.tags
     if tags is None:
-        return changes
+        return changes, None
 
     key = "\xa9cmt"
     values = tags.get(key, [])
@@ -227,6 +231,7 @@ def process_mp4(path: Path, write: bool) -> list:
         else:
             new_values.append(text)
 
+    save_error = None
     if modified:
         tags[key] = new_values
         if write:
@@ -234,8 +239,9 @@ def process_mp4(path: Path, write: bool) -> list:
                 audio.save()
             except Exception as e:
                 print(f"  [ERROR] Could not save {path}: {e}")
+                save_error = str(e)
 
-    return changes
+    return changes, save_error
 
 
 # ---------------------------------------------------------------------------
@@ -248,6 +254,7 @@ def crawl(directories, write):
     total_changed = 0
     total_errors = 0
     modified_files = []
+    save_errors = []
 
     mode_label = "WRITE" if write else "DRY RUN"
     print(f"\n=== strip_comment_urls  [{mode_label}] ===\n")
@@ -279,15 +286,21 @@ def crawl(directories, write):
             total_files += 1
 
             if suffix == ".mp3":
-                changes = process_mp3(path, write)
+                changes, save_error = process_mp3(path, write)
             elif suffix == ".flac":
-                changes = process_flac(path, write)
+                changes, save_error = process_flac(path, write)
             elif suffix in (".wav", ".aif", ".aiff"):
-                changes = process_wav_aiff(path, write)
+                changes, save_error = process_wav_aiff(path, write)
             elif suffix in (".m4a", ".alac"):
-                changes = process_mp4(path, write)
+                changes, save_error = process_mp4(path, write)
             else:
                 continue
+
+            if save_error:
+                # R-08: surface tag-write failures in the report and the
+                # exit code so the user knows when "modified" is a lie.
+                total_errors += 1
+                save_errors.append({"path": str(path), "error": save_error})
 
             if changes:
                 total_changed += 1
@@ -302,6 +315,7 @@ def crawl(directories, write):
                             {"field": c["field"], "from": c["from_"][:100], "to": c["to_"]}
                             for c in changes
                         ],
+                        "save_failed": save_error is not None,
                     }
                 )
 
@@ -310,6 +324,8 @@ def crawl(directories, write):
     print(
         f"Files modified: {total_changed}  ({'written' if write else 'dry run -- no changes written'})"
     )
+    if total_errors:
+        print(f"Save errors   : {total_errors}  (changes detected but tag write failed)")
     if not write and total_changed:
         print("\nRe-run with --write to apply changes.")
     print()
@@ -326,6 +342,7 @@ def crawl(directories, write):
                     "errors": total_errors,
                 },
                 "modified_files": modified_files,
+                "save_errors": save_errors,
             }
         )
     )
