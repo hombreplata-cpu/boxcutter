@@ -29,6 +29,12 @@ a = Analysis(
     ],
     hiddenimports=collect_submodules("pyrekordbox")
     + collect_submodules("webview")
+    # mutagen is imported by scripts/*.py only (relocate, add_new, fix_metadata,
+    # strip_comment_urls). PyInstaller follows imports from launcher.py → app.py,
+    # not from runpy-dispatched scripts, so its submodules (mutagen.flac,
+    # mutagen.id3, mutagen.mp4, …) are never auto-discovered. Without this every
+    # tag-touching tool crashes at import in the frozen build.
+    + collect_submodules("mutagen")
     + _PYWEBVIEW_TRANSITIVE
     + [
         "sqlcipher3",
