@@ -475,7 +475,10 @@ def run(args):
                 )
             )
 
-    if not args.dry_run:
+    # Only commit when there are actual changes — skip the no-op write so
+    # an empty live run doesn't bump the DB mtime or risk Rekordbox treating
+    # the file as freshly modified (B-07).
+    if not args.dry_run and updated > 0:
         db.commit()
 
     dry_tag = "  (dry-run)" if args.dry_run else ""

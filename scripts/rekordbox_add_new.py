@@ -86,23 +86,32 @@ def read_audio_tags(fp):
             if val:
                 tags["genre"] = val
 
+        # Numeric tags: only persist if the parsed value is > 0. A literal
+        # "0" tag (or "0000" date) must not overwrite Rekordbox's later
+        # analysis with a zero (B-13).
         raw_bpm = _first(audio.get("bpm"))
         if raw_bpm:
             with contextlib.suppress(ValueError, TypeError):
                 # Rekordbox stores BPM × 100 (e.g. 128 BPM → 12800)
-                tags["bpm"] = int(round(float(str(raw_bpm).strip()) * 100))
+                bpm_val = int(round(float(str(raw_bpm).strip()) * 100))
+                if bpm_val > 0:
+                    tags["bpm"] = bpm_val
 
         # Year — take first 4 chars of the date tag
         raw_date = _first(audio.get("date"))
         if raw_date:
             with contextlib.suppress(ValueError, TypeError):
-                tags["year"] = int(str(raw_date).strip()[:4])
+                year_val = int(str(raw_date).strip()[:4])
+                if year_val > 0:
+                    tags["year"] = year_val
 
         # Track number — handles "1/12" total-track format
         raw_trackno = _first(audio.get("tracknumber"))
         if raw_trackno:
             with contextlib.suppress(ValueError, TypeError):
-                tags["track_no"] = int(str(raw_trackno).strip().split("/")[0])
+                trackno_val = int(str(raw_trackno).strip().split("/")[0])
+                if trackno_val > 0:
+                    tags["track_no"] = trackno_val
 
         raw_comment = _first(audio.get("comment"))
         if raw_comment:

@@ -12,6 +12,12 @@
 <div class="flash">✓ Paths saved.</div>
 {% endif %}
 
+{% if pin_error %}
+<div style="background:#2e1a0e;border:1px solid var(--red);border-radius:4px;padding:12px 16px;font-family:var(--mono);font-size:14px;color:var(--red);margin-bottom:20px;">
+  ⚠ {{ pin_error }}
+</div>
+{% endif %}
+
 <div class="info-box">
   💡 <strong>How to copy a folder path on Windows:</strong><br>
   Open File Explorer → right-click any folder → <kbd>Copy as path</kbd> → paste below.<br>
@@ -88,6 +94,8 @@
              value="{{ cfg.listen_pin }}"
              placeholder="e.g. 1234"
              maxlength="8"
+             pattern="[0-9]{4,8}"
+             inputmode="numeric"
              style="max-width:140px;letter-spacing:0.15em;">
     </div>
     <div class="path-hint">4-digit PIN to access your playlists from your phone at <strong>/listen</strong>. Leave blank to disable.</div>
