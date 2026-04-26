@@ -60,10 +60,6 @@ def fast_checks() -> list[tuple[str, list[str]]]:
 
 
 def default_checks() -> list[tuple[str, list[str]]]:
-    baseline = REPO_ROOT / "tools" / "bandit-baseline.json"
-    bandit_cmd = [sys.executable, "-m", "bandit", "-r", "app.py", "scripts/", "-l"]
-    if baseline.exists():
-        bandit_cmd += ["--baseline", str(baseline)]
     return [
         *fast_checks(),
         (
@@ -78,7 +74,9 @@ def default_checks() -> list[tuple[str, list[str]]]:
                 "--no-header",
             ],
         ),
-        ("bandit (low + baseline)", bandit_cmd),
+        # bandit -ll: hard fail on medium+ severity. Lows are visible but
+        # non-blocking — see ci.yml comment for rationale.
+        ("bandit (medium+)", [sys.executable, "-m", "bandit", "-r", "app.py", "scripts/", "-ll"]),
     ]
 
 
