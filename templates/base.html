@@ -1035,6 +1035,7 @@
     {{ app_version }}
     {% if is_frozen %}
     <form id="quit-form" action="/shutdown" method="post" style="margin-top:10px;">
+      <input type="hidden" name="csrf_token" value="{{ request_token }}">
       <button type="submit" class="quit-btn" onclick="return confirm('Close BoxCutter? Your browser tab will stop working.')">✕ &nbsp;Quit App</button>
     </form>
     {% endif %}
