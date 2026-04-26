@@ -9,6 +9,7 @@ Output: JSON object with track_count, file_types (name->count), library_size_byt
 Errors: non-zero exit code + error message on stderr.
 """
 
+import argparse
 import json
 import sys
 from pathlib import Path
@@ -45,9 +46,10 @@ EXT_TO_LABEL = {
 
 
 def main():
-    db_path = None
-    if len(sys.argv) == 3 and sys.argv[1] == "--db-path":
-        db_path = sys.argv[2] or None
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--db-path", default="", help="Path to master.db")
+    args = parser.parse_args()
+    db_path = args.db_path or None
 
     try:
         db = MasterDatabase(path=db_path)

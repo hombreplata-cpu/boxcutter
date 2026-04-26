@@ -220,3 +220,25 @@ def test_resolve_server_port_uses_kill_on_mac():
     assert "kill" in cmd
     assert "-9" in cmd
     assert port == 5000
+
+
+# ---------------------------------------------------------------------------
+# resolve_server_port — BOXCUTTER_PORT env override (R-10)
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_server_port_honors_valid_env(monkeypatch):
+    monkeypatch.setenv("BOXCUTTER_PORT", "5500")
+    assert app.resolve_server_port(preferred=5000) == 5500
+
+
+def test_resolve_server_port_falls_back_on_invalid_env(monkeypatch, capsys):
+    """A non-numeric BOXCUTTER_PORT must not crash — fall back to default discovery."""
+    monkeypatch.setenv("BOXCUTTER_PORT", "garbage")
+    with (
+        patch("app._port_pid", return_value=None),
+    ):
+        port = app.resolve_server_port(preferred=5000)
+    assert port == 5000
+    captured = capsys.readouterr()
+    assert "BOXCUTTER_PORT" in captured.out

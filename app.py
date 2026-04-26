@@ -1543,7 +1543,10 @@ def resolve_server_port(preferred: int = 5000) -> int:
     - Preferred port is another app → find the next free port.
     """
     if env_port := os.environ.get("BOXCUTTER_PORT"):
-        return int(env_port)
+        try:
+            return int(env_port)
+        except ValueError:
+            print(f"  WARNING: BOXCUTTER_PORT={env_port!r} is not an integer — ignoring")
     pid = _port_pid(preferred)
     if pid is None:
         return preferred
@@ -1572,7 +1575,7 @@ if __name__ == "__main__":
     print("  -------------------------------")
     _port = resolve_server_port()
     print(f"  Starting server at http://localhost:{_port}")
-    print("  Remote listener: http://<tailscale-ip>:{_port}/listen")
+    print(f"  Remote listener: http://<tailscale-ip>:{_port}/listen")
     print("  Press Ctrl+C to stop\n")
     if not os.environ.get("BOXCUTTER_TESTING"):
         threading.Timer(1.2, lambda: webbrowser.open(f"http://localhost:{_port}")).start()

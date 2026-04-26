@@ -2,6 +2,7 @@
 get_listen_tree.py — Print Rekordbox playlist/folder tree as JSON to stdout.
 """
 
+import argparse
 import json
 import sys
 
@@ -29,9 +30,10 @@ def build_tree(nodes, parent_id=0):
 
 
 def main():
-    db_path = None
-    if len(sys.argv) == 3 and sys.argv[1] == "--db-path":
-        db_path = sys.argv[2] or None
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--db-path", default="", help="Path to master.db")
+    args = parser.parse_args()
+    db_path = args.db_path or None
 
     try:
         db = MasterDatabase(path=db_path)
