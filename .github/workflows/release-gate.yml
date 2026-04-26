@@ -1,0 +1,54 @@
+name: Release Gate
+
+# The strict pre-release run. Runs the same checks as `tools/check.py --strict`
+# locally — ruff + invariants + bandit-baseline + full pytest (unit + e2e) +
+# installer-spec smoke on Windows.
+#
+# Triggers:
+#   - Manual: workflow_dispatch — invoke before tagging to catch issues
+#     while you can still fix them on a feature branch.
+#   - Automatic: tag push (v*) — final guard, posts a status check that
+#     branch protection (if enabled) can require before allowing further
+#     deploy actions.
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+concurrency:
+  group: release-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  preflight:
+    name: Preflight (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # Ubuntu covers the full unit + e2e suite. Windows additionally
+        # exercises the installer-spec smoke that ships only on Win.
+        os: [ubuntu-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip
+
+      - name: Install all dependencies
+        run: pip install --no-cache-dir -r requirements.txt -r requirements-dev.txt
+
+      - name: Install Playwright browsers
+        if: runner.os == 'Linux'
+        run: playwright install --with-deps chromium
+
+      - name: Run release preflight
+        run: python tools/release_preflight.py

@@ -145,3 +145,45 @@ def flask_client_no_db(tmp_path):
         flask_app.app.test_client() as c,
     ):
         yield c
+
+
+# ---------------------------------------------------------------------------
+# Shared fixtures for new tests — use these instead of re-rolling per file
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def csrf_enforced_client(tmp_path):
+    """Test client with the Phase 3 CSRF gate enforced.
+
+    Use this in any new test that needs to exercise the gate end-to-end.
+    Setting ``BOXCUTTER_TEST_ENFORCE_CSRF`` flips the bypass that the rest
+    of the suite relies on, so the fixture cleans up after itself.
+
+    A test that uses this fixture is signalling intent to test the gate
+    rather than to test logic that *happens* to be behind the gate. Most
+    tests should NOT use this fixture — they should use ``flask_client``
+    instead, which keeps the gate bypassed.
+    """
+    from unittest.mock import patch  # noqa: PLC0415
+
+    import app as flask_app  # noqa: PLC0415
+
+    flask_app.app.config["TESTING"] = True
+    flask_app.app.config["BOXCUTTER_TEST_ENFORCE_CSRF"] = True
+    cfg_file = tmp_path / "config.json"
+    with (
+        patch.object(flask_app, "CONFIG_FILE", cfg_file),
+        flask_app.app.test_client() as c,
+    ):
+        yield c
+    flask_app.app.config["BOXCUTTER_TEST_ENFORCE_CSRF"] = False
+
+
+@pytest.fixture
+def csrf_token():
+    """The current process-lifetime CSRF token. Pair with csrf_enforced_client
+    when a test needs to make a gated call succeed."""
+    import app as flask_app  # noqa: PLC0415
+
+    return flask_app._REQUEST_TOKEN
