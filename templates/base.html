@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="bc-token" content="{{ request_token }}">
   <title>{% block title %}BoxCutter{% endblock %}</title>
   <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
   <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
@@ -1062,6 +1063,35 @@
 </main>
 
 <script>
+  // ── Same-origin token gate ────────────────────────────────────────────────
+  // Every state-mutating request must carry the per-process token issued in
+  // the bc-token meta tag. The wrappers below transparently attach it.
+  // Closes S-03/05/06/08/09/10 — see app.py _enforce_csrf().
+  window.bcToken = document.querySelector('meta[name="bc-token"]').getAttribute('content') || '';
+
+  (function patchFetch() {
+    const _origFetch = window.fetch;
+    window.fetch = function (input, init) {
+      init = init || {};
+      const method = (init.method || (typeof input === 'string' ? 'GET' : input.method) || 'GET').toUpperCase();
+      if (method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE') {
+        const headers = new Headers(init.headers || {});
+        if (!headers.has('X-BoxCutter-Token')) {
+          headers.set('X-BoxCutter-Token', window.bcToken);
+        }
+        init.headers = headers;
+      }
+      return _origFetch(input, init);
+    };
+  })();
+
+  // EventSource cannot set custom headers — append the token as a query param.
+  // The server accepts ?token=... as an alternative to the header.
+  window.bcSseUrl = function (url) {
+    const sep = url.indexOf('?') === -1 ? '?' : '&';
+    return url + sep + 'token=' + encodeURIComponent(window.bcToken);
+  };
+
   // Drag-and-drop path filling for all .path-input fields
   document.querySelectorAll('.path-input').forEach(input => {
     input.addEventListener('dragover', e => {
@@ -1737,7 +1767,7 @@
 
     const qs  = new URLSearchParams(params).toString();
     const url = `/api/run/${endpoint}?${qs}`;
-    const es  = new EventSource(url);
+    const es  = new EventSource(window.bcSseUrl(url));
     _activeEventSource = es;
 
     // Named event: 'report' — delivered atomically as a single JSON payload
@@ -1911,7 +1941,7 @@
     btn.textContent = 'Downloading…';
     progress.style.display = 'block';
 
-    const es = new EventSource('/api/download_update?url=' + encodeURIComponent(_updateDownloadUrl));
+    const es = new EventSource(window.bcSseUrl('/api/download_update?url=' + encodeURIComponent(_updateDownloadUrl)));
 
     es.onmessage = e => {
       if (e.data === '%%DONE%%') {
