@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="bc-token" content="{{ request_token }}">
   <title>BoxCutter — listen</title>
   <style>
     :root {
@@ -856,6 +857,22 @@
 <audio id="audio" preload="auto"></audio>
 
 <script>
+// ── Same-origin token gate (mirrors base.html) ─────────────────────────────
+window.bcToken = (document.querySelector('meta[name="bc-token"]') || {}).content || '';
+(function patchFetch() {
+  const _origFetch = window.fetch;
+  window.fetch = function (input, init) {
+    init = init || {};
+    const method = (init.method || (typeof input === 'string' ? 'GET' : input.method) || 'GET').toUpperCase();
+    if (method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE') {
+      const headers = new Headers(init.headers || {});
+      if (!headers.has('X-BoxCutter-Token')) headers.set('X-BoxCutter-Token', window.bcToken);
+      init.headers = headers;
+    }
+    return _origFetch(input, init);
+  };
+})();
+
 // ── State ──────────────────────────────────────────────────────────────────
 let tree       = [];          // full playlist tree
 let tracks     = [];          // tracks in current playlist

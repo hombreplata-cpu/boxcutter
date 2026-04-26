@@ -332,7 +332,62 @@ def inject_globals():
         "is_frozen": getattr(sys, "frozen", False),
         "show_donation": not cfg.get("donation_shown", False),
         "app_version": _app_version,
+        "request_token": _REQUEST_TOKEN,
     }
+
+
+# ── Same-origin token gate (CSRF + cross-tab protection) ──────────────────────
+# Per-process random token issued at startup, baked into every Jinja template
+# via a <meta name="bc-token"> tag. Every state-mutating route requires the
+# token in either:
+#   • the X-BoxCutter-Token header (fetch from page JS — same origin only)
+#   • the ?token=... query param      (EventSource cannot set custom headers)
+#   • the csrf_token form field       (form-encoded POSTs from <form>)
+#
+# Closes S-03/05/06/08/09/10 in one stroke. A malicious site loaded in
+# another tab cannot read the meta tag (same-origin policy) and cannot
+# forge the header (no preflight on simple POSTs but X-BoxCutter-Token is
+# a custom header that DOES require preflight, blocking cross-origin).
+# Form POSTs are protected by the embedded token field.
+
+_REQUEST_TOKEN = secrets.token_urlsafe(32)
+
+
+def _request_needs_token() -> bool:
+    """Return True if the current request must carry a valid token."""
+    # All state-mutating methods.
+    if request.method in ("POST", "PUT", "PATCH", "DELETE"):
+        return True
+    # SSE GETs that side-effect (run scripts / download installers).
+    if request.path.startswith("/api/run/") or request.path == "/api/download_update":
+        return True
+    return False
+
+
+def _request_has_valid_token() -> bool:
+    supplied = (
+        request.headers.get("X-BoxCutter-Token")
+        or request.args.get("token")
+        or request.form.get("csrf_token")
+        or ""
+    )
+    return bool(supplied) and secrets.compare_digest(supplied, _REQUEST_TOKEN)
+
+
+@app.before_request
+def _enforce_csrf():
+    # Skip the gate for static assets and the GET pages that render the token
+    # into their HTML (otherwise the user could never load a page).
+    if not _request_needs_token():
+        return None
+    # Existing test fixtures don't supply the token; opt in by setting
+    # app.config["BOXCUTTER_TEST_ENFORCE_CSRF"] = True for tests that
+    # specifically exercise the gate.
+    if app.config.get("TESTING") and not app.config.get("BOXCUTTER_TEST_ENFORCE_CSRF"):
+        return None
+    if _request_has_valid_token():
+        return None
+    return jsonify({"error": "Missing or invalid request token"}), 403
 
 
 # ── Error handling ───────────────────────────────────────────────────────────
@@ -1279,6 +1334,10 @@ def api_backups_clean():
 @app.route("/shutdown", methods=["POST"])
 def shutdown():
     """Terminate the server process — only exposed when running as a frozen binary."""
+    if not getattr(sys, "frozen", False):
+        # Dev / test mode — refuse to kill the process. Shutting down a dev
+        # server should use Ctrl+C; killing pytest mid-run is never desired.
+        return jsonify({"error": "shutdown only available in frozen binary"}), 404
     os.kill(os.getpid(), signal.SIGTERM)
     return "", 204
 
