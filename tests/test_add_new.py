@@ -8,6 +8,7 @@ Covers:
 - run() skips files already in the DB (no duplicates)
 - Backup is created on a live run but not on dry run
 - Unknown extension files are never added
+- Dry-run never persists Artist/Album/Genre side rows (B-08 invariant)
 """
 
 import sys
@@ -159,6 +160,36 @@ def test_dry_run_calls_rollback(tmp_path):
         run(_make_args(tmp_path, dry_run=True))
 
     db.rollback.assert_called_once()
+
+
+def test_dry_run_does_not_persist_artist_album_genre(tmp_path):
+    # B-08: dry-run must not leak Artist/Album/Genre rows into the DB.
+    # The script enforces this structurally — the dry-run branch `continue`s
+    # before the _get_or_create_* helpers fire, so add_artist / add_album /
+    # add_genre are never called even with rich tag data.
+    (tmp_path / "rich.flac").write_bytes(b"x")
+    db = _mock_db()
+
+    rich_tags = {
+        "title": "T",
+        "artist": "A",
+        "album": "Alb",
+        "genre": "G",
+        "bpm": 120,
+    }
+
+    with (
+        patch("scripts.rekordbox_add_new.MasterDatabase", return_value=db),
+        patch("scripts.rekordbox_add_new.read_audio_tags", return_value=rich_tags),
+    ):
+        run(_make_args(tmp_path, dry_run=True))
+
+    db.add_artist.assert_not_called()
+    db.add_album.assert_not_called()
+    db.add_genre.assert_not_called()
+    db.get_artist.assert_not_called()
+    db.get_album.assert_not_called()
+    db.get_genre.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
