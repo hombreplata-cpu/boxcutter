@@ -123,7 +123,7 @@ def test_process_flac_removes_url_from_comment(tmp_path):
     mock_audio = _make_flac_mock(comment_values=["Great track. https://beatport.com/track/123"])
 
     with patch("scripts.strip_comment_urls.FLAC", return_value=mock_audio):
-        changes = process_flac(fpath, write=True)
+        changes, _ = process_flac(fpath, write=True)
 
     assert len(changes) == 1
     assert changes[0]["field"] == "COMMENT"
@@ -141,7 +141,7 @@ def test_process_flac_preserves_non_url_comment(tmp_path):
     mock_audio = _make_flac_mock(comment_values=["A great track with no URL"])
 
     with patch("scripts.strip_comment_urls.FLAC", return_value=mock_audio):
-        changes = process_flac(fpath, write=True)
+        changes, _ = process_flac(fpath, write=True)
 
     assert changes == []
 
@@ -171,7 +171,7 @@ def test_process_flac_removes_url_from_description(tmp_path):
     mock_audio = _make_flac_mock(description_values=["From http://example.com the label"])
 
     with patch("scripts.strip_comment_urls.FLAC", return_value=mock_audio):
-        changes = process_flac(fpath, write=False)
+        changes, _ = process_flac(fpath, write=False)
 
     assert len(changes) == 1
     assert changes[0]["field"] == "DESCRIPTION"
@@ -212,7 +212,7 @@ def test_process_mp3_removes_url_from_comm(tmp_path):
     mock_tags, mock_frame = _make_id3_mock(["Download at https://beatport.com/track/999"])
 
     with patch("scripts.strip_comment_urls.ID3", return_value=mock_tags):
-        changes = process_mp3(fpath, write=True)
+        changes, _ = process_mp3(fpath, write=True)
 
     assert len(changes) == 1
     assert "https" not in changes[0]["to_"]
@@ -229,7 +229,7 @@ def test_process_mp3_preserves_non_url_comm(tmp_path):
     mock_tags, _ = _make_id3_mock(["Purchased from record store"])
 
     with patch("scripts.strip_comment_urls.ID3", return_value=mock_tags):
-        changes = process_mp3(fpath, write=True)
+        changes, _ = process_mp3(fpath, write=True)
 
     assert changes == []
 
@@ -295,7 +295,7 @@ def test_process_mp4_removes_url_from_cmt_atom(tmp_path):
     mock_audio, _ = _make_mp4_mock(cmt_values=["Bought from https://bandcamp.com/album/x"])
 
     with patch("scripts.strip_comment_urls.MP4", return_value=mock_audio):
-        changes = process_mp4(fpath, write=True)
+        changes, _ = process_mp4(fpath, write=True)
 
     assert len(changes) == 1
     assert changes[0]["field"] == "COMMENT"
@@ -312,7 +312,7 @@ def test_process_mp4_preserves_non_url_comment(tmp_path):
     mock_audio, _ = _make_mp4_mock(cmt_values=["Favourite track of the summer"])
 
     with patch("scripts.strip_comment_urls.MP4", return_value=mock_audio):
-        changes = process_mp4(fpath, write=True)
+        changes, _ = process_mp4(fpath, write=True)
 
     assert changes == []
     mock_audio.save.assert_not_called()
@@ -343,7 +343,9 @@ def test_wav_file_dispatched_to_id3_handler(tmp_path):
 
     (tmp_path / "track.wav").write_bytes(b"x")
 
-    with patch("scripts.strip_comment_urls.process_wav_aiff", return_value=[]) as mock_handler:
+    with patch(
+        "scripts.strip_comment_urls.process_wav_aiff", return_value=([], None)
+    ) as mock_handler:
         crawl([str(tmp_path)], write=True)
 
     mock_handler.assert_called_once()
@@ -354,7 +356,9 @@ def test_aiff_file_dispatched_to_id3_handler(tmp_path):
 
     (tmp_path / "track.aiff").write_bytes(b"x")
 
-    with patch("scripts.strip_comment_urls.process_wav_aiff", return_value=[]) as mock_handler:
+    with patch(
+        "scripts.strip_comment_urls.process_wav_aiff", return_value=([], None)
+    ) as mock_handler:
         crawl([str(tmp_path)], write=True)
 
     mock_handler.assert_called_once()
@@ -365,7 +369,7 @@ def test_m4a_file_dispatched_to_mp4_handler(tmp_path):
 
     (tmp_path / "track.m4a").write_bytes(b"x")
 
-    with patch("scripts.strip_comment_urls.process_mp4", return_value=[]) as mock_handler:
+    with patch("scripts.strip_comment_urls.process_mp4", return_value=([], None)) as mock_handler:
         crawl([str(tmp_path)], write=True)
 
     mock_handler.assert_called_once()
@@ -376,7 +380,7 @@ def test_alac_file_dispatched_to_mp4_handler(tmp_path):
 
     (tmp_path / "track.alac").write_bytes(b"x")
 
-    with patch("scripts.strip_comment_urls.process_mp4", return_value=[]) as mock_handler:
+    with patch("scripts.strip_comment_urls.process_mp4", return_value=([], None)) as mock_handler:
         crawl([str(tmp_path)], write=True)
 
     mock_handler.assert_called_once()
@@ -410,7 +414,7 @@ def test_mp3_file_processed_not_skipped(tmp_path):
 
     (tmp_path / "track.mp3").write_bytes(b"x")
 
-    with patch("scripts.strip_comment_urls.process_mp3", return_value=[]) as mock_mp3:
+    with patch("scripts.strip_comment_urls.process_mp3", return_value=([], None)) as mock_mp3:
         crawl([str(tmp_path)], write=False)
 
     mock_mp3.assert_called_once()
@@ -422,7 +426,7 @@ def test_flac_file_processed_not_skipped(tmp_path):
 
     (tmp_path / "track.flac").write_bytes(b"x")
 
-    with patch("scripts.strip_comment_urls.process_flac", return_value=[]) as mock_flac:
+    with patch("scripts.strip_comment_urls.process_flac", return_value=([], None)) as mock_flac:
         crawl([str(tmp_path)], write=False)
 
     mock_flac.assert_called_once()

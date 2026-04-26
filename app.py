@@ -8,6 +8,7 @@ Then open http://localhost:5000 in your browser.
 """
 
 import contextlib
+import hmac
 import json
 import os
 import platform
@@ -20,6 +21,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 import traceback
 import urllib.error
 import urllib.request
@@ -1407,6 +1409,42 @@ def listen():
     return render_template("listen.html")
 
 
+_PIN_ATTEMPTS: dict = {}  # ip -> {"fails": int, "lock_until": float}
+_PIN_ATTEMPTS_LOCK = threading.Lock()
+
+
+def _client_ip() -> str:
+    return request.headers.get("X-Forwarded-For", "").split(",")[0].strip() or (
+        request.remote_addr or "unknown"
+    )
+
+
+def _pin_lockout_remaining(ip: str) -> float:
+    """Return seconds remaining on a per-IP PIN lockout, or 0 if not locked."""
+    state = _PIN_ATTEMPTS.get(ip)
+    if not state:
+        return 0.0
+    remaining = state.get("lock_until", 0) - time.monotonic()
+    return max(0.0, remaining)
+
+
+def _record_pin_failure(ip: str) -> float:
+    """Increment fail counter and set the next lockout window. Returns lockout secs."""
+    with _PIN_ATTEMPTS_LOCK:
+        state = _PIN_ATTEMPTS.setdefault(ip, {"fails": 0, "lock_until": 0.0})
+        state["fails"] += 1
+        # Exponential backoff capped at 30s. Starts at 1s after the 3rd failure
+        # to leave a small grace window for typos.
+        backoff = min(30.0, 2 ** (state["fails"] - 3)) if state["fails"] >= 3 else 0.0
+        state["lock_until"] = time.monotonic() + backoff
+        return backoff
+
+
+def _record_pin_success(ip: str) -> None:
+    with _PIN_ATTEMPTS_LOCK:
+        _PIN_ATTEMPTS.pop(ip, None)
+
+
 @app.route("/listen/login", methods=["GET", "POST"])
 def listen_login():
     cfg = load_config()
@@ -1414,10 +1452,23 @@ def listen_login():
     if not pin:
         return render_template("listen_login.html", no_pin=True)
     if request.method == "POST":
-        if request.form.get("pin", "").strip() == pin:
+        ip = _client_ip()
+        remaining = _pin_lockout_remaining(ip)
+        if remaining > 0:
+            # Sleep out the remaining backoff so a brute-forcer can't bypass
+            # by ignoring the response — request handlers are serialized per
+            # connection.
+            time.sleep(remaining)
+            return render_template("listen_login.html", error=True), 429
+        submitted = request.form.get("pin", "").strip()
+        if hmac.compare_digest(submitted, pin):
+            _record_pin_success(ip)
             session["listen_ok"] = True
             return redirect(url_for("listen"))
-        return render_template("listen_login.html", error=True)
+        backoff = _record_pin_failure(ip)
+        if backoff > 0:
+            time.sleep(backoff)
+        return render_template("listen_login.html", error=True), 401
     return render_template("listen_login.html")
 
 
@@ -1547,8 +1598,39 @@ def api_stream(track_id):
     if not file_path.exists():
         return jsonify({"error": "File not found on disk"}), 404
 
+    # S-02: refuse to serve any file outside the configured library roots.
+    # A malicious / swapped DB could otherwise turn /api/stream into an
+    # arbitrary file-read primitive (DB stores FolderPath="/etc/passwd").
+    if not _path_is_within_configured_roots(file_path, cfg):
+        return jsonify({"error": "Track path outside configured library roots"}), 403
+
     mime = _AUDIO_MIMES.get(data["ext"], "application/octet-stream")
     return send_file(file_path, mimetype=mime, conditional=True)
+
+
+def _path_is_within_configured_roots(file_path: Path, cfg: dict) -> bool:
+    """True if file_path resolves under at least one configured library root."""
+    roots = []
+    for key in ("music_root", "flac_root", "mp3_root", "watch_dir"):
+        raw = clean_path(cfg.get(key, ""))
+        if not raw:
+            continue
+        with contextlib.suppress(OSError, ValueError):
+            roots.append(Path(raw).resolve(strict=False))
+    if not roots:
+        # No roots configured at all — fail closed.
+        return False
+    try:
+        resolved = file_path.resolve(strict=False)
+    except (OSError, ValueError):
+        return False
+    for root in roots:
+        try:
+            resolved.relative_to(root)
+            return True
+        except ValueError:
+            continue
+    return False
 
 
 @app.route("/api/tracks/<content_id>/cues")
