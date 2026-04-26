@@ -38,6 +38,17 @@ jobs:
           SQLCIPHER_STATIC: "1"
         run: pip install --no-binary sqlcipher3 sqlcipher3
 
+      - name: Verify pywebview imports cleanly (build-time guard)
+        # If `import webview` fails, PyInstaller's collect_submodules('webview')
+        # silently returns [] and the resulting exe crashes at start() with no
+        # log. Fail loudly here instead of shipping a broken installer.
+        shell: pwsh
+        run: |
+          python -c "import webview; print('webview import OK')"
+          python -c "import proxy_tools; print('proxy_tools OK')"
+          python -c "import bottle; print('bottle OK')"
+          python -c "import clr; print('clr OK')"
+
       - name: Build with PyInstaller
         run: pyinstaller app.spec
 
@@ -73,6 +84,12 @@ jobs:
         env:
           SQLCIPHER_PATH: /usr/local/opt/sqlcipher
         run: pip install sqlcipher3
+
+      - name: Verify pywebview imports cleanly (build-time guard)
+        run: |
+          python -c "import webview; print('webview import OK')"
+          python -c "import proxy_tools; print('proxy_tools OK')"
+          python -c "import bottle; print('bottle OK')"
 
       - name: Generate macOS icon
         run: iconutil -c icns assets/icons/icon.iconset -o static/boxcutter.icns

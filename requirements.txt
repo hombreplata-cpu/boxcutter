@@ -2,3 +2,11 @@ flask>=3.0.0
 pyrekordbox>=0.3.0
 mutagen>=1.47.0
 pywebview>=5.0
+# pywebview transitive deps — pinned explicitly so pip install is deterministic
+# regardless of resolver behavior, and so PyInstaller's collect_submodules('webview')
+# never silently returns [] from a missing-import error at build time.
+proxy-tools>=0.1.0
+bottle>=0.13.0
+# pythonnet provides the `clr` module pywebview uses to render the native
+# window on Windows. macOS/Linux pywebview backends do not need it.
+pythonnet>=3.0.0; sys_platform == "win32"
