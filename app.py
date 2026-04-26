@@ -325,7 +325,9 @@ def tool(n):
 
 @app.route("/api/config", methods=["POST"])
 def api_config():
-    data = request.get_json()
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "Body must be a JSON object"}), 400
     cfg = save_config(data)
     return jsonify({"ok": True, "config": cfg})
 
