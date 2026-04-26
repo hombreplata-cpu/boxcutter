@@ -11,6 +11,7 @@ import contextlib
 import json
 import os
 import platform
+import re
 import secrets
 import shutil
 import signal
@@ -38,6 +39,7 @@ from flask import (
     session,
     url_for,
 )
+from werkzeug.exceptions import HTTPException
 
 from crash_logger import write_crash_log
 from version import __version__ as _app_version
@@ -75,6 +77,26 @@ DEFAULT_CONFIG = {
     "donation_shown": False,
     "listen_pin": "",  # Remote listener PIN (4 digits; empty = listener not configured)
 }
+
+# Keys writable via /api/config or POST /setup. Anything else is silently
+# dropped — prevents an attacker from setting _secret_key, db_path on a
+# malicious DB, etc. Internal keys (e.g. _secret_key) are written through
+# save_config() directly, never via the public endpoints.
+ALLOWED_CONFIG_KEYS = frozenset(DEFAULT_CONFIG.keys())
+
+# Listen PIN format: 4–8 digits, or empty to disable the feature.
+_LISTEN_PIN_RE = re.compile(r"^\d{4,8}$")
+
+
+def _validate_listen_pin(raw):
+    """Return ('', None) for empty, (pin, None) for valid, ('', error) otherwise."""
+    pin = (raw or "").strip()
+    if not pin:
+        return "", None
+    if _LISTEN_PIN_RE.match(pin):
+        return pin, None
+    return "", "Listener PIN must be 4–8 digits (or empty to disable)."
+
 
 HISTORY_FILE = Path.home() / ".boxcutter_history.json"
 
@@ -318,6 +340,11 @@ def inject_globals():
 
 @app.errorhandler(Exception)
 def handle_exception(exc):
+    # Let Flask render its standard 4xx/5xx for explicit abort(N) calls.
+    # Otherwise the global handler turns every abort() into a 500 + crash log,
+    # which silently breaks any future authorization gate (B-14).
+    if isinstance(exc, HTTPException):
+        return exc
     body = traceback.format_exc()
     ctx = {"Request": f"{request.method} {request.path}"}
     log_path = write_crash_log("route", body, context=ctx)
@@ -341,7 +368,22 @@ def index():
 def setup():
     cfg = load_config()
     saved = False
+    pin_error = None
     if request.method == "POST":
+        pin, pin_error = _validate_listen_pin(request.form.get("listen_pin", ""))
+        if pin_error:
+            # Re-render with current form values + error; do not persist anything.
+            cfg = {
+                **cfg,
+                "music_root": clean_path(request.form.get("music_root", "")),
+                "flac_root": clean_path(request.form.get("flac_root", "")),
+                "mp3_root": clean_path(request.form.get("mp3_root", "")),
+                "delete_dir": clean_path(request.form.get("delete_dir", "")),
+                "watch_dir": clean_path(request.form.get("watch_dir", "")),
+                "db_path": clean_path(request.form.get("db_path", "")),
+                "listen_pin": request.form.get("listen_pin", ""),
+            }
+            return render_template("setup.html", cfg=cfg, saved=False, pin_error=pin_error), 400
         cfg = save_config(
             {
                 "music_root": clean_path(request.form.get("music_root", "")),
@@ -350,13 +392,13 @@ def setup():
                 "delete_dir": clean_path(request.form.get("delete_dir", "")),
                 "watch_dir": clean_path(request.form.get("watch_dir", "")),
                 "db_path": clean_path(request.form.get("db_path", "")),
-                "listen_pin": request.form.get("listen_pin", "").strip(),
+                "listen_pin": pin,
             }
         )
         saved = True
         if config_is_complete(cfg):
             return redirect(url_for("index"))
-    return render_template("setup.html", cfg=cfg, saved=saved)
+    return render_template("setup.html", cfg=cfg, saved=saved, pin_error=pin_error)
 
 
 @app.route("/tool/<n>")
@@ -380,7 +422,17 @@ def api_config():
     data = request.get_json(silent=True)
     if not isinstance(data, dict):
         return jsonify({"error": "Body must be a JSON object"}), 400
-    cfg = save_config(data)
+    # Allowlist: only known config keys may be written via this endpoint.
+    # Internal keys (leading underscore, e.g. _secret_key) and unknown keys
+    # are silently dropped — prevents an attacker from setting the session
+    # key, swapping db_path to a malicious DB, etc. (S-01)
+    filtered = {k: v for k, v in data.items() if k in ALLOWED_CONFIG_KEYS}
+    if "listen_pin" in filtered:
+        pin, err = _validate_listen_pin(filtered["listen_pin"])
+        if err:
+            return jsonify({"error": err}), 400
+        filtered["listen_pin"] = pin
+    cfg = save_config(filtered)
     return jsonify({"ok": True, "config": cfg})
 
 
@@ -911,7 +963,8 @@ def api_run(script_name):
         args += dirs
         if not dry_run:
             args.append("--write")
-        dry_run = False
+        # NOTE: do NOT clobber dry_run here — the history entry must reflect
+        # the actual mode the user requested (B-04).
 
     elif script_name == "fix_metadata":
         ids = clean_path(request.args.get("ids", ""))
@@ -933,7 +986,9 @@ def api_run(script_name):
     if db_path and script_name != "strip_comments":
         args += ["--db-path", db_path]
 
-    if dry_run:
+    # strip_comments uses --write to opt-IN to live mode; --dry-run is the default
+    # and the flag isn't accepted by the script. Other scripts use --dry-run.
+    if dry_run and script_name != "strip_comments":
         args.append("--dry-run")
 
     cmd = [sys.executable, str(script_path)] + args
@@ -1055,7 +1110,7 @@ def api_playlists():
             text=True,
             encoding="utf-8",
             errors="replace",
-            timeout=15,
+            timeout=60,
             **_POPEN_FLAGS,
         )
         if result.returncode != 0:
@@ -1090,7 +1145,7 @@ def api_stats():
             text=True,
             encoding="utf-8",
             errors="replace",
-            timeout=15,
+            timeout=60,
             **_POPEN_FLAGS,
         )
         if result.returncode != 0:
@@ -1116,8 +1171,11 @@ def backup_cleaner_page():
 @app.route("/api/history")
 def api_history():
     history = load_history()
-    page = max(1, int(request.args.get("page", 1)))
-    per_page = max(1, min(100, int(request.args.get("per_page", 20))))
+    try:
+        page = max(1, int(request.args.get("page", 1)))
+        per_page = max(1, min(100, int(request.args.get("per_page", 20))))
+    except (TypeError, ValueError):
+        return jsonify({"error": "page and per_page must be integers"}), 400
     total = len(history)
     start = (page - 1) * per_page
     entries = history[start : start + per_page]
@@ -1327,7 +1385,7 @@ def api_listen_tree():
             text=True,
             encoding="utf-8",
             errors="replace",
-            timeout=15,
+            timeout=60,
             **_POPEN_FLAGS,
         )
         if result.returncode != 0:

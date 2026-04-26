@@ -1,8 +1,14 @@
+import os
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
+
+# Set before app is imported so the lazy secret-key writer short-circuits.
+# Prevents test runs from persisting a session key into a real config file
+# and prevents the secret_key from polluting allowlist tests.
+os.environ.setdefault("BOXCUTTER_TESTING", "1")
 
 # tests/ dir — makes helpers.py importable from test modules.
 sys.path.insert(0, str(Path(__file__).parent))
