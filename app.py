@@ -60,6 +60,25 @@ CONFIG_FILE = Path(
 SCRIPTS_DIR = Path(__file__).parent / "scripts"
 
 
+def _default_secret_dir() -> Path:
+    """Per-OS user-private dir for the session signing key.
+
+    Windows uses %LOCALAPPDATA%\\BoxCutter (already user-only ACL); macOS uses
+    ~/Library/Application Support/BoxCutter. Override with BOXCUTTER_SECRET_PATH
+    for tests."""
+    if platform.system() == "Windows":
+        base = Path(os.environ.get("LOCALAPPDATA", str(Path.home() / "AppData" / "Local")))
+        return base / "BoxCutter"
+    if platform.system() == "Darwin":
+        return Path.home() / "Library" / "Application Support" / "BoxCutter"
+    return Path.home() / ".config" / "BoxCutter"
+
+
+SECRET_FILE = Path(
+    os.environ.get("BOXCUTTER_SECRET_PATH", str(_default_secret_dir() / "secret.bin"))
+)
+
+
 def _default_delete_dir() -> str:
     onedrive = Path.home() / "OneDrive" / "Desktop"
     if onedrive.is_dir():
@@ -112,6 +131,9 @@ TOOL_LABELS = {
 
 GITHUB_RELEASES_URL = "https://api.github.com/repos/hombreplata-cpu/boxcutter/releases/latest"
 GITHUB_DOWNLOAD_PREFIX = "https://github.com/hombreplata-cpu/boxcutter/releases/download/"
+# Hard cap on installer download size. Real installers are ~25 MB; cap at 200 MB
+# so a malicious / compromised release host can't stream forever (R-03).
+MAX_INSTALLER_BYTES = 200 * 1024 * 1024
 
 _update_state: dict = {"path": None}  # stores downloaded installer path until applied
 
@@ -120,6 +142,11 @@ _update_state: dict = {"path": None}  # stores downloaded installer path until a
 # concurrent requests (or the lazy secret-key writer) race against the user
 # pressing Save in the UI. All file writes go through atomic_write_json().
 _FILE_WRITE_LOCK = threading.Lock()
+
+# Serialises SELECT MAX(ID)+1 → INSERT sequences in DjmdSongMyTag,
+# DjmdSongPlaylist, DjmdCue. Without this lock two concurrent requests can
+# both compute the same next-ID and INSERT duplicate primary keys (B-09).
+_DB_ID_LOCK = threading.Lock()
 
 
 def _atomic_write_json(target: Path, data) -> None:
@@ -181,6 +208,71 @@ def config_is_complete(cfg):
 _secret_key_initialised = False
 
 
+def _read_secret_file() -> bytes | None:
+    """Return the persisted secret key bytes, or None if the file is missing."""
+    try:
+        if SECRET_FILE.exists():
+            data = SECRET_FILE.read_bytes()
+            if len(data) >= 32:
+                return data[:32]
+    except OSError:
+        return None
+    return None
+
+
+def _write_secret_file(key: bytes) -> bool:
+    """Write *key* atomically to SECRET_FILE with 0600 perms (POSIX). Returns True on success."""
+    try:
+        SECRET_FILE.parent.mkdir(parents=True, exist_ok=True)
+        tmp = SECRET_FILE.with_suffix(SECRET_FILE.suffix + ".tmp")
+        # Open with restrictive perms from the start so the key is never world-readable
+        # even briefly. Windows ignores mode but inherits the user-only ACL of LocalAppData.
+        flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
+        if hasattr(os, "O_NOFOLLOW"):
+            flags |= os.O_NOFOLLOW
+        fd = os.open(str(tmp), flags, 0o600)
+        try:
+            os.write(fd, key)
+        finally:
+            os.close(fd)
+        os.replace(tmp, SECRET_FILE)
+        if os.name == "posix":
+            with contextlib.suppress(OSError):
+                os.chmod(SECRET_FILE, 0o600)
+        return True
+    except OSError as exc:
+        print(
+            f"  WARNING: could not persist session key to {SECRET_FILE} ({exc}); "
+            "sessions will not survive restart"
+        )
+        return False
+
+
+def _migrate_secret_from_config() -> bytes | None:
+    """If the legacy _secret_key is in CONFIG_FILE, move it to SECRET_FILE
+    and remove it from config. Returns the migrated key bytes, or None."""
+    cfg = load_config()
+    legacy_hex = cfg.get("_secret_key", "")
+    if not legacy_hex:
+        return None
+    try:
+        key = bytes.fromhex(legacy_hex)
+    except ValueError:
+        return None
+    if _write_secret_file(key):
+        # Drop the key from config so future leaks of CONFIG_FILE don't expose it.
+        with _FILE_WRITE_LOCK:
+            try:
+                with open(CONFIG_FILE) as f:
+                    on_disk = json.load(f)
+            except Exception:  # noqa: BLE001
+                on_disk = {}
+            on_disk.pop("_secret_key", None)
+            with contextlib.suppress(OSError):
+                _atomic_write_json(CONFIG_FILE, on_disk)
+    return key
+
+
 def _init_secret_key():
     global _secret_key_initialised
     if _secret_key_initialised:
@@ -191,19 +283,16 @@ def _init_secret_key():
         app.secret_key = secrets.token_bytes(32)
         _secret_key_initialised = True
         return
-    cfg = load_config()
-    key_hex = cfg.get("_secret_key", "")
-    if not key_hex:
-        key_hex = secrets.token_hex(32)
-        try:
-            save_config({"_secret_key": key_hex})
-        except OSError as exc:
-            # Read-only home / locked-down environment: fall back to ephemeral.
-            print(
-                f"  WARNING: could not persist session key ({exc}); "
-                "sessions will not survive restart"
-            )
-    app.secret_key = bytes.fromhex(key_hex)
+    # 1. Existing dedicated secret file → use it.
+    key = _read_secret_file()
+    # 2. Legacy: key still in CONFIG_FILE → migrate.
+    if key is None:
+        key = _migrate_secret_from_config()
+    # 3. Brand new install → generate.
+    if key is None:
+        key = secrets.token_bytes(32)
+        _write_secret_file(key)  # best-effort; ephemeral fallback below if it failed
+    app.secret_key = key
     _secret_key_initialised = True
 
 
@@ -581,16 +670,29 @@ def api_download_update():
                 ) as tmp:
                     tmp_path = tmp.name
                     downloaded = 0
+                    aborted_oversize = False
                     while True:
                         chunk = resp.read(65536)
                         if not chunk:
                             break
                         tmp.write(chunk)
                         downloaded += len(chunk)
+                        # R-03: enforce a hard cap so a hostile / misconfigured
+                        # release host can't stream forever.
+                        if downloaded > MAX_INSTALLER_BYTES:
+                            aborted_oversize = True
+                            break
                         payload = {"downloaded": downloaded}
                         if total:
                             payload["total"] = total
                         yield f"data: {json.dumps(payload)}\n\n"
+                if aborted_oversize:
+                    Path(tmp_path).unlink(missing_ok=True)
+                    tmp_path = None
+                    yield (
+                        f"data: {json.dumps({'error': f'Download exceeded {MAX_INSTALLER_BYTES} byte cap; aborted'})}\n\n"
+                    )
+                    return
                 if total and downloaded != total:
                     Path(tmp_path).unlink(missing_ok=True)
                     tmp_path = None
@@ -756,18 +858,21 @@ def api_track_mytags_add(content_id):
         existing = db.get_my_tag_songs(ContentID=content_id).filter_by(MyTagID=mytag_id).first()
         if existing:
             return jsonify({"error": "Tag already assigned to this track"}), 409
-        current = db.get_my_tag_songs(MyTagID=mytag_id).all()
-        track_no = max((a.TrackNo or 0 for a in current), default=0) + 1
-        new_id = _next_song_mytag_id(db)
-        row = DjmdSongMyTag(
-            ID=new_id,
-            MyTagID=mytag_id,
-            ContentID=content_id,
-            TrackNo=track_no,
-            UUID=str(uuid.uuid4()),
-        )
-        db.session.add(row)
-        db.commit()
+        # Serialise the read-MAX → INSERT sequence so concurrent POSTs cannot
+        # collide on the same generated ID (B-09).
+        with _DB_ID_LOCK:
+            current = db.get_my_tag_songs(MyTagID=mytag_id).all()
+            track_no = max((a.TrackNo or 0 for a in current), default=0) + 1
+            new_id = _next_song_mytag_id(db)
+            row = DjmdSongMyTag(
+                ID=new_id,
+                MyTagID=mytag_id,
+                ContentID=content_id,
+                TrackNo=track_no,
+                UUID=str(uuid.uuid4()),
+            )
+            db.session.add(row)
+            db.commit()
         return jsonify({"ok": True, "assignment_id": new_id})
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
@@ -790,20 +895,23 @@ def api_track_mytags_remove(content_id, assignment_id):
         return jsonify({"error": str(exc)}), 500
 
 
-# ── Stream session — lazy one-per-session backup ───────────────────────────────
+# ── Stream session — lazy one-per-window DB backup ─────────────────────────────
+# Single global by design: one shared backup window across all listener clients
+# editing the same DB. If two phones rate tracks within the TTL only one
+# backup is created. (B-10 — explicit comment, no behavioural change.)
 
-_stream_session: dict = {"backup_path": None, "last_write": None}
+_db_session_backup: dict = {"backup_path": None, "last_write": None}
 _STREAM_SESSION_TTL = 2 * 3600  # seconds
 
 
 def _ensure_stream_backup(db) -> Path:
     now = datetime.now()
-    last = _stream_session["last_write"]
+    last = _db_session_backup["last_write"]
     if last is None or (now - last).total_seconds() > _STREAM_SESSION_TTL:
         path = create_db_backup(db, "stream")
-        _stream_session["backup_path"] = str(path)
-    _stream_session["last_write"] = now
-    return Path(_stream_session["backup_path"])
+        _db_session_backup["backup_path"] = str(path)
+    _db_session_backup["last_write"] = now
+    return Path(_db_session_backup["backup_path"])
 
 
 def _next_song_playlist_id(db) -> str:
@@ -895,23 +1003,25 @@ def api_track_playlist_add(content_id, playlist_id):
         )
         if existing:
             return jsonify({"ok": True, "already": True})
-        current = (
-            db.session.query(DjmdSongPlaylist)
-            .filter_by(PlaylistID=playlist_id, rb_local_deleted=0)
-            .all()
-        )
-        track_no = max((r.TrackNo or 0 for r in current), default=0) + 1
-        new_id = _next_song_playlist_id(db)
-        _ensure_stream_backup(db)
-        row = DjmdSongPlaylist(
-            ID=new_id,
-            PlaylistID=playlist_id,
-            ContentID=content_id,
-            TrackNo=track_no,
-            UUID=str(uuid.uuid4()),
-        )
-        db.session.add(row)
-        db.commit()
+        # Serialise read-MAX → INSERT to prevent ID collision (B-09).
+        with _DB_ID_LOCK:
+            current = (
+                db.session.query(DjmdSongPlaylist)
+                .filter_by(PlaylistID=playlist_id, rb_local_deleted=0)
+                .all()
+            )
+            track_no = max((r.TrackNo or 0 for r in current), default=0) + 1
+            new_id = _next_song_playlist_id(db)
+            _ensure_stream_backup(db)
+            row = DjmdSongPlaylist(
+                ID=new_id,
+                PlaylistID=playlist_id,
+                ContentID=content_id,
+                TrackNo=track_no,
+                UUID=str(uuid.uuid4()),
+            )
+            db.session.add(row)
+            db.commit()
         return jsonify({"ok": True})
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
@@ -1685,36 +1795,40 @@ def api_track_cue_add(content_id):
         db = _open_db()
         _ensure_stream_backup(db)
 
-        with db.engine.connect() as conn:
-            result = conn.execute(text("SELECT MAX(CAST(ID AS INTEGER)) FROM DjmdCue")).scalar()
-        new_id = str((result or 0) + 1)
+        # Serialise read-MAX → INSERT to prevent ID collision (B-09).
+        with _DB_ID_LOCK:
+            with db.engine.connect() as conn:
+                result = conn.execute(
+                    text("SELECT MAX(CAST(ID AS INTEGER)) FROM DjmdCue")
+                ).scalar()
+            new_id = str((result or 0) + 1)
 
-        row = DjmdCue(
-            ID=new_id,
-            ContentID=content_id,
-            InMsec=time_ms,
-            InFrame=0,
-            InMpegFrame=0,
-            InMpegAbs=0,
-            OutMsec=-1,
-            OutFrame=-1,
-            OutMpegFrame=-1,
-            OutMpegAbs=-1,
-            Kind=0,  # 0 = memory cue
-            Color=0,
-            ColorTableIndex=0,
-            ActiveLoop=0,
-            Comment=comment,
-            BeatLoopSize=0,
-            CueMicrosec=0,
-            InPointSeekInfo="",
-            OutPointSeekInfo="",
-            ContentUUID="",
-            UUID=str(uuid.uuid4()),
-            rb_local_deleted=0,
-        )
-        db.session.add(row)
-        db.commit()
+            row = DjmdCue(
+                ID=new_id,
+                ContentID=content_id,
+                InMsec=time_ms,
+                InFrame=0,
+                InMpegFrame=0,
+                InMpegAbs=0,
+                OutMsec=-1,
+                OutFrame=-1,
+                OutMpegFrame=-1,
+                OutMpegAbs=-1,
+                Kind=0,  # 0 = memory cue
+                Color=0,
+                ColorTableIndex=0,
+                ActiveLoop=0,
+                Comment=comment,
+                BeatLoopSize=0,
+                CueMicrosec=0,
+                InPointSeekInfo="",
+                OutPointSeekInfo="",
+                ContentUUID="",
+                UUID=str(uuid.uuid4()),
+                rb_local_deleted=0,
+            )
+            db.session.add(row)
+            db.commit()
         return jsonify({"ok": True, "id": new_id, "time_ms": time_ms})
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
@@ -1751,7 +1865,9 @@ def _port_pid(port: int) -> int | None:
 
 
 def _is_our_app(pid: int) -> bool:
-    """Return True if *pid*'s command line contains app.py (BoxCutter)."""
+    """Return True if *pid* is a BoxCutter instance — match on the full app.py
+    path (or BoxCutter binary name) so we don't accidentally kill another
+    Python project's app.py running on the same machine (B-11)."""
     try:
         if platform.system() == "Windows":
             result = subprocess.run(
@@ -1769,7 +1885,15 @@ def _is_our_app(pid: int) -> bool:
                 timeout=5,
                 **_POPEN_FLAGS,
             )
-        return "app.py" in result.stdout
+        out = result.stdout
+        # Match on the absolute path of THIS app.py, or the BoxCutter binary
+        # name. Plain "app.py" would match any unrelated Python project.
+        our_app_path = str(Path(__file__).resolve())
+        if our_app_path in out:
+            return True
+        if our_app_path.replace("\\", "/") in out.replace("\\", "/"):
+            return True
+        return "BoxCutter" in out
     except Exception:  # noqa: S110
         return False
 

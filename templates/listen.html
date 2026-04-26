@@ -1517,13 +1517,15 @@ function fmtDur(secs) {
   return `${m}:${s}`;
 }
 
+// Canonical escaper — all five HTML entities, preserves 0 (B-15).
 function esc(s) {
-  if (!s && s !== 0) return '';
+  if (s === null || s === undefined) return '';
   return String(s)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 function showError(msg) {

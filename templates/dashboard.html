@@ -449,9 +449,8 @@
     });
   }
 
-  function esc(s) {
-    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-  }
+  // Reuse the canonical esc() defined in base.html (escapes all five entities, B-15).
+  const esc = window.esc;
 
   function renderError(msg) {
     ['stat-tracks', 'stat-size', 'stat-lowbitrate'].forEach(id => {

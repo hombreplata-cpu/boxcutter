@@ -188,34 +188,40 @@ def test_testing_env_skips_secret_persistence(tmp_path, monkeypatch):
 
 
 def test_secret_key_persisted_in_real_mode(tmp_path, monkeypatch):
-    """Outside testing mode, _init_secret_key writes a key to CONFIG_FILE."""
+    """Outside testing mode, _init_secret_key writes a key to SECRET_FILE
+    (not CONFIG_FILE — Phase 5 moved it for isolation)."""
     cfg_file = tmp_path / "config.json"
+    secret_file = tmp_path / "secret.bin"
     monkeypatch.delenv("BOXCUTTER_TESTING", raising=False)
     flask_app._secret_key_initialised = False
 
-    with patch.object(flask_app, "CONFIG_FILE", cfg_file):
+    with (
+        patch.object(flask_app, "CONFIG_FILE", cfg_file),
+        patch.object(flask_app, "SECRET_FILE", secret_file),
+    ):
         flask_app._init_secret_key()
 
-    assert cfg_file.exists()
-    with open(cfg_file) as f:
-        cfg = json.load(f)
-    assert "_secret_key" in cfg
-    assert len(cfg["_secret_key"]) == 64  # 32 bytes hex-encoded
+    assert secret_file.exists()
+    assert len(secret_file.read_bytes()) == 32
     flask_app._secret_key_initialised = False
 
 
 def test_secret_key_reused_when_already_persisted(tmp_path, monkeypatch):
-    """If a key is already in CONFIG_FILE, reuse it rather than generating a new one."""
+    """If a key is already in SECRET_FILE, reuse it rather than generating a new one."""
     cfg_file = tmp_path / "config.json"
-    existing = "ab" * 32
-    cfg_file.write_text(json.dumps({"_secret_key": existing}))
+    secret_file = tmp_path / "secret.bin"
+    existing = b"\xab" * 32
+    secret_file.write_bytes(existing)
     monkeypatch.delenv("BOXCUTTER_TESTING", raising=False)
     flask_app._secret_key_initialised = False
 
-    with patch.object(flask_app, "CONFIG_FILE", cfg_file):
+    with (
+        patch.object(flask_app, "CONFIG_FILE", cfg_file),
+        patch.object(flask_app, "SECRET_FILE", secret_file),
+    ):
         flask_app._init_secret_key()
 
-    assert flask_app.app.secret_key == bytes.fromhex(existing)
+    assert flask_app.app.secret_key == existing
     flask_app._secret_key_initialised = False
 
 

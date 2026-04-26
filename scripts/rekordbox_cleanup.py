@@ -221,6 +221,11 @@ def run(args):
         "summary": {
             "total_scanned": total_scanned,
             "total_in_db": len(contents),
+            # Disk files matched to an active DB row (NOT the count of active
+            # DB rows — that's total_in_db). Renamed from active_in_rekordbox
+            # for clarity (B-06). Old key still emitted for back-compat with
+            # any cached UI state.
+            "matched_to_db": total_scanned - len(unreferenced),
             "active_in_rekordbox": total_scanned - len(unreferenced),
             "unreferenced": len(unreferenced),
             "moved": moved,
