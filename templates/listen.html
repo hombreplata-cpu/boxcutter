@@ -1542,7 +1542,7 @@ let trackRating    = 0;    // 0-5 stars
 function ratingToStars(rating) {
   const r = Number(rating);
   if (!r || r <= 0) return 0;
-  return Math.min(5, Math.max(1, Math.round(r / 51)));
+  return Math.min(5, Math.max(0, Math.round(r)));
 }
 
 function flattenPlaylists(nodes, out = []) {
@@ -1636,7 +1636,7 @@ async function setStar(star) {
     });
     if (r.ok) {
       // Update in-memory track so reopening the action sheet shows current rating
-      tracks[actionTrackIdx].rating = newRating * 51;
+      tracks[actionTrackIdx].rating = newRating;
     }
   } catch { /* silent — UI already updated */ }
 }
@@ -1644,10 +1644,9 @@ async function setStar(star) {
 // Tags
 function renderTagsList() {
   const assignedIds = new Set(trackTags.map(a => String(a.tag_id)));
-  // Rekordbox sets Attribute=0 for category groups, non-zero for leaf tags.
-  // Using attribute as the discriminator is more reliable than parent_id checks.
-  const parents  = allMyTags.filter(t => Number(t.attribute) === 0);
-  const children = allMyTags.filter(t => Number(t.attribute) !== 0);
+  // Categories have no parent (parent_id is null); leaf tags point to their category.
+  const parents  = allMyTags.filter(t => !t.parent_id);
+  const children = allMyTags.filter(t =>  t.parent_id);
 
   if (!children.length) {
     document.getElementById('as-tags-list').innerHTML = '<div class="as-empty">No My Tags found.</div>';
