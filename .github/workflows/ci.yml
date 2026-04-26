@@ -63,12 +63,15 @@ jobs:
       - name: pip-audit — dependency CVE scan
         run: pip-audit -r requirements.txt --progress-spinner off
 
-      - name: Bandit — SAST scan
-        # --exit-zero: report findings without failing the job (initial triage mode).
-        # Remove --exit-zero once existing findings are resolved or suppressed with # nosec.
+      - name: Bandit — SAST scan (with low-severity baseline)
+        # tools/bandit-baseline.json pins the existing low-severity findings.
+        # Any NEW low/medium/high finding fails the job. To update the
+        # baseline (e.g. after triaging a finding), regenerate via:
+        #   bandit -r app.py scripts/ -l -f json -o tools/bandit-baseline.json
+        # ...and commit the change in a PR for review.
         run: |
-          bandit -r . -ll --exit-zero -f json -o bandit-report.json
-          bandit -r . -ll --exit-zero
+          bandit -r app.py scripts/ -l --baseline tools/bandit-baseline.json -f json -o bandit-report.json
+          bandit -r app.py scripts/ -l --baseline tools/bandit-baseline.json
 
       - name: Upload Bandit report
         uses: actions/upload-artifact@v7
