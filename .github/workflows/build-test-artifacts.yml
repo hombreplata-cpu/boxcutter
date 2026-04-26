@@ -1,0 +1,155 @@
+name: Build Test Artifacts
+
+# Pre-emptive .exe and .dmg builds for sideloading / hardware testing.
+# Runs on every push to main (auto) and on manual dispatch.
+# Artifacts are NOT attached to GitHub Releases — they live in the workflow
+# artifact store with 14-day retention. Real releases continue to flow through
+# release.yml on tag push.
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version stamp for this test build (e.g. 1.1.1-rc1)'
+        required: false
+        default: '0.0.0-test'
+      ref:
+        description: 'Branch or SHA to build from'
+        required: false
+        default: 'main'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-test-artifacts-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  resolve-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.set.outputs.version }}
+    steps:
+      - id: set
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "version=${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
+          else
+            short=$(echo "${{ github.sha }}" | cut -c1-7)
+            echo "version=0.0.0-main-${short}" >> "$GITHUB_OUTPUT"
+          fi
+
+  build-windows:
+    needs: resolve-version
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref || github.ref }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Stamp version
+        shell: pwsh
+        run: |
+          $ver = "${{ needs.resolve-version.outputs.version }}"
+          Set-Content version.py "__version__ = '$ver'"
+          echo "VERSION=$ver" >> $env:GITHUB_ENV
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt pyinstaller
+
+      - name: Build sqlcipher3 static
+        env:
+          SQLCIPHER_STATIC: "1"
+        run: pip install --no-binary sqlcipher3 sqlcipher3
+
+      - name: Verify pywebview imports cleanly (build-time guard)
+        shell: pwsh
+        run: |
+          python -c "import webview; print('webview import OK')"
+          python -c "import proxy_tools; print('proxy_tools OK')"
+          python -c "import bottle; print('bottle OK')"
+          python -c "import clr; print('clr OK')"
+
+      - name: Build with PyInstaller
+        run: pyinstaller app.spec
+
+      - name: Install Inno Setup
+        run: choco install innosetup --yes --no-progress
+
+      - name: Compile installer
+        shell: pwsh
+        run: |
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DAppVersion=$env:VERSION installer\windows\boxcutter.iss
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: BoxCutter-Setup-${{ env.VERSION }}.exe
+          path: installer\windows\Output\BoxCutter-Setup-${{ env.VERSION }}.exe
+          retention-days: 14
+          if-no-files-found: error
+
+  build-mac:
+    needs: resolve-version
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref || github.ref }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Stamp version
+        run: |
+          ver="${{ needs.resolve-version.outputs.version }}"
+          echo "__version__ = '$ver'" > version.py
+          echo "VERSION=$ver" >> "$GITHUB_ENV"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt pyinstaller
+
+      - name: Install sqlcipher via Homebrew
+        run: brew install sqlcipher
+
+      - name: Build sqlcipher3
+        env:
+          SQLCIPHER_PATH: /usr/local/opt/sqlcipher
+        run: pip install sqlcipher3
+
+      - name: Verify pywebview imports cleanly (build-time guard)
+        run: |
+          python -c "import webview; print('webview import OK')"
+          python -c "import proxy_tools; print('proxy_tools OK')"
+          python -c "import bottle; print('bottle OK')"
+
+      - name: Generate macOS icon
+        run: iconutil -c icns assets/icons/icon.iconset -o static/boxcutter.icns
+
+      - name: Build app bundle
+        run: pyinstaller app.spec
+
+      - name: Create DMG
+        run: |
+          npm install -g create-dmg
+          create-dmg dist/BoxCutter.app dist/ || true
+          mv dist/*.dmg "dist/BoxCutter-${VERSION}.dmg"
+
+      - name: Upload dmg artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: BoxCutter-${{ env.VERSION }}.dmg
+          path: dist/BoxCutter-${{ env.VERSION }}.dmg
+          retention-days: 14
+          if-no-files-found: error
