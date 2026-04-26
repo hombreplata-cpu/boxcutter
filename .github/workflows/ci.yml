@@ -58,7 +58,11 @@ jobs:
           cache: pip
 
       - name: Install security tools
-        run: pip install pip-audit==2.7.3 "bandit[toml]==1.7.8"
+        # bandit pinned to 1.9.4 — same major version as the CI baseline file.
+        # If you bump this, also regenerate tools/bandit-baseline.json with the
+        # new version (different versions produce different finding IDs and
+        # the baseline match would silently break).
+        run: pip install pip-audit==2.7.3 "bandit[toml]==1.9.4"
 
       - name: pip-audit — dependency CVE scan
         run: pip-audit -r requirements.txt --progress-spinner off
