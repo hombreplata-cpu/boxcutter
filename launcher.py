@@ -55,18 +55,41 @@ def _already_running(port: int) -> bool:
         return s.connect_ex(("127.0.0.1", port)) == 0
 
 
+# Daemon-thread exceptions don't trigger sys.excepthook, so a Flask startup
+# failure inside _start_flask() would silently kill the thread and leave the
+# main thread waiting forever — user sees a blank pywebview window with no log.
+# Capture any exception here and write a crash log so it's diagnosable.
+_flask_error: dict = {"exc": None}
+
+
 def _start_flask():
-    app.run(host="0.0.0.0", port=PORT, debug=False, use_reloader=False)  # noqa: S104  # nosec B104 — intentional: Tailscale requires binding to all interfaces
+    try:
+        app.run(host="0.0.0.0", port=PORT, debug=False, use_reloader=False)  # noqa: S104  # nosec B104 — intentional: Tailscale requires binding to all interfaces
+    except Exception as exc:
+        body = "".join(__import__("traceback").format_exception(type(exc), exc, exc.__traceback__))
+        write_crash_log("startup", body, context={"phase": "flask_thread"})
+        _flask_error["exc"] = exc
 
 
 def _wait_for_server():
     url = f"http://localhost:{PORT}"
     for _ in range(30):
+        if _flask_error["exc"] is not None:
+            # Flask thread already died — no point continuing to poll.
+            raise RuntimeError(
+                f"Flask failed to start: {_flask_error['exc']}. "
+                f"See crash log in ~/.boxcutter_logs/."
+            )
         try:
             urllib.request.urlopen(url, timeout=1)  # noqa: S310  # nosec B310 — always http://localhost, no user input
             return
         except (urllib.error.URLError, OSError):
             time.sleep(0.5)
+    # Polling exhausted without a connection. Surface this rather than opening
+    # a pywebview window pointing at a server that never came up.
+    raise RuntimeError(
+        f"Flask did not start within 15s on port {PORT}. " f"See crash log in ~/.boxcutter_logs/."
+    )
 
 
 if __name__ == "__main__":
