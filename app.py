@@ -92,6 +92,21 @@ GITHUB_DOWNLOAD_PREFIX = "https://github.com/hombreplata-cpu/boxcutter/releases/
 _update_state: dict = {"path": None}  # stores downloaded installer path until applied
 
 
+# File-write lock for config and history JSON files. Prevents corruption when
+# concurrent requests (or the lazy secret-key writer) race against the user
+# pressing Save in the UI. All file writes go through atomic_write_json().
+_FILE_WRITE_LOCK = threading.Lock()
+
+
+def _atomic_write_json(target: Path, data) -> None:
+    """Write JSON to *target* atomically: tmp file then os.replace."""
+    target.parent.mkdir(parents=True, exist_ok=True)
+    tmp = target.with_suffix(target.suffix + ".tmp")
+    with open(tmp, "w") as f:
+        json.dump(data, f, indent=2)
+    os.replace(tmp, target)
+
+
 def load_config():
     if CONFIG_FILE.exists():
         try:
@@ -101,10 +116,14 @@ def load_config():
             cfg.update(data)
             # Migrate stored delete_dir from the old non-OneDrive default to the
             # correct OneDrive Desktop path on machines where OneDrive Desktop exists.
+            # Persist the migration immediately (B-05) so the corrected value
+            # survives subsequent partial saves.
             old_default = str(Path.home() / "Desktop" / "DELETE")
             correct = _default_delete_dir()
             if cfg.get("delete_dir") == old_default and correct != old_default:
                 cfg["delete_dir"] = correct
+                with contextlib.suppress(OSError), _FILE_WRITE_LOCK:
+                    _atomic_write_json(CONFIG_FILE, cfg)
             return cfg
         except Exception:  # noqa: S110 — config load failure is expected; fall back to defaults
             pass
@@ -112,11 +131,17 @@ def load_config():
 
 
 def save_config(data):
-    cfg = load_config()
-    cfg.update(data)
-    with open(CONFIG_FILE, "w") as f:
-        json.dump(cfg, f, indent=2)
-    return cfg
+    with _FILE_WRITE_LOCK:
+        cfg = DEFAULT_CONFIG.copy()
+        if CONFIG_FILE.exists():
+            try:
+                with open(CONFIG_FILE) as f:
+                    cfg.update(json.load(f))
+            except Exception:  # noqa: S110 — corrupt; start from defaults
+                pass
+        cfg.update(data)
+        _atomic_write_json(CONFIG_FILE, cfg)
+        return cfg
 
 
 def config_is_complete(cfg):
@@ -124,19 +149,48 @@ def config_is_complete(cfg):
 
 
 # ── Session secret key ────────────────────────────────────────────────────────
-# Persisted in config so sessions survive server restarts.
+# Lazily initialised on first request so test fixtures can patch CONFIG_FILE
+# before the key is generated. Persisted in config so sessions survive
+# server restarts; falls back to an ephemeral key if the file is read-only.
+
+
+_secret_key_initialised = False
 
 
 def _init_secret_key():
+    global _secret_key_initialised
+    if _secret_key_initialised:
+        return
+    if os.environ.get("BOXCUTTER_TESTING"):
+        # Tests get an ephemeral key — never write to whatever CONFIG_FILE
+        # points at, so test runs cannot leak a key into a real config file.
+        app.secret_key = secrets.token_bytes(32)
+        _secret_key_initialised = True
+        return
     cfg = load_config()
     key_hex = cfg.get("_secret_key", "")
     if not key_hex:
         key_hex = secrets.token_hex(32)
-        save_config({"_secret_key": key_hex})
-    return bytes.fromhex(key_hex)
+        try:
+            save_config({"_secret_key": key_hex})
+        except OSError as exc:
+            # Read-only home / locked-down environment: fall back to ephemeral.
+            print(
+                f"  WARNING: could not persist session key ({exc}); "
+                "sessions will not survive restart"
+            )
+    app.secret_key = bytes.fromhex(key_hex)
+    _secret_key_initialised = True
 
 
-app.secret_key = _init_secret_key()
+@app.before_request
+def _ensure_secret_key():
+    if not _secret_key_initialised:
+        _init_secret_key()
+
+
+# Bootstrap key for test clients that don't go through the request hook.
+app.secret_key = secrets.token_bytes(32)
 
 
 # ── Listen auth ───────────────────────────────────────────────────────────────
@@ -178,13 +232,11 @@ def load_history():
 
 
 def save_history_entry(entry):
-    history = load_history()
-    history.insert(0, entry)  # newest first
-    try:
-        with open(HISTORY_FILE, "w") as f:
-            json.dump(history, f, indent=2)
-    except Exception:  # noqa: S110 — history write failure is non-fatal; run continues normally
-        pass
+    with _FILE_WRITE_LOCK:
+        history = load_history()
+        history.insert(0, entry)  # newest first
+        with contextlib.suppress(Exception):
+            _atomic_write_json(HISTORY_FILE, history)
 
 
 def create_db_backup(db, tool_name: str) -> Path:
