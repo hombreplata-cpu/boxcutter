@@ -788,9 +788,17 @@ def api_mytags():
 
 @app.route("/api/tracks/search")
 def api_tracks_search():
-    """Search djmdContent by title or artist (case-insensitive, up to limit results)."""
+    """Search djmdContent by title or artist (case-insensitive, up to limit results).
+
+    Note (R-05): SQLAlchemy parameterises both filter_by() and ilike() bindings,
+    so the user-supplied `q` cannot reach raw SQL — no SQLi risk here even
+    though the value is interpolated into the LIKE pattern.
+    """
     q = request.args.get("q", "").strip()
-    limit = min(50, max(1, int(request.args.get("limit", 20))))
+    try:
+        limit = min(50, max(1, int(request.args.get("limit", 20))))
+    except (TypeError, ValueError):
+        return jsonify({"error": "limit must be an integer"}), 400
     if not q:
         return jsonify([])
     try:

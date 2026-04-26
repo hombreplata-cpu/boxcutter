@@ -54,6 +54,7 @@ import os
 import platform
 import re
 import shutil
+import unicodedata
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
@@ -119,11 +120,17 @@ def artist_variants(raw):
 
 
 def normalize_path(raw):
-    """Convert any stored path to a clean OS-native path string."""
+    """Convert any stored path to a clean OS-native path string.
+
+    On macOS also normalises to NFC so DB strings (often NFC) don't
+    false-mismatch HFS+ filenames (often NFD) for accented characters (R-07).
+    """
     if not raw:
         return raw
     if platform.system() == "Windows":
         raw = raw.replace("/", "\\")
+    elif platform.system() == "Darwin":
+        raw = unicodedata.normalize("NFC", raw)
     return raw
 
 

@@ -31,6 +31,7 @@ import json
 import os
 import platform
 import shutil
+import unicodedata
 from pathlib import Path
 
 from pyrekordbox import Rekordbox6Database as MasterDatabase
@@ -43,6 +44,11 @@ def normalize_path(raw):
         return raw
     if platform.system() == "Windows":
         raw = raw.replace("/", "\\")
+    elif platform.system() == "Darwin":
+        # HFS+ stores filenames in NFD (decomposed Unicode) but pyrekordbox
+        # may return them in NFC. Normalise to NFC so DB-vs-disk comparisons
+        # don't false-mismatch on accented characters (R-07).
+        raw = unicodedata.normalize("NFC", raw)
     return raw
 
 
