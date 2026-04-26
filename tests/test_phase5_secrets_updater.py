@@ -1,15 +1,18 @@
 """
-Phase 5 tests — secret-key file isolation, updater hardening, ID race fix,
-crash log uniqueness.
+Phase 5 + Phase C tests — secret-key file isolation, updater hardening,
+SHA256 verification, ID race fix, crash log uniqueness.
 
-Resolves v1.1 roadmap items S-07, R-03, R-06, B-09, B-11.
+Resolves v1.1 roadmap items S-07, R-03 (cap + SHA verification), R-06,
+B-09, B-11.
 """
 
+import hashlib
 import json
 import os
 import sys
 import threading
 import time
+from io import BytesIO
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -101,6 +104,24 @@ def test_secret_falls_back_to_ephemeral_when_write_fails(secret_env, monkeypatch
 # ---------------------------------------------------------------------------
 
 
+VALID_INSTALLER_URL = flask_app.GITHUB_DOWNLOAD_PREFIX + "v1.1.0/BoxCutter-Setup-1.1.0.exe"
+INSTALLER_BASENAME = "BoxCutter-Setup-1.1.0.exe"
+
+
+def _make_streaming_response(payload_bytes, content_length=None):
+    """Build a urlopen-style context-manager mock that yields the given bytes
+    in a single read() call, then EOF on subsequent calls."""
+    buf = BytesIO(payload_bytes)
+    fake = MagicMock()
+    fake.headers.get.return_value = (
+        str(content_length) if content_length is not None else str(len(payload_bytes))
+    )
+    fake.read.side_effect = lambda n=-1: buf.read(n)
+    fake.__enter__ = MagicMock(return_value=fake)
+    fake.__exit__ = MagicMock(return_value=False)
+    return fake
+
+
 def test_download_aborts_at_size_cap(tmp_path):
     """A response stream that exceeds MAX_INSTALLER_BYTES must be aborted."""
     flask_app.app.config["TESTING"] = True
@@ -113,15 +134,15 @@ def test_download_aborts_at_size_cap(tmp_path):
     fake_resp.__enter__ = MagicMock(return_value=fake_resp)
     fake_resp.__exit__ = MagicMock(return_value=False)
 
-    valid_url = f"{flask_app.GITHUB_DOWNLOAD_PREFIX}v1.1.0/BoxCutter-Setup-1.1.0.exe"
-
-    # Lower the cap drastically to keep the test fast (5 MB).
+    # Pretend SHA verification has a manifest entry — we never reach the
+    # final compare because the cap fires first.
     with (
         patch.object(flask_app, "MAX_INSTALLER_BYTES", 5 * 1024 * 1024),
+        patch.object(flask_app, "_fetch_expected_sha256", return_value="0" * 64),
         patch("app.urllib.request.urlopen", return_value=fake_resp),
         flask_app.app.test_client() as c,
     ):
-        resp = c.get("/api/download_update", query_string={"url": valid_url})
+        resp = c.get("/api/download_update", query_string={"url": VALID_INSTALLER_URL})
         body = resp.get_data(as_text=True)
 
     assert (
@@ -129,6 +150,126 @@ def test_download_aborts_at_size_cap(tmp_path):
     ), f"Expected oversized abort message in stream, got: {body[:300]}"
     # The state must NOT have been populated with the partial file
     assert flask_app._update_state.get("path") is None
+
+
+# ---------------------------------------------------------------------------
+# R-03 (Phase C) — installer SHA256 verification
+# ---------------------------------------------------------------------------
+
+
+def test_sha_verification_succeeds_on_match():
+    """Manifest digest matches streamed payload → download completes, state populated."""
+    flask_app.app.config["TESTING"] = True
+    flask_app._update_state["path"] = None
+
+    payload = b"\x11" * (256 * 1024)
+    expected = hashlib.sha256(payload).hexdigest()
+
+    fake_resp = _make_streaming_response(payload, content_length=len(payload))
+
+    with (
+        patch.object(flask_app, "_fetch_expected_sha256", return_value=expected),
+        patch("app.urllib.request.urlopen", return_value=fake_resp),
+        flask_app.app.test_client() as c,
+    ):
+        resp = c.get("/api/download_update", query_string={"url": VALID_INSTALLER_URL})
+        body = resp.get_data(as_text=True)
+
+    assert "%%DONE%%" in body, f"Expected DONE sentinel, got: {body[-300:]}"
+    saved = flask_app._update_state.get("path")
+    assert saved is not None and Path(saved).exists()
+    Path(saved).unlink(missing_ok=True)
+    flask_app._update_state["path"] = None
+
+
+def test_sha_mismatch_aborts_and_unlinks():
+    """Manifest digest does not match streamed payload → unlink, error, no state."""
+    flask_app.app.config["TESTING"] = True
+    flask_app._update_state["path"] = None
+
+    payload = b"\x22" * (128 * 1024)
+    bogus = "f" * 64  # plausibly-shaped but wrong digest
+
+    fake_resp = _make_streaming_response(payload, content_length=len(payload))
+
+    with (
+        patch.object(flask_app, "_fetch_expected_sha256", return_value=bogus),
+        patch("app.urllib.request.urlopen", return_value=fake_resp),
+        flask_app.app.test_client() as c,
+    ):
+        resp = c.get("/api/download_update", query_string={"url": VALID_INSTALLER_URL})
+        body = resp.get_data(as_text=True)
+
+    assert "mismatch" in body.lower(), f"Expected SHA mismatch error, got: {body[-300:]}"
+    assert "%%DONE%%" not in body
+    assert flask_app._update_state.get("path") is None
+
+
+def test_missing_manifest_aborts_before_download():
+    """If SHA256SUMS can't be fetched / parsed, refuse to download installer at all.
+    urlopen must NEVER be called for the installer URL."""
+    flask_app.app.config["TESTING"] = True
+    flask_app._update_state["path"] = None
+
+    installer_calls = []
+
+    def fake_urlopen(req, **kwargs):
+        installer_calls.append(req.full_url if hasattr(req, "full_url") else str(req))
+        raise AssertionError("urlopen must not be called when manifest fetch fails")
+
+    with (
+        patch.object(flask_app, "_fetch_expected_sha256", return_value=None),
+        patch("app.urllib.request.urlopen", side_effect=fake_urlopen),
+        flask_app.app.test_client() as c,
+    ):
+        resp = c.get("/api/download_update", query_string={"url": VALID_INSTALLER_URL})
+        body = resp.get_data(as_text=True)
+
+    assert (
+        "integrity" in body.lower() or "manifest" in body.lower()
+    ), f"Expected integrity/manifest error, got: {body[-300:]}"
+    assert "%%DONE%%" not in body
+    assert flask_app._update_state.get("path") is None
+    assert installer_calls == []
+
+
+def test_fetch_expected_sha256_parses_standard_format():
+    """Parser handles the canonical sha256sum output: '<64hex>  <filename>'."""
+    expected = "a" * 64
+    manifest = (
+        f"{expected}  BoxCutter-Setup-1.1.0.exe\n" f"{'b' * 64}  boxcutter-mac.dmg\n"
+    ).encode()
+
+    fake = MagicMock()
+    fake.read.return_value = manifest
+    fake.__enter__ = MagicMock(return_value=fake)
+    fake.__exit__ = MagicMock(return_value=False)
+
+    with patch("app.urllib.request.urlopen", return_value=fake):
+        result = flask_app._fetch_expected_sha256(VALID_INSTALLER_URL, INSTALLER_BASENAME)
+
+    assert result == expected
+
+
+def test_fetch_expected_sha256_rejects_non_github_url():
+    """Manifest URL must derive from the locked-down GITHUB_DOWNLOAD_PREFIX."""
+    bad_url = "https://evil.example.com/v1.1.0/BoxCutter-Setup-1.1.0.exe"
+    result = flask_app._fetch_expected_sha256(bad_url, INSTALLER_BASENAME)
+    assert result is None
+
+
+def test_fetch_expected_sha256_returns_none_when_entry_missing():
+    """Manifest fetched OK but our installer's filename isn't listed → None."""
+    manifest = (f"{'c' * 64}  some-other-file.exe\n").encode()
+    fake = MagicMock()
+    fake.read.return_value = manifest
+    fake.__enter__ = MagicMock(return_value=fake)
+    fake.__exit__ = MagicMock(return_value=False)
+
+    with patch("app.urllib.request.urlopen", return_value=fake):
+        result = flask_app._fetch_expected_sha256(VALID_INSTALLER_URL, INSTALLER_BASENAME)
+
+    assert result is None
 
 
 # ---------------------------------------------------------------------------

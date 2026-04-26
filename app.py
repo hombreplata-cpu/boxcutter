@@ -8,6 +8,7 @@ Then open http://localhost:5000 in your browser.
 """
 
 import contextlib
+import hashlib
 import hmac
 import json
 import os
@@ -134,6 +135,11 @@ GITHUB_DOWNLOAD_PREFIX = "https://github.com/hombreplata-cpu/boxcutter/releases/
 # Hard cap on installer download size. Real installers are ~25 MB; cap at 200 MB
 # so a malicious / compromised release host can't stream forever (R-03).
 MAX_INSTALLER_BYTES = 200 * 1024 * 1024
+# SHA256SUMS is a small text file — never more than a few KB. Cap defends against
+# a hostile host streaming a huge response when we expect a manifest.
+MAX_MANIFEST_BYTES = 64 * 1024
+# Filename of the per-release SHA manifest published alongside installers.
+SHA_MANIFEST_NAME = "SHA256SUMS"
 
 _update_state: dict = {"path": None}  # stores downloaded installer path until applied
 
@@ -648,16 +654,72 @@ def api_update_check():
         return jsonify({"available": False})
 
 
+def _fetch_expected_sha256(installer_url: str, installer_basename: str) -> str | None:
+    """Fetch the per-release SHA256SUMS manifest and return the hex digest for
+    the given installer basename. Manifest URL is derived from the installer
+    URL (same release directory) so it's tag-pinned to the same release the
+    installer came from — no race against a newer release replacing 'latest'.
+    Returns None on any failure (network, parse, missing entry)."""
+    if not installer_url.startswith(GITHUB_DOWNLOAD_PREFIX):
+        return None
+    manifest_url = installer_url.rsplit("/", 1)[0] + "/" + SHA_MANIFEST_NAME
+    if not manifest_url.startswith(GITHUB_DOWNLOAD_PREFIX):
+        return None
+    try:
+        req = urllib.request.Request(  # noqa: S310 — URL validated against hard-coded prefix
+            manifest_url, headers={"User-Agent": f"BoxCutter/{_app_version}"}
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:  # noqa: S310  # nosec B310 — URL validated above
+            body = resp.read(MAX_MANIFEST_BYTES + 1)
+        if len(body) > MAX_MANIFEST_BYTES:
+            return None
+        text = body.decode("utf-8", errors="replace")
+    except Exception:  # noqa: BLE001
+        return None
+
+    # Standard sha256sum output format: "<64 hex>  <filename>" (two spaces).
+    # Be lenient on whitespace — accept any run of spaces/tabs.
+    target = installer_basename.lower()
+    for line in text.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        parts = line.split(None, 1)
+        if len(parts) != 2:
+            continue
+        digest, fname = parts[0].strip(), parts[1].strip().lstrip("*")
+        if len(digest) != 64 or not all(c in "0123456789abcdefABCDEF" for c in digest):
+            continue
+        if fname.lower() == target:
+            return digest.lower()
+    return None
+
+
 @app.route("/api/download_update")
 def api_download_update():
-    """Stream download of the installer to a temp file, emitting progress as SSE."""
+    """Stream download of the installer to a temp file, emitting progress as SSE.
+
+    R-03: before streaming, fetch SHA256SUMS from the same release and look up
+    the expected digest for this installer. Hash bytes as they're written.
+    Mismatch → unlink and emit error before _update_state is populated, so the
+    user can never apply an unverified installer.
+    """
     url = request.args.get("url", "")
     if not url.startswith(GITHUB_DOWNLOAD_PREFIX):
         return jsonify({"error": "Invalid download URL"}), 400
 
+    installer_basename = url.rsplit("/", 1)[-1]
+
     def stream():
         tmp_path = None
         try:
+            expected_sha = _fetch_expected_sha256(url, installer_basename)
+            if expected_sha is None:
+                yield (
+                    f"data: {json.dumps({'error': 'Could not verify installer integrity (SHA manifest unavailable). Refusing to download.'})}\n\n"
+                )
+                return
+
             req = urllib.request.Request(  # noqa: S310 — URL validated against hard-coded prefix above
                 url, headers={"User-Agent": f"BoxCutter/{_app_version}"}
             )
@@ -665,6 +727,7 @@ def api_download_update():
                 total = int(resp.headers.get("Content-Length", 0))
                 is_mac = platform.system() == "Darwin"
                 suffix = ".dmg" if is_mac else ".exe"
+                hasher = hashlib.sha256()
                 with tempfile.NamedTemporaryFile(
                     suffix=suffix,
                     prefix="BoxCutter-",
@@ -679,6 +742,7 @@ def api_download_update():
                         if not chunk:
                             break
                         tmp.write(chunk)
+                        hasher.update(chunk)
                         downloaded += len(chunk)
                         # R-03: enforce a hard cap so a hostile / misconfigured
                         # release host can't stream forever.
@@ -700,6 +764,14 @@ def api_download_update():
                     Path(tmp_path).unlink(missing_ok=True)
                     tmp_path = None
                     yield f"data: {json.dumps({'error': f'Download incomplete: got {downloaded} of {total} bytes'})}\n\n"
+                    return
+                actual_sha = hasher.hexdigest().lower()
+                if not hmac.compare_digest(actual_sha, expected_sha):
+                    Path(tmp_path).unlink(missing_ok=True)
+                    tmp_path = None
+                    yield (
+                        f"data: {json.dumps({'error': 'Installer SHA256 mismatch — file may be corrupt or tampered. Aborted.'})}\n\n"
+                    )
                     return
                 _update_state["path"] = tmp_path
                 yield "data: %%DONE%%\n\n"

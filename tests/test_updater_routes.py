@@ -96,9 +96,13 @@ def test_download_update_rejects_non_github_urls(client, evil_url):
 def test_download_update_accepts_valid_github_prefix(client, tmp_path):
     """A URL with the correct prefix must NOT be rejected at the validation gate.
     We don't actually download — we just confirm validation passes by patching urlopen
-    to raise immediately, which means we got past the prefix check."""
+    to raise immediately AFTER the manifest stub returns a digest, which means we got
+    past the prefix check and the manifest gate."""
     valid_url = f"{flask_app.GITHUB_DOWNLOAD_PREFIX}v1.1.0/BoxCutter-Setup-1.1.0.exe"
-    with patch("app.urllib.request.urlopen", side_effect=RuntimeError("stub")):
+    with (
+        patch.object(flask_app, "_fetch_expected_sha256", return_value="0" * 64),
+        patch("app.urllib.request.urlopen", side_effect=RuntimeError("stub")),
+    ):
         resp = client.get("/api/download_update", query_string={"url": valid_url})
     # 200 response (SSE stream) — error is reported in the stream body, not status code
     assert resp.status_code == 200

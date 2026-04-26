@@ -107,3 +107,34 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: dist/boxcutter-mac.dmg
+
+  publish-manifest:
+    # R-03: hash all release assets in one Linux job and publish SHA256SUMS so
+    # the auto-updater can verify integrity of the installer it downloads.
+    # Single canonical format = single parser in app.py = smaller attack surface.
+    needs: [build-windows, build-mac]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          mkdir -p assets
+          cd assets
+          gh release download "$TAG" \
+            --repo "${{ github.repository }}" \
+            --pattern '*.exe' \
+            --pattern '*.dmg'
+          ls -la
+
+      - name: Generate SHA256SUMS
+        working-directory: assets
+        run: |
+          sha256sum * > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Upload manifest to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: assets/SHA256SUMS
