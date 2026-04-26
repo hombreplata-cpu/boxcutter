@@ -2,19 +2,6 @@
   "errors": [],
   "generated_at": "2026-04-26T17:57:43Z",
   "metrics": {
-    ".\\app.py": {
-      "CONFIDENCE.HIGH": 34,
-      "CONFIDENCE.LOW": 0,
-      "CONFIDENCE.MEDIUM": 0,
-      "CONFIDENCE.UNDEFINED": 0,
-      "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 34,
-      "SEVERITY.MEDIUM": 0,
-      "SEVERITY.UNDEFINED": 0,
-      "loc": 1601,
-      "nosec": 0,
-      "skipped_tests": 3
-    },
     "_totals": {
       "CONFIDENCE.HIGH": 34,
       "CONFIDENCE.LOW": 0,
@@ -27,6 +14,19 @@
       "loc": 3518,
       "nosec": 0,
       "skipped_tests": 5
+    },
+    "app.py": {
+      "CONFIDENCE.HIGH": 34,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 34,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 1601,
+      "nosec": 0,
+      "skipped_tests": 3
     },
     "scripts/get_listen_tree.py": {
       "CONFIDENCE.HIGH": 0,
@@ -190,7 +190,7 @@
       "code": "19 import socket\n20 import subprocess\n21 import sys\n",
       "col_offset": 0,
       "end_col_offset": 17,
-      "filename": ".\\app.py",
+      "filename": "app.py",
       "issue_confidence": "HIGH",
       "issue_cwe": {
         "id": 78,
@@ -210,7 +210,7 @@
       "code": "178             return cfg\n179         except Exception:  # noqa: S110 \u2014 config load failure is expected; fall back to defaults\n180             pass\n181     return DEFAULT_CONFIG.copy()\n",
       "col_offset": 8,
       "end_col_offset": 16,
-      "filename": ".\\app.py",
+      "filename": "app.py",
       "issue_confidence": "HIGH",
       "issue_cwe": {
         "id": 703,
@@ -231,7 +231,7 @@
       "code": "190                     cfg.update(json.load(f))\n191             except Exception:  # noqa: S110 \u2014 corrupt; start from defaults\n192                 pass\n193         cfg.update(data)\n",
       "col_offset": 12,
       "end_col_offset": 20,
-      "filename": ".\\app.py",
+      "filename": "app.py",
       "issue_confidence": "HIGH",
       "issue_cwe": {
         "id": 703,
@@ -252,7 +252,7 @@
       "code": "344                 return json.load(f)\n345         except Exception:  # noqa: S110 \u2014 corrupt history file is non-fatal; fall back to empty list\n346             pass\n347     return []\n",
       "col_offset": 8,
       "end_col_offset": 16,
-      "filename": ".\\app.py",
+      "filename": "app.py",
       "issue_confidence": "HIGH",
       "issue_cwe": {
         "id": 703,
@@ -273,7 +273,7 @@
       "code": "398         if platform.system() == \"Windows\":\n399             out = subprocess.check_output(\n400                 [\"tasklist\", \"/FI\", \"IMAGENAME eq rekordbox.exe\", \"/NH\"],\n401                 stderr=subprocess.DEVNULL,\n402                 text=True,\n403                 encoding=\"utf-8\",\n404                 errors=\"replace\",\n405                 **_POPEN_FLAGS,\n406             )\n407             return \"rekordbox.exe\" in out.lower()\n",
       "col_offset": 18,
       "end_col_offset": 13,
-      "filename": ".\\app.py",
+      "filename": "app.py",
       "issue_confidence": "HIGH",
       "issue_cwe": {
         "id": 78,
@@ -300,7 +300,7 @@
       "code": "398         if platform.system() == \"Windows\":\n399             out = subprocess.check_output(\n400                 [\"tasklist\", \"/FI\", \"IMAGENAME eq rekordbox.exe\", \"/NH\"],\n401                 stderr=subprocess.DEVNULL,\n402                 text=True,\n403                 encoding=\"utf-8\",\n404                 errors=\"replace\",\n405                 **_POPEN_FLAGS,\n406             )\n407             return \"rekordbox.exe\" in out.lower()\n",
       "col_offset": 18,
       "end_col_offset": 13,
-      "filename": ".\\app.py",
+      "filename": "app.py",
       "issue_confidence": "HIGH",
       "issue_cwe": {
         "id": 78,
@@ -327,7 +327,7 @@
       "code": "408         else:\n409             result = subprocess.run(\n410                 [\"pgrep\", \"-xi\", \"rekordbox\"],\n411                 capture_output=True,\n412                 **_POPEN_FLAGS,\n413             )\n414             return result.returncode == 0\n",
       "col_offset": 21,
       "end_col_offset": 13,
-      "filename": ".\\app.py",
+      "filename": "app.py",
       "issue_confidence": "HIGH",
       "issue_cwe": {
         "id": 78,
@@ -351,7 +351,7 @@
       "code": "408         else:\n409             result = subprocess.run(\n410                 [\"pgrep\", \"-xi\", \"rekordbox\"],\n411                 capture_output=True,\n412                 **_POPEN_FLAGS,\n413             )\n414             return result.returncode == 0\n",
       "col_offset": 21,
       "end_col_offset": 13,
-      "filename": ".\\app.py",
+      "filename": "app.py",
       "issue_confidence": "HIGH",
       "issue_cwe": {
         "id": 78,
@@ -375,7 +375,7 @@
       "code": "728         try:\n729             result = subprocess.run([\"open\", path], capture_output=True, timeout=5)  # noqa: S603\n730             if result.returncode != 0:\n",
       "col_offset": 21,
       "end_col_offset": 83,
-      "filename": ".\\app.py",
+      "filename": "app.py",
       "issue_confidence": "HIGH",
       "issue_cwe": {
         "id": 78,
@@ -395,7 +395,7 @@
       "code": "728         try:\n729             result = subprocess.run([\"open\", path], capture_output=True, timeout=5)  # noqa: S603\n730             if result.returncode != 0:\n",
       "col_offset": 21,
       "end_col_offset": 83,
-      "filename": ".\\app.py",
+      "filename": "app.py",
       "issue_confidence": "HIGH",
       "issue_cwe": {
         "id": 78,
@@ -415,7 +415,7 @@
       "code": "740     # can be deleted immediately after launch.\n741     subprocess.Popen([path, \"/SILENT\"], **_POPEN_FLAGS)  # noqa: S603 \u2014 list form, no shell; path is server-controlled\n742     with contextlib.suppress(OSError):\n",
       "col_offset": 4,
       "end_col_offset": 55,
-      "filename": ".\\app.py",
+      "filename": "app.py",
       "issue_confidence": "HIGH",
       "issue_cwe": {
         "id": 78,
@@ -435,7 +435,7 @@
       "code": "1184         env[\"PYTHONIOENCODING\"] = \"utf-8\"\n1185         proc = subprocess.Popen(\n1186             cmd,\n1187             stdout=subprocess.PIPE,\n1188             stderr=subprocess.STDOUT,\n1189             text=True,\n1190             encoding=\"utf-8\",\n1191             errors=\"replace\",\n1192             env=env,\n1193             **_POPEN_FLAGS,\n1194         )\n1195         report_lines = []\n",
       "col_offset": 15,
       "end_col_offset": 9,
-      "filename": ".\\app.py",
+      "filename": "app.py",
       "issue_confidence": "HIGH",
       "issue_cwe": {
         "id": 78,
@@ -464,7 +464,7 @@
       "code": "1284     try:\n1285         result = subprocess.run(\n1286             cmd,\n1287             capture_output=True,\n1288             text=True,\n1289             encoding=\"utf-8\",\n1290             errors=\"replace\",\n1291             timeout=60,\n1292             **_POPEN_FLAGS,\n1293         )\n1294         if result.returncode != 0:\n",
       "col_offset": 17,
       "end_col_offset": 9,
-      "filename": ".\\app.py",
+      "filename": "app.py",
       "issue_confidence": "HIGH",
       "issue_cwe": {
         "id": 78,
@@ -492,7 +492,7 @@
       "code": "1319     try:\n1320         result = subprocess.run(\n1321             cmd,\n1322             capture_output=True,\n1323             text=True,\n1324             encoding=\"utf-8\",\n1325             errors=\"replace\",\n1326             timeout=60,\n1327             **_POPEN_FLAGS,\n1328         )\n1329         if result.returncode != 0:\n",
       "col_offset": 17,
       "end_col_offset": 9,
-      "filename": ".\\app.py",
+      "filename": "app.py",
       "issue_confidence": "HIGH",
       "issue_cwe": {
         "id": 78,
@@ -520,7 +520,7 @@
       "code": "1406             )\n1407         except Exception:  # noqa: S110 \u2014 unreadable backup file is skipped; rest of list still returned\n1408             pass\n1409     files.sort(key=lambda x: x[\"modified\"], reverse=True)\n",
       "col_offset": 8,
       "end_col_offset": 16,
-      "filename": ".\\app.py",
+      "filename": "app.py",
       "issue_confidence": "HIGH",
       "issue_cwe": {
         "id": 703,
@@ -541,7 +541,7 @@
       "code": "1482         try:\n1483             result = subprocess.run(\n1484                 [cmd, \"ip\", \"-4\"],\n1485                 capture_output=True,\n1486                 text=True,\n1487                 timeout=3,\n1488                 **_POPEN_FLAGS,\n1489             )\n1490             if result.returncode == 0 and result.stdout.strip():\n",
       "col_offset": 21,
       "end_col_offset": 13,
-      "filename": ".\\app.py",
+      "filename": "app.py",
       "issue_confidence": "HIGH",
       "issue_cwe": {
         "id": 78,
@@ -567,7 +567,7 @@
       "code": "1491                 return result.stdout.strip()\n1492         except Exception:  # noqa: BLE001, S112\n1493             continue\n1494     return \"\"\n",
       "col_offset": 8,
       "end_col_offset": 20,
-      "filename": ".\\app.py",
+      "filename": "app.py",
       "issue_confidence": "HIGH",
       "issue_cwe": {
         "id": 703,
@@ -588,7 +588,7 @@
       "code": "1612     try:\n1613         result = subprocess.run(\n1614             cmd,\n1615             capture_output=True,\n1616             text=True,\n1617             encoding=\"utf-8\",\n1618             errors=\"replace\",\n1619             timeout=60,\n1620             **_POPEN_FLAGS,\n1621         )\n1622         if result.returncode != 0:\n",
       "col_offset": 17,
       "end_col_offset": 9,
-      "filename": ".\\app.py",
+      "filename": "app.py",
       "issue_confidence": "HIGH",
       "issue_cwe": {
         "id": 78,
@@ -616,7 +616,7 @@
       "code": "1644     try:\n1645         result = subprocess.run(\n1646             cmd,\n1647             capture_output=True,\n1648             text=True,\n1649             encoding=\"utf-8\",\n1650             errors=\"replace\",\n1651             timeout=30,\n1652             **_POPEN_FLAGS,\n1653         )\n1654         if result.returncode != 0:\n",
       "col_offset": 17,
       "end_col_offset": 9,
-      "filename": ".\\app.py",
+      "filename": "app.py",
       "issue_confidence": "HIGH",
       "issue_cwe": {
         "id": 78,
@@ -644,7 +644,7 @@
       "code": "1673     try:\n1674         result = subprocess.run(\n1675             cmd,\n1676             capture_output=True,\n1677             text=True,\n1678             encoding=\"utf-8\",\n1679             errors=\"replace\",\n1680             timeout=30,\n1681             **_POPEN_FLAGS,\n1682         )\n1683         if result.returncode != 0:\n",
       "col_offset": 17,
       "end_col_offset": 9,
-      "filename": ".\\app.py",
+      "filename": "app.py",
       "issue_confidence": "HIGH",
       "issue_cwe": {
         "id": 78,
@@ -672,7 +672,7 @@
       "code": "1702     try:\n1703         result = subprocess.run(\n1704             cmd,\n1705             capture_output=True,\n1706             text=True,\n1707             encoding=\"utf-8\",\n1708             errors=\"replace\",\n1709             timeout=10,\n1710             **_POPEN_FLAGS,\n1711         )\n1712         if result.returncode != 0:\n",
       "col_offset": 17,
       "end_col_offset": 9,
-      "filename": ".\\app.py",
+      "filename": "app.py",
       "issue_confidence": "HIGH",
       "issue_cwe": {
         "id": 78,
@@ -700,7 +700,7 @@
       "code": "1851         if platform.system() == \"Windows\":\n1852             result = subprocess.run(\n1853                 [\"netstat\", \"-ano\"],\n1854                 capture_output=True,\n1855                 text=True,\n1856                 timeout=5,\n1857                 **_POPEN_FLAGS,\n1858             )\n1859             for line in result.stdout.splitlines():\n",
       "col_offset": 21,
       "end_col_offset": 13,
-      "filename": ".\\app.py",
+      "filename": "app.py",
       "issue_confidence": "HIGH",
       "issue_cwe": {
         "id": 78,
@@ -726,7 +726,7 @@
       "code": "1851         if platform.system() == \"Windows\":\n1852             result = subprocess.run(\n1853                 [\"netstat\", \"-ano\"],\n1854                 capture_output=True,\n1855                 text=True,\n1856                 timeout=5,\n1857                 **_POPEN_FLAGS,\n1858             )\n1859             for line in result.stdout.splitlines():\n",
       "col_offset": 21,
       "end_col_offset": 13,
-      "filename": ".\\app.py",
+      "filename": "app.py",
       "issue_confidence": "HIGH",
       "issue_cwe": {
         "id": 78,
@@ -752,7 +752,7 @@
       "code": "1863         else:\n1864             result = subprocess.run(\n1865                 [\"lsof\", \"-ti\", f\"tcp:{port}\"],\n1866                 capture_output=True,\n1867                 text=True,\n1868                 timeout=5,\n1869                 **_POPEN_FLAGS,\n1870             )\n1871             if result.returncode == 0 and result.stdout.strip():\n",
       "col_offset": 21,
       "end_col_offset": 13,
-      "filename": ".\\app.py",
+      "filename": "app.py",
       "issue_confidence": "HIGH",
       "issue_cwe": {
         "id": 78,
@@ -778,7 +778,7 @@
       "code": "1863         else:\n1864             result = subprocess.run(\n1865                 [\"lsof\", \"-ti\", f\"tcp:{port}\"],\n1866                 capture_output=True,\n1867                 text=True,\n1868                 timeout=5,\n1869                 **_POPEN_FLAGS,\n1870             )\n1871             if result.returncode == 0 and result.stdout.strip():\n",
       "col_offset": 21,
       "end_col_offset": 13,
-      "filename": ".\\app.py",
+      "filename": "app.py",
       "issue_confidence": "HIGH",
       "issue_cwe": {
         "id": 78,
@@ -804,7 +804,7 @@
       "code": "1872                 return int(result.stdout.strip().splitlines()[0])\n1873     except Exception:  # noqa: S110\n1874         pass\n1875     return None\n",
       "col_offset": 4,
       "end_col_offset": 12,
-      "filename": ".\\app.py",
+      "filename": "app.py",
       "issue_confidence": "HIGH",
       "issue_cwe": {
         "id": 703,
@@ -825,7 +825,7 @@
       "code": "1883         if platform.system() == \"Windows\":\n1884             result = subprocess.run(\n1885                 [\"wmic\", \"process\", \"where\", f\"processid={pid}\", \"get\", \"commandline\"],\n1886                 capture_output=True,\n1887                 text=True,\n1888                 timeout=5,\n1889                 **_POPEN_FLAGS,\n1890             )\n1891         else:\n",
       "col_offset": 21,
       "end_col_offset": 13,
-      "filename": ".\\app.py",
+      "filename": "app.py",
       "issue_confidence": "HIGH",
       "issue_cwe": {
         "id": 78,
@@ -851,7 +851,7 @@
       "code": "1883         if platform.system() == \"Windows\":\n1884             result = subprocess.run(\n1885                 [\"wmic\", \"process\", \"where\", f\"processid={pid}\", \"get\", \"commandline\"],\n1886                 capture_output=True,\n1887                 text=True,\n1888                 timeout=5,\n1889                 **_POPEN_FLAGS,\n1890             )\n1891         else:\n",
       "col_offset": 21,
       "end_col_offset": 13,
-      "filename": ".\\app.py",
+      "filename": "app.py",
       "issue_confidence": "HIGH",
       "issue_cwe": {
         "id": 78,
@@ -877,7 +877,7 @@
       "code": "1891         else:\n1892             result = subprocess.run(\n1893                 [\"ps\", \"-p\", str(pid), \"-o\", \"command=\"],\n1894                 capture_output=True,\n1895                 text=True,\n1896                 timeout=5,\n1897                 **_POPEN_FLAGS,\n1898             )\n1899         out = result.stdout\n",
       "col_offset": 21,
       "end_col_offset": 13,
-      "filename": ".\\app.py",
+      "filename": "app.py",
       "issue_confidence": "HIGH",
       "issue_cwe": {
         "id": 78,
@@ -903,7 +903,7 @@
       "code": "1891         else:\n1892             result = subprocess.run(\n1893                 [\"ps\", \"-p\", str(pid), \"-o\", \"command=\"],\n1894                 capture_output=True,\n1895                 text=True,\n1896                 timeout=5,\n1897                 **_POPEN_FLAGS,\n1898             )\n1899         out = result.stdout\n",
       "col_offset": 21,
       "end_col_offset": 13,
-      "filename": ".\\app.py",
+      "filename": "app.py",
       "issue_confidence": "HIGH",
       "issue_cwe": {
         "id": 78,
@@ -929,7 +929,7 @@
       "code": "1940         if platform.system() == \"Windows\":\n1941             subprocess.run(\n1942                 [\"taskkill\", \"/F\", \"/PID\", str(pid)],\n1943                 capture_output=True,\n1944                 timeout=5,\n1945                 **_POPEN_FLAGS,\n1946             )\n1947         else:\n",
       "col_offset": 12,
       "end_col_offset": 13,
-      "filename": ".\\app.py",
+      "filename": "app.py",
       "issue_confidence": "HIGH",
       "issue_cwe": {
         "id": 78,
@@ -954,7 +954,7 @@
       "code": "1940         if platform.system() == \"Windows\":\n1941             subprocess.run(\n1942                 [\"taskkill\", \"/F\", \"/PID\", str(pid)],\n1943                 capture_output=True,\n1944                 timeout=5,\n1945                 **_POPEN_FLAGS,\n1946             )\n1947         else:\n",
       "col_offset": 12,
       "end_col_offset": 13,
-      "filename": ".\\app.py",
+      "filename": "app.py",
       "issue_confidence": "HIGH",
       "issue_cwe": {
         "id": 78,
@@ -979,7 +979,7 @@
       "code": "1947         else:\n1948             subprocess.run(\n1949                 [\"kill\", \"-9\", str(pid)], capture_output=True, timeout=5, **_POPEN_FLAGS\n1950             )\n1951         print(f\"  Stopped previous instance (PID {pid})\")\n",
       "col_offset": 12,
       "end_col_offset": 13,
-      "filename": ".\\app.py",
+      "filename": "app.py",
       "issue_confidence": "HIGH",
       "issue_cwe": {
         "id": 78,
@@ -1001,7 +1001,7 @@
       "code": "1947         else:\n1948             subprocess.run(\n1949                 [\"kill\", \"-9\", str(pid)], capture_output=True, timeout=5, **_POPEN_FLAGS\n1950             )\n1951         print(f\"  Stopped previous instance (PID {pid})\")\n",
       "col_offset": 12,
       "end_col_offset": 13,
-      "filename": ".\\app.py",
+      "filename": "app.py",
       "issue_confidence": "HIGH",
       "issue_cwe": {
         "id": 78,
