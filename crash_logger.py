@@ -6,6 +6,7 @@ survives import failures in either module.
 """
 
 import platform
+import secrets
 import sys
 import traceback as tb
 from datetime import datetime
@@ -32,7 +33,9 @@ def write_crash_log(surface: str, body: str, context: dict | None = None) -> Pat
     try:
         LOG_DIR.mkdir(parents=True, exist_ok=True)
         ts = datetime.now()
-        filename = f"crash_{ts.strftime('%Y%m%d_%H%M%S')}.log"
+        # Append a short random suffix so two crashes in the same second don't
+        # overwrite each other (R-06).
+        filename = f"crash_{ts.strftime('%Y%m%d_%H%M%S')}_{secrets.token_hex(3)}.log"
         log_path = LOG_DIR / filename
 
         mode = "frozen" if getattr(sys, "frozen", False) else "dev"

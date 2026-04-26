@@ -1564,14 +1564,17 @@
     </div>`;
   }
 
+  // Canonical HTML-entity escaper — all five entities, preserves 0/false (B-15).
   function esc(s) {
-    if (!s) return '';
+    if (s === null || s === undefined) return '';
     return String(s)
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
+  window.esc = esc;
 
   // ── Add New Tracks report ─────────────────────────────────────────────────
 

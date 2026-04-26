@@ -149,8 +149,12 @@ def test_port_pid_mac_returns_none_when_free():
 
 
 def test_is_our_app_windows_true():
+    """Match only on the actual app.py absolute path or BoxCutter binary (B-11)."""
+    from pathlib import Path  # noqa: PLC0415
+
+    our_path = str(Path(app.__file__).resolve())
     mock_result = MagicMock()
-    mock_result.stdout = "python app.py\n"
+    mock_result.stdout = f"python {our_path}\n"
     with (
         patch("app.platform.system", return_value="Windows"),
         patch("app.subprocess.run", return_value=mock_result),
@@ -168,9 +172,23 @@ def test_is_our_app_windows_false():
         assert app._is_our_app(1234) is False
 
 
-def test_is_our_app_mac_true():
+def test_is_our_app_windows_rejects_unrelated_app_py():
+    """B-11: a Python project that happens to have an app.py must not match."""
     mock_result = MagicMock()
-    mock_result.stdout = "/usr/bin/python app.py\n"
+    mock_result.stdout = r"python C:\Users\Other\Project\app.py" + "\n"
+    with (
+        patch("app.platform.system", return_value="Windows"),
+        patch("app.subprocess.run", return_value=mock_result),
+    ):
+        assert app._is_our_app(1234) is False
+
+
+def test_is_our_app_mac_true():
+    from pathlib import Path  # noqa: PLC0415
+
+    our_path = str(Path(app.__file__).resolve())
+    mock_result = MagicMock()
+    mock_result.stdout = f"/usr/bin/python {our_path}\n"
     with (
         patch("app.platform.system", return_value="Darwin"),
         patch("app.subprocess.run", return_value=mock_result),

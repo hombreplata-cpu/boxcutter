@@ -60,8 +60,12 @@ def main():
             if content.BPM:
                 with contextlib.suppress(Exception):
                     raw = float(content.BPM)
-                    # Rekordbox stores BPM × 100 (128 BPM → 12800).
-                    # Values > 500 are unambiguously × 100 storage.
+                    # Rekordbox stores BPM × 100 (128 BPM → 12800). Tracks
+                    # added by older or external tools may store the raw BPM
+                    # without scaling. We disambiguate with a 500 threshold:
+                    # no DJ track is legitimately > 500 BPM (drum & bass tops
+                    # out around 200), so any value > 500 is unambiguously
+                    # × 100 and must be divided. Below 500, treat as raw.
                     divided = raw / 100 if raw > 500 else raw
                     bpm = int(divided) if divided == int(divided) else round(divided, 1)
             try:
