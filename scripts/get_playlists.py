@@ -9,6 +9,7 @@ Output: JSON array of {"id": str, "name": str} objects, one per line.
 Errors: non-zero exit code + error message on stderr.
 """
 
+import argparse
 import json
 import sys
 
@@ -16,9 +17,10 @@ from pyrekordbox import Rekordbox6Database as MasterDatabase
 
 
 def main():
-    db_path = None
-    if len(sys.argv) == 3 and sys.argv[1] == "--db-path":
-        db_path = sys.argv[2] or None
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--db-path", default="", help="Path to master.db")
+    args = parser.parse_args()
+    db_path = args.db_path or None
 
     try:
         db = MasterDatabase(path=db_path)
