@@ -60,7 +60,21 @@ jobs:
         run: |
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DAppVersion=$env:VERSION installer\windows\boxcutter.iss
 
-      - name: Upload to release
+      # The installer is uploaded twice: once as a workflow artifact so the
+      # bundle-smoke-windows job can install it for testing in this same run,
+      # and once as a Release asset for end users. Without the workflow-artifact
+      # copy, the smoke gate would have to round-trip through gh release
+      # download — which would only work AFTER the asset is published, defeating
+      # the purpose of a pre-publish gate.
+      - name: Upload installer (workflow artifact for smoke gate)
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-windows-installer
+          path: installer\windows\Output\BoxCutter-Setup-${{ env.VERSION }}.exe
+          retention-days: 1
+          if-no-files-found: error
+
+      - name: Upload installer (Release asset)
         uses: softprops/action-gh-release@v2
         with:
           files: installer\windows\Output\BoxCutter-Setup-${{ env.VERSION }}.exe
@@ -73,6 +87,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+
+      - name: Stamp version
+        run: |
+          ver="${{ github.ref_name }}"
+          ver="${ver#v}"
+          echo "__version__ = '$ver'" > version.py
+          echo "VERSION=$ver" >> "$GITHUB_ENV"
 
       - name: Install dependencies
         run: pip install -r requirements.txt pyinstaller
@@ -103,16 +124,171 @@ jobs:
           create-dmg dist/BoxCutter.app dist/ || true
           mv dist/*.dmg dist/boxcutter-mac.dmg
 
-      - name: Upload to release
+      - name: Upload DMG (workflow artifact for smoke gate)
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-macos-dmg
+          path: dist/boxcutter-mac.dmg
+          retention-days: 1
+          if-no-files-found: error
+
+      - name: Upload DMG (Release asset)
         uses: softprops/action-gh-release@v2
         with:
           files: dist/boxcutter-mac.dmg
+
+  # ---------------------------------------------------------------------------
+  # bundle-smoke gate — Layers 1/2/3 against the freshly-built artifact
+  # before SHA manifest publishes. Failure here means the SHA manifest
+  # never gets attached to the Release, which means auto-updater clients
+  # cannot verify and refuse to download. A broken bundle physically
+  # cannot ship a complete release.
+  # ---------------------------------------------------------------------------
+  bundle-smoke-windows:
+    needs: build-windows
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install test dependencies
+        run: |
+          pip install --no-cache-dir pytest playwright mutagen
+          playwright install chromium
+        shell: pwsh
+
+      - name: Download installer (workflow artifact)
+        uses: actions/download-artifact@v4
+        with:
+          name: release-windows-installer
+          path: test-artifact
+
+      - name: Locate installer
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem -Path test-artifact -Recurse -Filter "BoxCutter-Setup-*.exe" | Select-Object -First 1
+          if (-not $exe) { Write-Error "no installer in test-artifact"; exit 1 }
+          "INSTALLER=$($exe.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Install BoxCutter (silent)
+        shell: pwsh
+        run: |
+          $proc = Start-Process -FilePath $env:INSTALLER -ArgumentList "/SILENT","/SUPPRESSMSGBOXES","/NORESTART" -Wait -PassThru
+          if ($proc.ExitCode -ne 0) { Write-Error "Installer exited $($proc.ExitCode)"; exit 1 }
+
+      - name: Locate installed bundle
+        shell: pwsh
+        run: |
+          $exe = "$env:LOCALAPPDATA\BoxCutter\BoxCutter.exe"
+          $internal = "$env:LOCALAPPDATA\BoxCutter\_internal"
+          if (-not (Test-Path $exe)) { Write-Error "BoxCutter.exe not found at $exe"; exit 1 }
+          if (-not (Test-Path "$internal\scripts")) { Write-Error "scripts dir not found"; exit 1 }
+          "BOXCUTTER_EXE=$exe" | Out-File $env:GITHUB_ENV -Append
+          "BUNDLED_SCRIPTS=$internal\scripts" | Out-File $env:GITHUB_ENV -Append
+
+      - name: Layer 1 — verify_imports
+        shell: pwsh
+        run: |
+          & "$env:BOXCUTTER_EXE" tests/bundle/verify_imports.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Layer 2 — run_all_scripts
+        shell: pwsh
+        run: |
+          python tests/bundle/run_all_scripts.py `
+            --bundle-exe "$env:BOXCUTTER_EXE" `
+            --scripts-dir "$env:BUNDLED_SCRIPTS"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Layer 3 — Playwright UI contract
+        env:
+          BOXCUTTER_BUNDLE_EXE: ${{ env.BOXCUTTER_EXE }}
+        shell: pwsh
+        run: pytest tests/bundle/ui/ -v --tb=short
+
+  bundle-smoke-macos:
+    needs: build-mac
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install test dependencies
+        run: |
+          pip install --no-cache-dir pytest playwright mutagen
+          playwright install chromium
+
+      - name: Download DMG (workflow artifact)
+        uses: actions/download-artifact@v4
+        with:
+          name: release-macos-dmg
+          path: test-artifact
+
+      - name: Mount DMG and copy .app
+        run: |
+          dmg=$(find test-artifact -name "*.dmg" | head -1)
+          if [ -z "$dmg" ]; then echo "no DMG"; ls -R test-artifact; exit 1; fi
+          mountpoint=/tmp/bcmount
+          mkdir -p "$mountpoint"
+          hdiutil attach "$dmg" -nobrowse -quiet -mountpoint "$mountpoint"
+          appdir=$(find "$mountpoint" -maxdepth 2 -name "BoxCutter.app" | head -1)
+          cp -R "$appdir" /tmp/BoxCutter.app
+          hdiutil detach "$mountpoint" -quiet
+          echo "BOXCUTTER_APP=/tmp/BoxCutter.app" >> "$GITHUB_ENV"
+
+      - name: Locate bundle exe + scripts
+        run: |
+          exe="$BOXCUTTER_APP/Contents/MacOS/BoxCutter"
+          if [ ! -x "$exe" ]; then ls -la "$BOXCUTTER_APP/Contents/MacOS"; exit 1; fi
+          scripts=""
+          for c in \
+              "$BOXCUTTER_APP/Contents/Resources/scripts" \
+              "$BOXCUTTER_APP/Contents/Frameworks/scripts" \
+              "$BOXCUTTER_APP/Contents/MacOS/scripts" \
+              "$BOXCUTTER_APP/Contents/Resources/_internal/scripts" \
+              "$BOXCUTTER_APP/Contents/MacOS/_internal/scripts"; do
+            if [ -d "$c" ]; then scripts="$c"; break; fi
+          done
+          if [ -z "$scripts" ]; then
+            echo "scripts/ not found — dumping layout:"
+            find "$BOXCUTTER_APP" -name "strip_comment_urls.py" -type f
+            exit 1
+          fi
+          echo "BOXCUTTER_EXE=$exe" >> "$GITHUB_ENV"
+          echo "BUNDLED_SCRIPTS=$scripts" >> "$GITHUB_ENV"
+
+      - name: Layer 1 — verify_imports
+        run: '"$BOXCUTTER_EXE" tests/bundle/verify_imports.py'
+
+      - name: Layer 2 — run_all_scripts
+        run: |
+          python tests/bundle/run_all_scripts.py \
+            --bundle-exe "$BOXCUTTER_EXE" \
+            --scripts-dir "$BUNDLED_SCRIPTS"
+
+      - name: Layer 3 — Playwright UI contract
+        env:
+          BOXCUTTER_BUNDLE_EXE: ${{ env.BOXCUTTER_EXE }}
+        run: pytest tests/bundle/ui/ -v --tb=short
 
   publish-manifest:
     # R-03: hash all release assets in one Linux job and publish SHA256SUMS so
     # the auto-updater can verify integrity of the installer it downloads.
     # Single canonical format = single parser in app.py = smaller attack surface.
-    needs: [build-windows, build-mac]
+    #
+    # Gated behind bundle-smoke — if any layer fails on either OS, the
+    # SHA manifest never publishes, the Release stays in a half-published
+    # state, and the auto-updater refuses to verify (because /SHA256SUMS
+    # 404s). A broken bundle physically cannot ship a complete release.
+    needs: [bundle-smoke-windows, bundle-smoke-macos]
     runs-on: ubuntu-latest
     steps:
       - name: Download release assets
