@@ -14,9 +14,11 @@ import json
 import sys
 
 from pyrekordbox import Rekordbox6Database as MasterDatabase
+from utils import configure_io
 
 
 def main():
+    configure_io()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--db-path", default="", help="Path to master.db")
     args = parser.parse_args()

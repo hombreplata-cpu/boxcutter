@@ -6,6 +6,27 @@ When adding a new audio format, update EXT_TO_FILETYPE and FILETYPE_LABELS
 here — never duplicate them in individual scripts.
 """
 
+import contextlib
+import sys
+
+
+def configure_io() -> None:
+    """Force stdout/stderr to UTF-8 with errors='replace'.
+
+    Windows console default encoding is cp1252, which crashes on
+    combining diacritics and most non-Latin glyphs (REG-003: track
+    titles with `\\u0302` killed rekordbox_relocate.py mid-run).
+    Call this at the top of every script entrypoint so audio metadata
+    can be safely echoed regardless of locale.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            # Detached/closed streams (some test harnesses) — swallow.
+            with contextlib.suppress(Exception):
+                reconfigure(encoding="utf-8", errors="replace")
+
+
 EXT_TO_FILETYPE = {
     ".mp3": 1,
     ".m4a": 4,  # AAC container

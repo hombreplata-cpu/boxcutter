@@ -15,6 +15,7 @@ import sys
 from pathlib import Path
 
 from pyrekordbox import Rekordbox6Database as MasterDatabase
+from utils import configure_io
 
 # Fallback map used when FolderPath is absent
 FILETYPE_NAMES = {
@@ -46,6 +47,7 @@ EXT_TO_LABEL = {
 
 
 def main():
+    configure_io()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--db-path", default="", help="Path to master.db")
     args = parser.parse_args()

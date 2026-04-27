@@ -35,6 +35,7 @@ import unicodedata
 from pathlib import Path
 
 from pyrekordbox import Rekordbox6Database as MasterDatabase
+from utils import configure_io
 
 DEFAULT_EXTENSIONS = {"mp3", "flac", "wav", "aiff", "aif", "ogg", "m4a", "alac", "wma"}
 
@@ -251,6 +252,7 @@ def run(args):
 
 
 def main():
+    configure_io()
     parser = argparse.ArgumentParser(
         description="Move audio files not referenced in Rekordbox to a DELETE folder."
     )

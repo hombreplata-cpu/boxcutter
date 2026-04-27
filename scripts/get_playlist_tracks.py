@@ -8,6 +8,7 @@ import sys
 
 from pyrekordbox import Rekordbox6Database as MasterDatabase
 from sqlalchemy import text
+from utils import configure_io
 
 
 def fmt_duration(val):
@@ -27,6 +28,7 @@ def fmt_duration(val):
 
 
 def main():
+    configure_io()
     db_path = None
     playlist_id = None
     args = list(sys.argv[1:])

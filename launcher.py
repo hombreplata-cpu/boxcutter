@@ -60,6 +60,16 @@ if getattr(sys, "frozen", False):
     if len(sys.argv) > 1 and sys.argv[1].endswith(".py"):
         import runpy  # stdlib — always available in the bundle
 
+        # REG-003 belt: every dispatched script will print user-supplied audio
+        # metadata (track titles, artists). Windows console default cp1252 can't
+        # encode combining diacritics and crashes the script mid-run. Force UTF-8
+        # before runpy so even scripts that forget to call configure_io() are safe.
+        for stream in (sys.stdout, sys.stderr):
+            reconfigure = getattr(stream, "reconfigure", None)
+            if reconfigure is not None:
+                with contextlib.suppress(Exception):
+                    reconfigure(encoding="utf-8", errors="replace")
+
         script_path = sys.argv[1]
         sys.path.insert(0, os.path.dirname(script_path))  # so `from utils import …` resolves
         sys.argv = sys.argv[1:]  # shift: script path becomes argv[0] for argparse

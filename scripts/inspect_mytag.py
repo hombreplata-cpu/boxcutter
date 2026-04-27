@@ -13,6 +13,7 @@ import sys
 
 from pyrekordbox import Rekordbox6Database as MasterDatabase
 from sqlalchemy import inspect, text
+from utils import configure_io
 
 
 def dump_table(engine, table_name):
@@ -41,6 +42,7 @@ def dump_table(engine, table_name):
 
 
 def main():
+    configure_io()
     db_path = None
     if len(sys.argv) == 3 and sys.argv[1] == "--db-path":
         db_path = sys.argv[2] or None
