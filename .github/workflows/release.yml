@@ -177,7 +177,7 @@ jobs:
       - name: Install BoxCutter (silent)
         shell: pwsh
         run: |
-          $proc = Start-Process -FilePath $env:INSTALLER -ArgumentList "/SILENT","/SUPPRESSMSGBOXES","/NORESTART" -Wait -PassThru
+          $proc = Start-Process -FilePath $env:INSTALLER -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/NOICONS" -Wait -PassThru
           if ($proc.ExitCode -ne 0) { Write-Error "Installer exited $($proc.ExitCode)"; exit 1 }
 
       - name: Locate installed bundle
@@ -191,17 +191,23 @@ jobs:
           "BUNDLED_SCRIPTS=$internal\scripts" | Out-File $env:GITHUB_ENV -Append
 
       - name: Layer 1 — verify_imports
+        # Absolute path — launcher does os.chdir(_MEIPASS) before
+        # resolving sys.argv[1].
         shell: pwsh
         run: |
-          & "$env:BOXCUTTER_EXE" tests/bundle/verify_imports.py
+          $script = (Resolve-Path tests/bundle/verify_imports.py).Path
+          & "$env:BOXCUTTER_EXE" $script
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Layer 2 — run_all_scripts
         shell: pwsh
         run: |
-          python tests/bundle/run_all_scripts.py `
+          $script = (Resolve-Path tests/bundle/run_all_scripts.py).Path
+          $fixtures = (Resolve-Path tests/bundle/fixtures).Path
+          python $script `
             --bundle-exe "$env:BOXCUTTER_EXE" `
-            --scripts-dir "$env:BUNDLED_SCRIPTS"
+            --scripts-dir "$env:BUNDLED_SCRIPTS" `
+            --fixtures-dir "$fixtures"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Layer 3 — Playwright UI contract
@@ -266,13 +272,18 @@ jobs:
           echo "BUNDLED_SCRIPTS=$scripts" >> "$GITHUB_ENV"
 
       - name: Layer 1 — verify_imports
-        run: '"$BOXCUTTER_EXE" tests/bundle/verify_imports.py'
+        # Absolute path — launcher does os.chdir(_MEIPASS) before
+        # resolving sys.argv[1].
+        run: |
+          script="$(realpath tests/bundle/verify_imports.py)"
+          "$BOXCUTTER_EXE" "$script"
 
       - name: Layer 2 — run_all_scripts
         run: |
-          python tests/bundle/run_all_scripts.py \
+          python "$(realpath tests/bundle/run_all_scripts.py)" \
             --bundle-exe "$BOXCUTTER_EXE" \
-            --scripts-dir "$BUNDLED_SCRIPTS"
+            --scripts-dir "$BUNDLED_SCRIPTS" \
+            --fixtures-dir "$(realpath tests/bundle/fixtures)"
 
       - name: Layer 3 — Playwright UI contract
         env:
