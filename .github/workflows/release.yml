@@ -197,13 +197,20 @@ jobs:
           "BUNDLED_SCRIPTS=$scripts" | Out-File $env:GITHUB_ENV -Append
 
       - name: Layer 1 — verify_imports
-        # Absolute path — launcher does os.chdir(_MEIPASS) before
-        # resolving sys.argv[1].
+        # Start-Process -Wait — BoxCutter.exe is a windowed PyInstaller build,
+        # PowerShell's `&` returns immediately without waiting. We need
+        # explicit -Wait + redirected output to run synchronously.
         shell: pwsh
         run: |
           $script = (Resolve-Path tests/bundle/verify_imports.py).Path
-          & "$env:BOXCUTTER_EXE" $script
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $proc = Start-Process -FilePath $env:BOXCUTTER_EXE `
+            -ArgumentList $script `
+            -Wait -PassThru -NoNewWindow `
+            -RedirectStandardOutput verify_out.txt `
+            -RedirectStandardError verify_err.txt
+          Get-Content verify_out.txt
+          if (Test-Path verify_err.txt -PathType Leaf) { Get-Content verify_err.txt }
+          if ($proc.ExitCode -ne 0) { Write-Error "verify_imports failed (exit $($proc.ExitCode))"; exit $proc.ExitCode }
 
       - name: Layer 2 — run_all_scripts
         shell: pwsh

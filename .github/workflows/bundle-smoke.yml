@@ -151,13 +151,21 @@ jobs:
 
       - name: Layer 1 — verify_imports against bundle
         # Absolute path — the launcher does os.chdir(_MEIPASS) before
-        # resolving sys.argv[1], so a relative path resolves into the
-        # bundle's tempdir and fails with "can't find __main__".
+        # resolving sys.argv[1].
+        # Start-Process -Wait — BoxCutter.exe is a windowed (console=False)
+        # PyInstaller build, so PowerShell's `&` returns immediately. We need
+        # explicit -Wait + redirected output to actually run synchronously.
         shell: pwsh
         run: |
           $script = (Resolve-Path tests/bundle/verify_imports.py).Path
-          & "$env:BOXCUTTER_EXE" $script
-          if ($LASTEXITCODE -ne 0) { Write-Error "verify_imports failed"; exit $LASTEXITCODE }
+          $proc = Start-Process -FilePath $env:BOXCUTTER_EXE `
+            -ArgumentList $script `
+            -Wait -PassThru -NoNewWindow `
+            -RedirectStandardOutput verify_out.txt `
+            -RedirectStandardError verify_err.txt
+          Get-Content verify_out.txt
+          if (Test-Path verify_err.txt -PathType Leaf) { Get-Content verify_err.txt }
+          if ($proc.ExitCode -ne 0) { Write-Error "verify_imports failed (exit $($proc.ExitCode))"; exit $proc.ExitCode }
 
       - name: Layer 2 — run_all_scripts against bundle
         shell: pwsh
@@ -169,6 +177,38 @@ jobs:
             --scripts-dir "$env:BUNDLED_SCRIPTS" `
             --fixtures-dir "$fixtures"
           if ($LASTEXITCODE -ne 0) { Write-Error "run_all_scripts failed"; exit $LASTEXITCODE }
+
+      - name: Probe — does BoxCutter.exe start in TESTING mode?
+        # Diagnostic step: surface launcher problems early instead of via
+        # Layer 3's generic 'server did not start' error.
+        shell: pwsh
+        run: |
+          $env:BOXCUTTER_PORT = "12345"
+          $env:BOXCUTTER_TESTING = "1"
+          $proc = Start-Process -FilePath $env:BOXCUTTER_EXE `
+            -PassThru -NoNewWindow `
+            -RedirectStandardOutput probe_out.log `
+            -RedirectStandardError probe_err.log
+          for ($i=1; $i -le 15; $i++) {
+            Start-Sleep -Seconds 1
+            try {
+              $resp = Invoke-WebRequest -Uri "http://127.0.0.1:12345/" -UseBasicParsing -TimeoutSec 1
+              Write-Host "[probe] OK — server responded on attempt $i (status $($resp.StatusCode))"
+              Stop-Process -Id $proc.Id -Force 2>$null
+              exit 0
+            } catch {}
+            if ($proc.HasExited) {
+              Write-Host "[probe] Process exited (code $($proc.ExitCode)) before binding port"
+              Write-Host "--- stdout ---"; if (Test-Path probe_out.log) { Get-Content probe_out.log }
+              Write-Host "--- stderr ---"; if (Test-Path probe_err.log) { Get-Content probe_err.log }
+              exit 1
+            }
+          }
+          Write-Host "[probe] Process still running after 15s but didn't bind"
+          if (Test-Path probe_out.log) { Write-Host "--- stdout ---"; Get-Content probe_out.log }
+          if (Test-Path probe_err.log) { Write-Host "--- stderr ---"; Get-Content probe_err.log }
+          Stop-Process -Id $proc.Id -Force 2>$null
+          exit 1
 
       - name: Layer 3 — Playwright UI contract against bundle
         env:
@@ -271,6 +311,37 @@ jobs:
             --bundle-exe "$BOXCUTTER_EXE" \
             --scripts-dir "$BUNDLED_SCRIPTS" \
             --fixtures-dir "$(realpath tests/bundle/fixtures)"
+
+      - name: Probe — does BoxCutter.app start in TESTING mode?
+        # If this fails, Layer 3 will fail too. Surface the root cause here
+        # rather than letting Layer 3 give a generic 'server did not start'.
+        run: |
+          set +e
+          export BOXCUTTER_PORT=12345
+          export BOXCUTTER_TESTING=1
+          "$BOXCUTTER_EXE" > /tmp/probe_out.log 2> /tmp/probe_err.log &
+          pid=$!
+          for i in $(seq 1 15); do
+            sleep 1
+            if curl -fs http://127.0.0.1:12345/ > /dev/null 2>&1; then
+              echo "[probe] OK — server responded on attempt $i"
+              kill $pid 2>/dev/null
+              wait $pid 2>/dev/null
+              exit 0
+            fi
+            if ! kill -0 $pid 2>/dev/null; then
+              echo "[probe] Process exited before binding port"
+              echo "--- stdout ---"; cat /tmp/probe_out.log
+              echo "--- stderr ---"; cat /tmp/probe_err.log
+              exit 1
+            fi
+          done
+          echo "[probe] Process still running after 15s but didn't bind"
+          echo "--- stdout ---"; cat /tmp/probe_out.log
+          echo "--- stderr ---"; cat /tmp/probe_err.log
+          echo "--- ps ---"; ps -ef | grep -i boxcutter | grep -v grep || true
+          kill $pid 2>/dev/null
+          exit 1
 
       - name: Layer 3 — Playwright UI contract against bundle
         env:
