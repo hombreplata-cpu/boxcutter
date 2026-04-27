@@ -68,17 +68,18 @@ jobs:
         run: pip-audit -r requirements.txt --progress-spinner off
 
       - name: Bandit — SAST scan (medium+ severity, hard fail)
-        # Promoted from triage mode (--exit-zero) to a hard gate. Any
-        # medium-or-higher severity finding fails the job. The 34 existing
-        # LOW findings are visible but non-blocking — track them in v1.2.
-        #
-        # We tried a low-severity baseline file but bandit's filename
-        # comparison is platform-specific (./app.py vs .\app.py), making
-        # cross-platform baselines fragile to generate. Medium+ is the
-        # signal that actually matters for security regressions.
+        # Any medium-or-higher severity finding fails the job.
         run: |
           bandit -r app.py scripts/ -ll -f json -o bandit-report.json
           bandit -r app.py scripts/ -ll
+
+      - name: Bandit — low-severity regression gate (count must not increase)
+        # We can't use bandit --baseline (filename matching is
+        # platform-specific: ./app.py on Linux vs .\app.py on Windows).
+        # Instead, count LOW findings and fail if the count exceeds the
+        # pinned threshold. Cross-platform safe. See
+        # tools/bandit_low_gate.py for the threshold and rationale.
+        run: python tools/bandit_low_gate.py
 
       - name: Upload Bandit report
         uses: actions/upload-artifact@v7

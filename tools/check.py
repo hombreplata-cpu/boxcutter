@@ -74,9 +74,14 @@ def default_checks() -> list[tuple[str, list[str]]]:
                 "--no-header",
             ],
         ),
-        # bandit -ll: hard fail on medium+ severity. Lows are visible but
-        # non-blocking — see ci.yml comment for rationale.
+        # bandit -ll: hard fail on medium+ severity.
         ("bandit (medium+)", [sys.executable, "-m", "bandit", "-r", "app.py", "scripts/", "-ll"]),
+        # Low-severity regression gate: count must not increase. See
+        # tools/bandit_low_gate.py for why we can't use --baseline.
+        (
+            "bandit (low-count regression)",
+            [sys.executable, "tools/bandit_low_gate.py"],
+        ),
     ]
 
 
@@ -88,14 +93,36 @@ def strict_checks() -> list[tuple[str, list[str]]]:
             [sys.executable, "-m", "pytest", "tests/e2e", "-x", "--no-header"],
         )
     )
-    if platform.system() == "Windows":
-        # Installer-build smoke is Windows-only (Inno Setup).
-        # We only verify the spec parses + imports succeed; full build
-        # belongs in the release.yml workflow.
+    # Real PyInstaller smoke build on both shipping platforms. Verifies
+    # the spec actually produces a working frozen artifact, not just that
+    # it parses. Linux is skipped (no Linux release).
+    #   Windows artifact: dist/BoxCutter/BoxCutter.exe (one-dir layout)
+    #   macOS artifact:   dist/BoxCutter.app
+    if platform.system() in ("Windows", "Darwin"):
         checks.append(
             (
-                "installer spec smoke",
-                [sys.executable, "-c", "import app.spec  # noqa: F401  # parse-only"],
+                "pyinstaller smoke build",
+                [
+                    sys.executable,
+                    "-m",
+                    "PyInstaller",
+                    "app.spec",
+                    "--noconfirm",
+                    "--clean",
+                ],
+            )
+        )
+        artifact_check = (
+            "import pathlib, platform, sys; "
+            "p = pathlib.Path('dist/BoxCutter/BoxCutter.exe') "
+            "if platform.system() == 'Windows' "
+            "else pathlib.Path('dist/BoxCutter.app'); "
+            "sys.exit(0 if p.exists() else 1)"
+        )
+        checks.append(
+            (
+                "frozen artifact exists",
+                [sys.executable, "-c", artifact_check],
             )
         )
     return checks
