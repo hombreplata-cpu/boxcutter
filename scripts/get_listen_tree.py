@@ -7,6 +7,7 @@ import json
 import sys
 
 from pyrekordbox import Rekordbox6Database as MasterDatabase
+from utils import configure_io
 
 
 def _safe_int(val, default=0):
@@ -30,6 +31,7 @@ def build_tree(nodes, parent_id=0):
 
 
 def main():
+    configure_io()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--db-path", default="", help="Path to master.db")
     args = parser.parse_args()

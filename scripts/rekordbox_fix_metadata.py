@@ -26,7 +26,7 @@ from datetime import datetime
 from pathlib import Path
 
 from pyrekordbox import Rekordbox6Database as MasterDatabase
-from utils import EXT_TO_FILETYPE, FILETYPE_LABELS
+from utils import EXT_TO_FILETYPE, FILETYPE_LABELS, configure_io
 
 
 def run(args):
@@ -209,6 +209,7 @@ def run(args):
 
 
 def main():
+    configure_io()
     parser = argparse.ArgumentParser(
         description="Fix stale FileType/FileSize in Rekordbox DB for tracks with correct paths."
     )

@@ -60,7 +60,7 @@ from datetime import datetime
 from pathlib import Path
 
 from pyrekordbox import Rekordbox6Database as MasterDatabase
-from utils import EXT_TO_FILETYPE
+from utils import EXT_TO_FILETYPE, configure_io
 
 DEFAULT_EXTENSIONS = {"mp3", "flac", "wav", "aiff", "aif", "ogg", "m4a", "alac", "wma"}
 NUMERIC_PREFIX_RE = re.compile(r"^[\d]+\s*-\s*")
@@ -575,6 +575,7 @@ def run(args):
 
 
 def main():
+    configure_io()
     parser = argparse.ArgumentParser(
         description="Re-point Rekordbox track paths to a new target root directory."
     )

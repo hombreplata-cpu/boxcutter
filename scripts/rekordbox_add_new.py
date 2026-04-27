@@ -21,6 +21,7 @@ from pathlib import Path
 
 import mutagen
 from pyrekordbox import Rekordbox6Database as MasterDatabase
+from utils import configure_io
 
 AUDIO_EXTENSIONS = {
     ".mp3",
@@ -343,6 +344,7 @@ def _emit_report(args, playlist_name, scanned, already_in_db, added, errors):
 
 
 def main():
+    configure_io()
     parser = argparse.ArgumentParser(
         description="Add audio files from a watch directory to a Rekordbox playlist."
     )

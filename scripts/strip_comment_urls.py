@@ -31,7 +31,7 @@ import re
 import sys
 from pathlib import Path
 
-from utils import MUSIC_EXTENSIONS
+from utils import MUSIC_EXTENSIONS, configure_io
 
 try:
     from mutagen.flac import FLAC
@@ -355,6 +355,7 @@ def crawl(directories, write):
 
 
 def main():
+    configure_io()
     parser = argparse.ArgumentParser(
         description="Remove URLs from music file comment tags (MP3, FLAC, WAV, AIFF, ALAC/M4A)."
     )

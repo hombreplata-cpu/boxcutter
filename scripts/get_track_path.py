@@ -7,9 +7,11 @@ import sys
 from pathlib import Path
 
 from pyrekordbox import Rekordbox6Database as MasterDatabase
+from utils import configure_io
 
 
 def main():
+    configure_io()
     db_path = None
     track_id = None
     args = list(sys.argv[1:])
