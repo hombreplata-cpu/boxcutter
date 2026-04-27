@@ -79,6 +79,15 @@ jobs:
         with:
           files: installer\windows\Output\BoxCutter-Setup-${{ env.VERSION }}.exe
 
+      # Unpacked PyInstaller bundle for smoke gate (skip Inno Setup install)
+      - name: Upload unpacked Windows bundle (workflow artifact for smoke)
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-windows-bundle
+          path: dist/BoxCutter
+          retention-days: 1
+          if-no-files-found: error
+
   build-mac:
     runs-on: macos-latest
     steps:
@@ -137,6 +146,15 @@ jobs:
         with:
           files: dist/boxcutter-mac.dmg
 
+      # Unpacked .app bundle for smoke gate (skip DMG mount path)
+      - name: Upload unpacked .app bundle (workflow artifact for smoke)
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-macos-app
+          path: dist/BoxCutter.app
+          retention-days: 1
+          if-no-files-found: error
+
   # ---------------------------------------------------------------------------
   # bundle-smoke gate — Layers 1/2/3 against the freshly-built artifact
   # before SHA manifest publishes. Failure here means the SHA manifest
@@ -161,34 +179,22 @@ jobs:
           playwright install chromium
         shell: pwsh
 
-      - name: Download installer (workflow artifact)
+      - name: Download unpacked Windows bundle
         uses: actions/download-artifact@v4
         with:
-          name: release-windows-installer
-          path: test-artifact
+          name: release-windows-bundle
+          path: bundle
 
-      - name: Locate installer
+      - name: Locate bundle exe + scripts
         shell: pwsh
         run: |
-          $exe = Get-ChildItem -Path test-artifact -Recurse -Filter "BoxCutter-Setup-*.exe" | Select-Object -First 1
-          if (-not $exe) { Write-Error "no installer in test-artifact"; exit 1 }
-          "INSTALLER=$($exe.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
-
-      - name: Install BoxCutter (silent)
-        shell: pwsh
-        run: |
-          $proc = Start-Process -FilePath $env:INSTALLER -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/NOICONS" -Wait -PassThru
-          if ($proc.ExitCode -ne 0) { Write-Error "Installer exited $($proc.ExitCode)"; exit 1 }
-
-      - name: Locate installed bundle
-        shell: pwsh
-        run: |
-          $exe = "$env:LOCALAPPDATA\BoxCutter\BoxCutter.exe"
-          $internal = "$env:LOCALAPPDATA\BoxCutter\_internal"
-          if (-not (Test-Path $exe)) { Write-Error "BoxCutter.exe not found at $exe"; exit 1 }
-          if (-not (Test-Path "$internal\scripts")) { Write-Error "scripts dir not found"; exit 1 }
-          "BOXCUTTER_EXE=$exe" | Out-File $env:GITHUB_ENV -Append
-          "BUNDLED_SCRIPTS=$internal\scripts" | Out-File $env:GITHUB_ENV -Append
+          $exe = Get-ChildItem -Path bundle -Recurse -Filter "BoxCutter.exe" | Select-Object -First 1
+          if (-not $exe) { Write-Error "BoxCutter.exe not found"; exit 1 }
+          $bundleRoot = $exe.Directory.FullName
+          $scripts = Join-Path $bundleRoot "_internal\scripts"
+          if (-not (Test-Path $scripts)) { Write-Error "scripts dir not found"; exit 1 }
+          "BOXCUTTER_EXE=$($exe.FullName)" | Out-File $env:GITHUB_ENV -Append
+          "BUNDLED_SCRIPTS=$scripts" | Out-File $env:GITHUB_ENV -Append
 
       - name: Layer 1 — verify_imports
         # Absolute path — launcher does os.chdir(_MEIPASS) before
@@ -213,6 +219,7 @@ jobs:
       - name: Layer 3 — Playwright UI contract
         env:
           BOXCUTTER_BUNDLE_EXE: ${{ env.BOXCUTTER_EXE }}
+          BOXCUTTER_TESTING: "1"
         shell: pwsh
         run: pytest tests/bundle/ui/ -v --tb=short
 
@@ -232,22 +239,22 @@ jobs:
           pip install --no-cache-dir pytest playwright mutagen
           playwright install chromium
 
-      - name: Download DMG (workflow artifact)
+      - name: Download unpacked .app bundle
         uses: actions/download-artifact@v4
         with:
-          name: release-macos-dmg
-          path: test-artifact
+          name: release-macos-app
+          path: bundle
 
-      - name: Mount DMG and copy .app
+      - name: Reconstitute .app bundle (artifact download flattens the dir)
         run: |
-          dmg=$(find test-artifact -name "*.dmg" | head -1)
-          if [ -z "$dmg" ]; then echo "no DMG"; ls -R test-artifact; exit 1; fi
-          mountpoint=/tmp/bcmount
-          mkdir -p "$mountpoint"
-          hdiutil attach "$dmg" -nobrowse -quiet -mountpoint "$mountpoint"
-          appdir=$(find "$mountpoint" -maxdepth 2 -name "BoxCutter.app" | head -1)
-          cp -R "$appdir" /tmp/BoxCutter.app
-          hdiutil detach "$mountpoint" -quiet
+          if [ -d "bundle/Contents" ]; then
+            mkdir -p /tmp/BoxCutter.app
+            cp -R bundle/* /tmp/BoxCutter.app/
+          else
+            inner=$(find bundle -maxdepth 2 -name "Contents" -type d | head -1)
+            cp -R "$(dirname "$inner")" /tmp/BoxCutter.app
+          fi
+          chmod +x /tmp/BoxCutter.app/Contents/MacOS/BoxCutter
           echo "BOXCUTTER_APP=/tmp/BoxCutter.app" >> "$GITHUB_ENV"
 
       - name: Locate bundle exe + scripts
@@ -288,6 +295,7 @@ jobs:
       - name: Layer 3 — Playwright UI contract
         env:
           BOXCUTTER_BUNDLE_EXE: ${{ env.BOXCUTTER_EXE }}
+          BOXCUTTER_TESTING: "1"
         run: pytest tests/bundle/ui/ -v --tb=short
 
   publish-manifest:

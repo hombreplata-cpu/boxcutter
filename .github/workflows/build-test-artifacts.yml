@@ -99,6 +99,18 @@ jobs:
           retention-days: 14
           if-no-files-found: error
 
+      # Unpacked PyInstaller bundle. Used by bundle-smoke jobs so smoke can
+      # run the bundle directly without installing it via Inno Setup
+      # (the installer hangs in /VERYSILENT mode in CI; testing the bundle
+      # itself is the real concern, installer behaviour is a separate test).
+      - name: Upload unpacked Windows bundle (for smoke)
+        uses: actions/upload-artifact@v4
+        with:
+          name: BoxCutter-bundle-windows-${{ env.VERSION }}
+          path: dist/BoxCutter
+          retention-days: 14
+          if-no-files-found: error
+
   build-mac:
     needs: resolve-version
     runs-on: macos-latest
@@ -151,5 +163,15 @@ jobs:
         with:
           name: BoxCutter-${{ env.VERSION }}.dmg
           path: dist/BoxCutter-${{ env.VERSION }}.dmg
+          retention-days: 14
+          if-no-files-found: error
+
+      # Unpacked .app bundle. Used by bundle-smoke jobs so smoke can run
+      # the bundle directly without going through DMG mount/copy in CI.
+      - name: Upload unpacked macOS .app bundle (for smoke)
+        uses: actions/upload-artifact@v4
+        with:
+          name: BoxCutter-bundle-macos-${{ env.VERSION }}
+          path: dist/BoxCutter.app
           retention-days: 14
           if-no-files-found: error
