@@ -16,11 +16,11 @@ import urllib.error
 import urllib.request
 from pathlib import Path as _DiagPath
 
-# File-trace diagnostic — bypasses any stdout/stderr quirks PyInstaller has on
-# either OS. If the file appears, the launcher executed. If env vars show
-# correctly, the bundle is reading them. If the file does not appear, either
-# the shipped launcher.py is different from what we committed, or the launcher
-# never executes our code at all. Placed before any project imports.
+# Permanent CI diagnostic — bundle-smoke's probe step dumps this file on every
+# run so any future failure immediately surfaces (a) whether the launcher
+# executed at all and (b) what env vars it actually saw on startup. Cheap to
+# leave in: ~10 lines, runs once on launch, errors swallowed. Placed before
+# any project imports so it fires even if downstream import chain breaks.
 _diag_path = (
     _DiagPath(os.environ.get("TEMP", "C:\\Temp")) / "boxcutter-launcher-trace.txt"
     if sys.platform == "win32"
