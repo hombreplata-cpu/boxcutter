@@ -64,6 +64,17 @@ def _resolve_port() -> int:
         return 5000
 
 
+# Diagnostic — confirm env vars the bundle sees on startup. Eyeballed by
+# bundle-smoke probe; remove (or convert to debug-level log) after the
+# release gate is proven stable.
+print(
+    f"[launcher] BOXCUTTER_TESTING={os.environ.get('BOXCUTTER_TESTING', '<unset>')!r} "
+    f"BOXCUTTER_PORT={os.environ.get('BOXCUTTER_PORT', '<unset>')!r} "
+    f"frozen={getattr(sys, 'frozen', False)}",
+    flush=True,
+)
+
+
 PORT = _resolve_port()
 
 

@@ -81,7 +81,9 @@ jobs:
           python -c "import clr; print('clr OK')"
 
       - name: Build with PyInstaller
-        run: pyinstaller app.spec
+        # --clean: wipe PyInstaller cache before building so we never ship
+        # bytecode from a previous (potentially incompatible) run.
+        run: pyinstaller --clean app.spec
 
       - name: Install Inno Setup
         run: choco install innosetup --yes --no-progress
@@ -150,7 +152,7 @@ jobs:
         run: iconutil -c icns assets/icons/icon.iconset -o static/boxcutter.icns
 
       - name: Build app bundle
-        run: pyinstaller app.spec
+        run: pyinstaller --clean app.spec
 
       - name: Create DMG
         run: |
