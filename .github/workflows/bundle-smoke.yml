@@ -136,7 +136,7 @@ jobs:
         shell: pwsh
         run: |
           Write-Host "Running: $env:INSTALLER /SILENT /SUPPRESSMSGBOXES /NORESTART"
-          $proc = Start-Process -FilePath $env:INSTALLER -ArgumentList "/SILENT","/SUPPRESSMSGBOXES","/NORESTART" -Wait -PassThru
+          $proc = Start-Process -FilePath $env:INSTALLER -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/NOICONS" -Wait -PassThru
           if ($proc.ExitCode -ne 0) { Write-Error "Installer exited $($proc.ExitCode)"; exit 1 }
           Write-Host "Installer exited 0"
 
@@ -167,17 +167,24 @@ jobs:
           "BUNDLED_SCRIPTS=$scripts" | Out-File $env:GITHUB_ENV -Append
 
       - name: Layer 1 — verify_imports against bundle
+        # Absolute path — the launcher does os.chdir(_MEIPASS) before
+        # resolving sys.argv[1], so a relative path resolves into the
+        # bundle's tempdir and fails with "can't find __main__".
         shell: pwsh
         run: |
-          & "$env:BOXCUTTER_EXE" tests/bundle/verify_imports.py
+          $script = (Resolve-Path tests/bundle/verify_imports.py).Path
+          & "$env:BOXCUTTER_EXE" $script
           if ($LASTEXITCODE -ne 0) { Write-Error "verify_imports failed"; exit $LASTEXITCODE }
 
       - name: Layer 2 — run_all_scripts against bundle
         shell: pwsh
         run: |
-          python tests/bundle/run_all_scripts.py `
+          $script = (Resolve-Path tests/bundle/run_all_scripts.py).Path
+          $fixtures = (Resolve-Path tests/bundle/fixtures).Path
+          python $script `
             --bundle-exe "$env:BOXCUTTER_EXE" `
-            --scripts-dir "$env:BUNDLED_SCRIPTS"
+            --scripts-dir "$env:BUNDLED_SCRIPTS" `
+            --fixtures-dir "$fixtures"
           if ($LASTEXITCODE -ne 0) { Write-Error "run_all_scripts failed"; exit $LASTEXITCODE }
 
       - name: Layer 3 — Playwright UI contract against bundle
@@ -275,14 +282,19 @@ jobs:
           echo "BUNDLED_SCRIPTS=$scripts" >> "$GITHUB_ENV"
 
       - name: Layer 1 — verify_imports against bundle
+        # Absolute path — the launcher does os.chdir(_MEIPASS) before
+        # resolving sys.argv[1], so a relative path resolves into the
+        # bundle's tempdir and fails with "can't find __main__".
         run: |
-          "$BOXCUTTER_EXE" tests/bundle/verify_imports.py
+          script="$(realpath tests/bundle/verify_imports.py)"
+          "$BOXCUTTER_EXE" "$script"
 
       - name: Layer 2 — run_all_scripts against bundle
         run: |
-          python tests/bundle/run_all_scripts.py \
+          python "$(realpath tests/bundle/run_all_scripts.py)" \
             --bundle-exe "$BOXCUTTER_EXE" \
-            --scripts-dir "$BUNDLED_SCRIPTS"
+            --scripts-dir "$BUNDLED_SCRIPTS" \
+            --fixtures-dir "$(realpath tests/bundle/fixtures)"
 
       - name: Layer 3 — Playwright UI contract against bundle
         env:
