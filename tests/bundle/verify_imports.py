@@ -104,9 +104,11 @@ EXPECTED_SUBMODULES = [
 
 # App-root modules — at repo root in source mode, at _MEIPASS in frozen.
 # Both layouts get added to sys.path before checking so these always resolve.
+# NOTE: launcher.py is intentionally absent — PyInstaller compiles it INTO
+# the bundle's executable as the entry point, so it's not importable as a
+# module from inside the bundle. Including it here would fail every frozen run.
 APP_ROOT_MODULES = [
     "app",
-    "launcher",
     "crash_logger",
     "version",
 ]

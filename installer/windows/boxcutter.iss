@@ -41,4 +41,7 @@ Name: "{userprograms}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstall
 Name: "{userdesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#MyAppName}}"; Flags: nowait postinstall
+; skipifsilent: don't auto-launch BoxCutter in /SILENT or /VERYSILENT installs.
+; Without this, CI silent-install hangs because BoxCutter.exe starts (pywebview
+; + Flask) and never exits, blocking the installer's process tree.
+Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#MyAppName}}"; Flags: nowait postinstall skipifsilent

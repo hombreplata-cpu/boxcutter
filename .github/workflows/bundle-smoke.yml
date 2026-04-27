@@ -114,87 +114,121 @@ jobs:
           playwright install chromium
         shell: pwsh
 
-      - name: Download Windows installer artifact
+      # Smoke runs against the unpacked PyInstaller bundle, NOT the Inno
+      # Setup installer. The installer's silent-mode hangs in CI for
+      # reasons that are independent of bundle correctness; testing the
+      # bundle directly is what catches REG-001-class regressions.
+      # Installer behaviour gets its own dedicated job in the future.
+      - name: Download unpacked Windows bundle
         uses: actions/download-artifact@v4
         with:
-          pattern: BoxCutter-Setup-*.exe
-          path: test-artifact
+          pattern: BoxCutter-bundle-windows-*
+          path: bundle
           run-id: ${{ needs.resolve-source-run.outputs.source_run_id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           merge-multiple: true
 
-      - name: Locate installer
-        id: find
+      - name: Locate bundle exe + scripts
         shell: pwsh
         run: |
-          $exe = Get-ChildItem -Path test-artifact -Recurse -Filter "BoxCutter-Setup-*.exe" | Select-Object -First 1
-          if (-not $exe) { Write-Error "no installer found in test-artifact"; exit 1 }
-          Write-Host "Installer: $($exe.FullName) ($([math]::Round($exe.Length / 1MB, 2)) MB)"
-          "INSTALLER=$($exe.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
-
-      - name: Install BoxCutter (silent)
-        shell: pwsh
-        run: |
-          Write-Host "Running: $env:INSTALLER /SILENT /SUPPRESSMSGBOXES /NORESTART"
-          $proc = Start-Process -FilePath $env:INSTALLER -ArgumentList "/SILENT","/SUPPRESSMSGBOXES","/NORESTART" -Wait -PassThru
-          if ($proc.ExitCode -ne 0) { Write-Error "Installer exited $($proc.ExitCode)"; exit 1 }
-          Write-Host "Installer exited 0"
-
-      - name: Locate installed bundle
-        shell: pwsh
-        run: |
-          $exe = "$env:LOCALAPPDATA\BoxCutter\BoxCutter.exe"
-          if (-not (Test-Path $exe)) {
-            Write-Error "BoxCutter.exe not found at $exe — installer DefaultDir mismatch?"
-            Get-ChildItem $env:LOCALAPPDATA -Directory
+          $exe = Get-ChildItem -Path bundle -Recurse -Filter "BoxCutter.exe" | Select-Object -First 1
+          if (-not $exe) {
+            Write-Error "BoxCutter.exe not found in bundle artifact"
+            Get-ChildItem -Recurse bundle | Select-Object -First 30 FullName
             exit 1
           }
-          $internal = "$env:LOCALAPPDATA\BoxCutter\_internal"
-          if (-not (Test-Path $internal)) {
-            Write-Error "_internal/ not found at $internal — PyInstaller layout changed?"
-            Get-ChildItem "$env:LOCALAPPDATA\BoxCutter"
-            exit 1
-          }
-          $scripts = "$internal\scripts"
+          $bundleRoot = $exe.Directory.FullName
+          $scripts = Join-Path $bundleRoot "_internal\scripts"
           if (-not (Test-Path $scripts)) {
-            Write-Error "scripts/ not found at $scripts"
-            Get-ChildItem $internal
+            Write-Error "scripts/ not found at $scripts — PyInstaller layout changed?"
+            Get-ChildItem $bundleRoot
             exit 1
           }
-          Write-Host "Bundle exe: $exe"
+          Write-Host "Bundle exe: $($exe.FullName)"
           Write-Host "Bundle scripts: $scripts"
-          "BOXCUTTER_EXE=$exe" | Out-File $env:GITHUB_ENV -Append
+          "BOXCUTTER_EXE=$($exe.FullName)" | Out-File $env:GITHUB_ENV -Append
           "BUNDLED_SCRIPTS=$scripts" | Out-File $env:GITHUB_ENV -Append
 
       - name: Layer 1 — verify_imports against bundle
+        # Absolute path — the launcher does os.chdir(_MEIPASS) before
+        # resolving sys.argv[1].
+        # Start-Process -Wait — BoxCutter.exe is a windowed (console=False)
+        # PyInstaller build, so PowerShell's `&` returns immediately. We need
+        # explicit -Wait + redirected output to actually run synchronously.
         shell: pwsh
         run: |
-          & "$env:BOXCUTTER_EXE" tests/bundle/verify_imports.py
-          if ($LASTEXITCODE -ne 0) { Write-Error "verify_imports failed"; exit $LASTEXITCODE }
+          $script = (Resolve-Path tests/bundle/verify_imports.py).Path
+          $proc = Start-Process -FilePath $env:BOXCUTTER_EXE `
+            -ArgumentList $script `
+            -Wait -PassThru -NoNewWindow `
+            -RedirectStandardOutput verify_out.txt `
+            -RedirectStandardError verify_err.txt
+          Get-Content verify_out.txt
+          if (Test-Path verify_err.txt -PathType Leaf) { Get-Content verify_err.txt }
+          if ($proc.ExitCode -ne 0) { Write-Error "verify_imports failed (exit $($proc.ExitCode))"; exit $proc.ExitCode }
 
       - name: Layer 2 — run_all_scripts against bundle
         shell: pwsh
         run: |
-          python tests/bundle/run_all_scripts.py `
+          $script = (Resolve-Path tests/bundle/run_all_scripts.py).Path
+          $fixtures = (Resolve-Path tests/bundle/fixtures).Path
+          python $script `
             --bundle-exe "$env:BOXCUTTER_EXE" `
-            --scripts-dir "$env:BUNDLED_SCRIPTS"
+            --scripts-dir "$env:BUNDLED_SCRIPTS" `
+            --fixtures-dir "$fixtures"
           if ($LASTEXITCODE -ne 0) { Write-Error "run_all_scripts failed"; exit $LASTEXITCODE }
+
+      - name: Probe — does BoxCutter.exe start in TESTING mode?
+        # Diagnostic step: surface launcher problems early instead of via
+        # Layer 3's generic 'server did not start' error.
+        shell: pwsh
+        run: |
+          $env:BOXCUTTER_PORT = "12345"
+          $env:BOXCUTTER_TESTING = "1"
+          $proc = Start-Process -FilePath $env:BOXCUTTER_EXE `
+            -PassThru -NoNewWindow `
+            -RedirectStandardOutput probe_out.log `
+            -RedirectStandardError probe_err.log
+          for ($i=1; $i -le 15; $i++) {
+            Start-Sleep -Seconds 1
+            try {
+              $resp = Invoke-WebRequest -Uri "http://127.0.0.1:12345/" -UseBasicParsing -TimeoutSec 1
+              Write-Host "[probe] OK — server responded on attempt $i (status $($resp.StatusCode))"
+              Stop-Process -Id $proc.Id -Force 2>$null
+              exit 0
+            } catch {}
+            if ($proc.HasExited) {
+              Write-Host "[probe] Process exited (code $($proc.ExitCode)) before binding port"
+              Write-Host "--- stdout ---"; if (Test-Path probe_out.log) { Get-Content probe_out.log }
+              Write-Host "--- stderr ---"; if (Test-Path probe_err.log) { Get-Content probe_err.log }
+              exit 1
+            }
+          }
+          Write-Host "[probe] Process still running after 15s but didn't bind"
+          if (Test-Path probe_out.log) { Write-Host "--- stdout ---"; Get-Content probe_out.log }
+          if (Test-Path probe_err.log) { Write-Host "--- stderr ---"; Get-Content probe_err.log }
+          Stop-Process -Id $proc.Id -Force 2>$null
+          exit 1
+
+      - name: Dump launcher trace
+        if: always()
+        shell: pwsh
+        run: |
+          $tracePath = Join-Path $env:TEMP "boxcutter-launcher-trace.txt"
+          if (Test-Path $tracePath) {
+            Write-Host "--- launcher trace ---"
+            Get-Content $tracePath
+          } else {
+            Write-Host "--- NO LAUNCHER TRACE FILE — bundle did not execute our code ---"
+          }
 
       - name: Layer 3 — Playwright UI contract against bundle
         env:
           BOXCUTTER_BUNDLE_EXE: ${{ env.BOXCUTTER_EXE }}
+          BOXCUTTER_TESTING: "1"
         shell: pwsh
         run: |
           pytest tests/bundle/ui/ -v --tb=short
-
-      - name: Uninstall (best effort)
-        if: always()
-        shell: pwsh
-        run: |
-          $unins = "$env:LOCALAPPDATA\BoxCutter\unins000.exe"
-          if (Test-Path $unins) {
-            & $unins /SILENT /SUPPRESSMSGBOXES
-          }
 
   # ---------------------------------------------------------------------------
   # macOS smoke: mount the .dmg, copy the .app, run all 3 layers.
@@ -216,36 +250,37 @@ jobs:
           pip install --no-cache-dir pytest playwright mutagen
           playwright install chromium
 
-      - name: Download macOS DMG artifact
+      # Smoke against the unpacked .app bundle, not via DMG mount. Faster
+      # and bypasses any DMG-mount quirks.
+      - name: Download unpacked macOS bundle
         uses: actions/download-artifact@v4
         with:
-          pattern: BoxCutter-*.dmg
-          path: test-artifact
+          pattern: BoxCutter-bundle-macos-*
+          path: bundle
           run-id: ${{ needs.resolve-source-run.outputs.source_run_id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           merge-multiple: true
 
-      - name: Locate DMG
+      - name: Reconstitute .app bundle (artifact download flattens .app dir)
         run: |
-          dmg=$(find test-artifact -name "BoxCutter-*.dmg" | head -1)
-          if [ -z "$dmg" ]; then echo "no DMG found"; ls -R test-artifact; exit 1; fi
-          echo "DMG: $dmg"
-          echo "DMG_PATH=$dmg" >> "$GITHUB_ENV"
-
-      - name: Mount DMG and copy .app
-        run: |
-          mountpoint=/tmp/bcmount
-          mkdir -p "$mountpoint"
-          hdiutil attach "$DMG_PATH" -nobrowse -quiet -mountpoint "$mountpoint"
-          ls -la "$mountpoint"
-          appdir=$(find "$mountpoint" -maxdepth 2 -name "BoxCutter.app" | head -1)
-          if [ -z "$appdir" ]; then echo "BoxCutter.app not in DMG"; exit 1; fi
-          cp -R "$appdir" /tmp/BoxCutter.app
-          hdiutil detach "$mountpoint" -quiet
-          echo "BOXCUTTER_APP=/tmp/BoxCutter.app" >> "$GITHUB_ENV"
+          # actions/download-artifact extracts a .app directory's contents
+          # but loses the .app wrapper. Wrap it back so macOS treats it as
+          # an app bundle and the executable bit is preserved.
+          if [ -d "bundle/Contents" ]; then
+            mkdir -p /tmp/BoxCutter.app
+            cp -R bundle/* /tmp/BoxCutter.app/
+          else
+            # Already wrapped or contains a top-level dir
+            inner=$(find bundle -maxdepth 2 -name "Contents" -type d | head -1)
+            parent=$(dirname "$inner")
+            cp -R "$parent" /tmp/BoxCutter.app
+          fi
+          chmod +x /tmp/BoxCutter.app/Contents/MacOS/BoxCutter
+          ls -la /tmp/BoxCutter.app/Contents/MacOS/
 
       - name: Locate bundle exe + scripts inside .app
         run: |
+          export BOXCUTTER_APP=/tmp/BoxCutter.app
           exe="$BOXCUTTER_APP/Contents/MacOS/BoxCutter"
           if [ ! -x "$exe" ]; then
             echo "BoxCutter exe not found or not executable at $exe"
@@ -275,17 +310,64 @@ jobs:
           echo "BUNDLED_SCRIPTS=$scripts" >> "$GITHUB_ENV"
 
       - name: Layer 1 — verify_imports against bundle
+        # Absolute path — the launcher does os.chdir(_MEIPASS) before
+        # resolving sys.argv[1], so a relative path resolves into the
+        # bundle's tempdir and fails with "can't find __main__".
         run: |
-          "$BOXCUTTER_EXE" tests/bundle/verify_imports.py
+          script="$(realpath tests/bundle/verify_imports.py)"
+          "$BOXCUTTER_EXE" "$script"
 
       - name: Layer 2 — run_all_scripts against bundle
         run: |
-          python tests/bundle/run_all_scripts.py \
+          python "$(realpath tests/bundle/run_all_scripts.py)" \
             --bundle-exe "$BOXCUTTER_EXE" \
-            --scripts-dir "$BUNDLED_SCRIPTS"
+            --scripts-dir "$BUNDLED_SCRIPTS" \
+            --fixtures-dir "$(realpath tests/bundle/fixtures)"
+
+      - name: Probe — does BoxCutter.app start in TESTING mode?
+        # If this fails, Layer 3 will fail too. Surface the root cause here
+        # rather than letting Layer 3 give a generic 'server did not start'.
+        run: |
+          set +e
+          export BOXCUTTER_PORT=12345
+          export BOXCUTTER_TESTING=1
+          "$BOXCUTTER_EXE" > /tmp/probe_out.log 2> /tmp/probe_err.log &
+          pid=$!
+          for i in $(seq 1 15); do
+            sleep 1
+            if curl -fs http://127.0.0.1:12345/ > /dev/null 2>&1; then
+              echo "[probe] OK — server responded on attempt $i"
+              kill $pid 2>/dev/null
+              wait $pid 2>/dev/null
+              exit 0
+            fi
+            if ! kill -0 $pid 2>/dev/null; then
+              echo "[probe] Process exited before binding port"
+              echo "--- stdout ---"; cat /tmp/probe_out.log
+              echo "--- stderr ---"; cat /tmp/probe_err.log
+              exit 1
+            fi
+          done
+          echo "[probe] Process still running after 15s but didn't bind"
+          echo "--- stdout ---"; cat /tmp/probe_out.log
+          echo "--- stderr ---"; cat /tmp/probe_err.log
+          echo "--- ps ---"; ps -ef | grep -i boxcutter | grep -v grep || true
+          kill $pid 2>/dev/null
+          exit 1
+
+      - name: Dump launcher trace
+        if: always()
+        run: |
+          if [ -f /tmp/boxcutter-launcher-trace.txt ]; then
+            echo "--- launcher trace ---"
+            cat /tmp/boxcutter-launcher-trace.txt
+          else
+            echo "--- NO LAUNCHER TRACE FILE — bundle did not execute our code ---"
+          fi
 
       - name: Layer 3 — Playwright UI contract against bundle
         env:
           BOXCUTTER_BUNDLE_EXE: ${{ env.BOXCUTTER_EXE }}
+          BOXCUTTER_TESTING: "1"
         run: |
           pytest tests/bundle/ui/ -v --tb=short

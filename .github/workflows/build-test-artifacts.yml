@@ -81,7 +81,9 @@ jobs:
           python -c "import clr; print('clr OK')"
 
       - name: Build with PyInstaller
-        run: pyinstaller app.spec
+        # --clean: wipe PyInstaller cache before building so we never ship
+        # bytecode from a previous (potentially incompatible) run.
+        run: pyinstaller --clean app.spec
 
       - name: Install Inno Setup
         run: choco install innosetup --yes --no-progress
@@ -96,6 +98,18 @@ jobs:
         with:
           name: BoxCutter-Setup-${{ env.VERSION }}.exe
           path: installer\windows\Output\BoxCutter-Setup-${{ env.VERSION }}.exe
+          retention-days: 14
+          if-no-files-found: error
+
+      # Unpacked PyInstaller bundle. Used by bundle-smoke jobs so smoke can
+      # run the bundle directly without installing it via Inno Setup
+      # (the installer hangs in /VERYSILENT mode in CI; testing the bundle
+      # itself is the real concern, installer behaviour is a separate test).
+      - name: Upload unpacked Windows bundle (for smoke)
+        uses: actions/upload-artifact@v4
+        with:
+          name: BoxCutter-bundle-windows-${{ env.VERSION }}
+          path: dist/BoxCutter
           retention-days: 14
           if-no-files-found: error
 
@@ -138,7 +152,7 @@ jobs:
         run: iconutil -c icns assets/icons/icon.iconset -o static/boxcutter.icns
 
       - name: Build app bundle
-        run: pyinstaller app.spec
+        run: pyinstaller --clean app.spec
 
       - name: Create DMG
         run: |
@@ -151,5 +165,15 @@ jobs:
         with:
           name: BoxCutter-${{ env.VERSION }}.dmg
           path: dist/BoxCutter-${{ env.VERSION }}.dmg
+          retention-days: 14
+          if-no-files-found: error
+
+      # Unpacked .app bundle. Used by bundle-smoke jobs so smoke can run
+      # the bundle directly without going through DMG mount/copy in CI.
+      - name: Upload unpacked macOS .app bundle (for smoke)
+        uses: actions/upload-artifact@v4
+        with:
+          name: BoxCutter-bundle-macos-${{ env.VERSION }}
+          path: dist/BoxCutter.app
           retention-days: 14
           if-no-files-found: error

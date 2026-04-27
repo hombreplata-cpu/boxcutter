@@ -6,6 +6,7 @@ then opens the app in a native pywebview window (frozen binary only).
 The main thread blocks inside webview.start() until the window is closed.
 """
 
+import contextlib
 import os
 import socket
 import sys
@@ -13,6 +14,27 @@ import threading
 import time
 import urllib.error
 import urllib.request
+from pathlib import Path as _DiagPath
+
+# File-trace diagnostic — bypasses any stdout/stderr quirks PyInstaller has on
+# either OS. If the file appears, the launcher executed. If env vars show
+# correctly, the bundle is reading them. If the file does not appear, either
+# the shipped launcher.py is different from what we committed, or the launcher
+# never executes our code at all. Placed before any project imports.
+_diag_path = (
+    _DiagPath(os.environ.get("TEMP", "C:\\Temp")) / "boxcutter-launcher-trace.txt"
+    if sys.platform == "win32"
+    else _DiagPath("/tmp/boxcutter-launcher-trace.txt")  # noqa: S108  # nosec B108 — intentional CI diagnostic path read by bundle-smoke probe
+)
+with contextlib.suppress(Exception):
+    _diag_path.write_text(
+        f"launcher started\n"
+        f"BOXCUTTER_TESTING={os.environ.get('BOXCUTTER_TESTING', '<unset>')!r}\n"
+        f"BOXCUTTER_PORT={os.environ.get('BOXCUTTER_PORT', '<unset>')!r}\n"
+        f"frozen={getattr(sys, 'frozen', False)}\n"
+        f"argv={sys.argv}\n"
+        f"sys.executable={sys.executable}\n"
+    )
 
 from crash_logger import write_crash_log  # noqa: E402
 
@@ -46,7 +68,25 @@ if getattr(sys, "frozen", False):
 
 from app import app  # noqa: E402
 
-PORT = 5000
+
+def _resolve_port() -> int:
+    """Resolve the port the bundle should listen on.
+
+    Honours BOXCUTTER_PORT env var (used by tests, multi-instance setups,
+    and the bundle-smoke workflow). Defaults to 5000 for normal launches.
+    Falls back to 5000 if the env var is set but unparseable.
+    """
+    raw = os.environ.get("BOXCUTTER_PORT", "").strip()
+    if not raw:
+        return 5000
+    try:
+        return int(raw)
+    except ValueError:
+        print(f"  WARNING: BOXCUTTER_PORT={raw!r} is not an integer — using default 5000")
+        return 5000
+
+
+PORT = _resolve_port()
 
 
 def _already_running(port: int) -> bool:
@@ -88,7 +128,7 @@ def _wait_for_server():
     # Polling exhausted without a connection. Surface this rather than opening
     # a pywebview window pointing at a server that never came up.
     raise RuntimeError(
-        f"Flask did not start within 15s on port {PORT}. " f"See crash log in ~/.boxcutter_logs/."
+        f"Flask did not start within 15s on port {PORT}. See crash log in ~/.boxcutter_logs/."
     )
 
 
@@ -96,6 +136,14 @@ if __name__ == "__main__":
     # Single-instance guard: if BoxCutter is already running, exit silently.
     # The existing window is already open — no need to open anything new.
     if _already_running(PORT):
+        sys.exit(0)
+
+    # Test/headless mode: BOXCUTTER_TESTING=1 means no pywebview, no native
+    # window, just Flask on the main thread. Required for bundle-smoke
+    # (CI runners have no display) and useful for any non-GUI launch
+    # (Tailscale-only listener mode, etc.).
+    if os.environ.get("BOXCUTTER_TESTING") == "1":
+        app.run(host="0.0.0.0", port=PORT, debug=False, use_reloader=False)  # noqa: S104
         sys.exit(0)
 
     import webview
