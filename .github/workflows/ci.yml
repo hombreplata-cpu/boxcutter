@@ -153,7 +153,10 @@ jobs:
         run: pip install --no-cache-dir -r requirements.txt -r requirements-dev.txt
 
       - name: Run pytest
-        run: pytest tests/ --ignore=tests/e2e -v --tb=short --cov=scripts --cov-report=xml
+        # tests/bundle/ exercises the FROZEN bundle and runs in a separate
+        # bundle-smoke workflow (PR 6). Excluded here so this fast unit-test
+        # job stays fast and doesn't try to start a Flask server.
+        run: pytest tests/ --ignore=tests/e2e --ignore=tests/bundle -v --tb=short --cov=scripts --cov-report=xml
 
       - name: Upload coverage
         uses: actions/upload-artifact@v7
