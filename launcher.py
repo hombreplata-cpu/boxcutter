@@ -6,6 +6,7 @@ then opens the app in a native pywebview window (frozen binary only).
 The main thread blocks inside webview.start() until the window is closed.
 """
 
+import contextlib
 import os
 import socket
 import sys
@@ -13,6 +14,27 @@ import threading
 import time
 import urllib.error
 import urllib.request
+from pathlib import Path as _DiagPath
+
+# File-trace diagnostic — bypasses any stdout/stderr quirks PyInstaller has on
+# either OS. If the file appears, the launcher executed. If env vars show
+# correctly, the bundle is reading them. If the file does not appear, either
+# the shipped launcher.py is different from what we committed, or the launcher
+# never executes our code at all. Placed before any project imports.
+_diag_path = (
+    _DiagPath(os.environ.get("TEMP", "C:\\Temp")) / "boxcutter-launcher-trace.txt"
+    if sys.platform == "win32"
+    else _DiagPath("/tmp/boxcutter-launcher-trace.txt")  # noqa: S108  # nosec B108 — intentional CI diagnostic path read by bundle-smoke probe
+)
+with contextlib.suppress(Exception):
+    _diag_path.write_text(
+        f"launcher started\n"
+        f"BOXCUTTER_TESTING={os.environ.get('BOXCUTTER_TESTING', '<unset>')!r}\n"
+        f"BOXCUTTER_PORT={os.environ.get('BOXCUTTER_PORT', '<unset>')!r}\n"
+        f"frozen={getattr(sys, 'frozen', False)}\n"
+        f"argv={sys.argv}\n"
+        f"sys.executable={sys.executable}\n"
+    )
 
 from crash_logger import write_crash_log  # noqa: E402
 
@@ -62,17 +84,6 @@ def _resolve_port() -> int:
     except ValueError:
         print(f"  WARNING: BOXCUTTER_PORT={raw!r} is not an integer — using default 5000")
         return 5000
-
-
-# Diagnostic — confirm env vars the bundle sees on startup. Eyeballed by
-# bundle-smoke probe; remove (or convert to debug-level log) after the
-# release gate is proven stable.
-print(
-    f"[launcher] BOXCUTTER_TESTING={os.environ.get('BOXCUTTER_TESTING', '<unset>')!r} "
-    f"BOXCUTTER_PORT={os.environ.get('BOXCUTTER_PORT', '<unset>')!r} "
-    f"frozen={getattr(sys, 'frozen', False)}",
-    flush=True,
-)
 
 
 PORT = _resolve_port()

@@ -210,6 +210,18 @@ jobs:
           Stop-Process -Id $proc.Id -Force 2>$null
           exit 1
 
+      - name: Dump launcher trace
+        if: always()
+        shell: pwsh
+        run: |
+          $tracePath = Join-Path $env:TEMP "boxcutter-launcher-trace.txt"
+          if (Test-Path $tracePath) {
+            Write-Host "--- launcher trace ---"
+            Get-Content $tracePath
+          } else {
+            Write-Host "--- NO LAUNCHER TRACE FILE — bundle did not execute our code ---"
+          }
+
       - name: Layer 3 — Playwright UI contract against bundle
         env:
           BOXCUTTER_BUNDLE_EXE: ${{ env.BOXCUTTER_EXE }}
@@ -342,6 +354,16 @@ jobs:
           echo "--- ps ---"; ps -ef | grep -i boxcutter | grep -v grep || true
           kill $pid 2>/dev/null
           exit 1
+
+      - name: Dump launcher trace
+        if: always()
+        run: |
+          if [ -f /tmp/boxcutter-launcher-trace.txt ]; then
+            echo "--- launcher trace ---"
+            cat /tmp/boxcutter-launcher-trace.txt
+          else
+            echo "--- NO LAUNCHER TRACE FILE — bundle did not execute our code ---"
+          fi
 
       - name: Layer 3 — Playwright UI contract against bundle
         env:
