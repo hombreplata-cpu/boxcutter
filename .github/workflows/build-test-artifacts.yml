@@ -17,9 +17,8 @@ on:
         required: false
         default: '0.0.0-test'
       ref:
-        description: 'Branch or SHA to build from'
-        required: false
-        default: 'main'
+        description: 'Branch or SHA to build from (REQUIRED — no default. Silent default to main caused PR #89 rc1-rc6 to build stale code.)'
+        required: true
 
 permissions:
   contents: read
