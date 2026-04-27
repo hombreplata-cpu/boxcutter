@@ -1,0 +1,291 @@
+name: Bundle Smoke
+
+# Runs the bundle-smoke test contracts against the actual built BoxCutter
+# artifact. This is the layer with teeth — source-tree pytest cannot catch
+# regressions like REG-001 (mutagen submodules missing) or REG-002 (Quit
+# form CSRF), but this workflow can.
+#
+# Three layers (defined in tests/bundle/):
+#   Layer 1 — verify_imports.py: every required package + submodule imports
+#             inside the bundled exe.
+#   Layer 2 — run_all_scripts.py: every production script loads (no traceback)
+#             when invoked through the bundle, plus strip_comment_urls runs
+#             end-to-end against the audio fixtures.
+#   Layer 3 — tests/bundle/ui/ Playwright suite: every primary page renders
+#             with the bc-token meta tag, every DOM form posting to a state-
+#             mutating route carries a matching csrf_token (REG-002 guard).
+#
+# Triggers:
+#   workflow_run on Build Test Artifacts completion — runs automatically
+#                after every push-to-main build, gating the artifact before
+#                anyone sideloads it.
+#   workflow_dispatch — manual run against a specific build-test-artifacts
+#                run id (or latest if blank). Useful for testing the workflow
+#                itself or re-running smoke against an older build.
+
+on:
+  workflow_run:
+    workflows: ["Build Test Artifacts"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: 'Build Test Artifacts run ID to smoke. Blank = latest successful on main.'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: bundle-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+
+  # ---------------------------------------------------------------------------
+  # Resolve which build-test-artifacts run to pull artifacts from.
+  # ---------------------------------------------------------------------------
+  resolve-source-run:
+    runs-on: ubuntu-latest
+    outputs:
+      source_run_id: ${{ steps.set.outputs.source_run_id }}
+      should_run: ${{ steps.set.outputs.should_run }}
+    steps:
+      - id: set
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          # workflow_run path: gate on the source workflow having succeeded.
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            if [ "${{ github.event.workflow_run.conclusion }}" != "success" ]; then
+              echo "source workflow conclusion was ${{ github.event.workflow_run.conclusion }} — skipping"
+              echo "should_run=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "source_run_id=${{ github.event.workflow_run.id }}" >> "$GITHUB_OUTPUT"
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # workflow_dispatch path: use the supplied run_id, or look up the
+          # latest successful run of build-test-artifacts on main.
+          input_run_id="${{ github.event.inputs.run_id }}"
+          if [ -n "$input_run_id" ]; then
+            echo "source_run_id=$input_run_id" >> "$GITHUB_OUTPUT"
+          else
+            latest=$(gh run list \
+              --repo "$REPO" \
+              --workflow "Build Test Artifacts" \
+              --branch main \
+              --status success \
+              --limit 1 \
+              --json databaseId \
+              --jq '.[0].databaseId')
+            if [ -z "$latest" ] || [ "$latest" = "null" ]; then
+              echo "no successful Build Test Artifacts run found on main"
+              echo "should_run=false" >> "$GITHUB_OUTPUT"
+              exit 1
+            fi
+            echo "source_run_id=$latest" >> "$GITHUB_OUTPUT"
+          fi
+          echo "should_run=true" >> "$GITHUB_OUTPUT"
+
+  # ---------------------------------------------------------------------------
+  # Windows smoke: install the .exe to %LOCALAPPDATA%, run all 3 layers.
+  # ---------------------------------------------------------------------------
+  windows-smoke:
+    needs: resolve-source-run
+    if: needs.resolve-source-run.outputs.should_run == 'true'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install test dependencies
+        run: |
+          pip install --no-cache-dir pytest playwright mutagen
+          playwright install chromium
+        shell: pwsh
+
+      - name: Download Windows installer artifact
+        uses: actions/download-artifact@v4
+        with:
+          pattern: BoxCutter-Setup-*.exe
+          path: test-artifact
+          run-id: ${{ needs.resolve-source-run.outputs.source_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          merge-multiple: true
+
+      - name: Locate installer
+        id: find
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem -Path test-artifact -Recurse -Filter "BoxCutter-Setup-*.exe" | Select-Object -First 1
+          if (-not $exe) { Write-Error "no installer found in test-artifact"; exit 1 }
+          Write-Host "Installer: $($exe.FullName) ($([math]::Round($exe.Length / 1MB, 2)) MB)"
+          "INSTALLER=$($exe.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Install BoxCutter (silent)
+        shell: pwsh
+        run: |
+          Write-Host "Running: $env:INSTALLER /SILENT /SUPPRESSMSGBOXES /NORESTART"
+          $proc = Start-Process -FilePath $env:INSTALLER -ArgumentList "/SILENT","/SUPPRESSMSGBOXES","/NORESTART" -Wait -PassThru
+          if ($proc.ExitCode -ne 0) { Write-Error "Installer exited $($proc.ExitCode)"; exit 1 }
+          Write-Host "Installer exited 0"
+
+      - name: Locate installed bundle
+        shell: pwsh
+        run: |
+          $exe = "$env:LOCALAPPDATA\BoxCutter\BoxCutter.exe"
+          if (-not (Test-Path $exe)) {
+            Write-Error "BoxCutter.exe not found at $exe — installer DefaultDir mismatch?"
+            Get-ChildItem $env:LOCALAPPDATA -Directory
+            exit 1
+          }
+          $internal = "$env:LOCALAPPDATA\BoxCutter\_internal"
+          if (-not (Test-Path $internal)) {
+            Write-Error "_internal/ not found at $internal — PyInstaller layout changed?"
+            Get-ChildItem "$env:LOCALAPPDATA\BoxCutter"
+            exit 1
+          }
+          $scripts = "$internal\scripts"
+          if (-not (Test-Path $scripts)) {
+            Write-Error "scripts/ not found at $scripts"
+            Get-ChildItem $internal
+            exit 1
+          }
+          Write-Host "Bundle exe: $exe"
+          Write-Host "Bundle scripts: $scripts"
+          "BOXCUTTER_EXE=$exe" | Out-File $env:GITHUB_ENV -Append
+          "BUNDLED_SCRIPTS=$scripts" | Out-File $env:GITHUB_ENV -Append
+
+      - name: Layer 1 — verify_imports against bundle
+        shell: pwsh
+        run: |
+          & "$env:BOXCUTTER_EXE" tests/bundle/verify_imports.py
+          if ($LASTEXITCODE -ne 0) { Write-Error "verify_imports failed"; exit $LASTEXITCODE }
+
+      - name: Layer 2 — run_all_scripts against bundle
+        shell: pwsh
+        run: |
+          python tests/bundle/run_all_scripts.py `
+            --bundle-exe "$env:BOXCUTTER_EXE" `
+            --scripts-dir "$env:BUNDLED_SCRIPTS"
+          if ($LASTEXITCODE -ne 0) { Write-Error "run_all_scripts failed"; exit $LASTEXITCODE }
+
+      - name: Layer 3 — Playwright UI contract against bundle
+        env:
+          BOXCUTTER_BUNDLE_EXE: ${{ env.BOXCUTTER_EXE }}
+        shell: pwsh
+        run: |
+          pytest tests/bundle/ui/ -v --tb=short
+
+      - name: Uninstall (best effort)
+        if: always()
+        shell: pwsh
+        run: |
+          $unins = "$env:LOCALAPPDATA\BoxCutter\unins000.exe"
+          if (Test-Path $unins) {
+            & $unins /SILENT /SUPPRESSMSGBOXES
+          }
+
+  # ---------------------------------------------------------------------------
+  # macOS smoke: mount the .dmg, copy the .app, run all 3 layers.
+  # ---------------------------------------------------------------------------
+  macos-smoke:
+    needs: resolve-source-run
+    if: needs.resolve-source-run.outputs.should_run == 'true'
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install test dependencies
+        run: |
+          pip install --no-cache-dir pytest playwright mutagen
+          playwright install chromium
+
+      - name: Download macOS DMG artifact
+        uses: actions/download-artifact@v4
+        with:
+          pattern: BoxCutter-*.dmg
+          path: test-artifact
+          run-id: ${{ needs.resolve-source-run.outputs.source_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          merge-multiple: true
+
+      - name: Locate DMG
+        run: |
+          dmg=$(find test-artifact -name "BoxCutter-*.dmg" | head -1)
+          if [ -z "$dmg" ]; then echo "no DMG found"; ls -R test-artifact; exit 1; fi
+          echo "DMG: $dmg"
+          echo "DMG_PATH=$dmg" >> "$GITHUB_ENV"
+
+      - name: Mount DMG and copy .app
+        run: |
+          mountpoint=/tmp/bcmount
+          mkdir -p "$mountpoint"
+          hdiutil attach "$DMG_PATH" -nobrowse -quiet -mountpoint "$mountpoint"
+          ls -la "$mountpoint"
+          appdir=$(find "$mountpoint" -maxdepth 2 -name "BoxCutter.app" | head -1)
+          if [ -z "$appdir" ]; then echo "BoxCutter.app not in DMG"; exit 1; fi
+          cp -R "$appdir" /tmp/BoxCutter.app
+          hdiutil detach "$mountpoint" -quiet
+          echo "BOXCUTTER_APP=/tmp/BoxCutter.app" >> "$GITHUB_ENV"
+
+      - name: Locate bundle exe + scripts inside .app
+        run: |
+          exe="$BOXCUTTER_APP/Contents/MacOS/BoxCutter"
+          if [ ! -x "$exe" ]; then
+            echo "BoxCutter exe not found or not executable at $exe"
+            ls -la "$BOXCUTTER_APP/Contents/MacOS"
+            exit 1
+          fi
+          # PyInstaller .app layout: data files live under Contents/Resources/
+          # in older versions, Contents/Frameworks/ in newer. Search both.
+          scripts=""
+          for candidate in \
+              "$BOXCUTTER_APP/Contents/Resources/scripts" \
+              "$BOXCUTTER_APP/Contents/Frameworks/scripts" \
+              "$BOXCUTTER_APP/Contents/MacOS/scripts" \
+              "$BOXCUTTER_APP/Contents/Resources/_internal/scripts" \
+              "$BOXCUTTER_APP/Contents/MacOS/_internal/scripts"; do
+            if [ -d "$candidate" ]; then scripts="$candidate"; break; fi
+          done
+          if [ -z "$scripts" ]; then
+            echo "could not locate scripts/ inside .app — dumping layout:"
+            find "$BOXCUTTER_APP" -name "scripts" -type d
+            find "$BOXCUTTER_APP" -name "strip_comment_urls.py" -type f
+            exit 1
+          fi
+          echo "Bundle exe: $exe"
+          echo "Bundle scripts: $scripts"
+          echo "BOXCUTTER_EXE=$exe" >> "$GITHUB_ENV"
+          echo "BUNDLED_SCRIPTS=$scripts" >> "$GITHUB_ENV"
+
+      - name: Layer 1 — verify_imports against bundle
+        run: |
+          "$BOXCUTTER_EXE" tests/bundle/verify_imports.py
+
+      - name: Layer 2 — run_all_scripts against bundle
+        run: |
+          python tests/bundle/run_all_scripts.py \
+            --bundle-exe "$BOXCUTTER_EXE" \
+            --scripts-dir "$BUNDLED_SCRIPTS"
+
+      - name: Layer 3 — Playwright UI contract against bundle
+        env:
+          BOXCUTTER_BUNDLE_EXE: ${{ env.BOXCUTTER_EXE }}
+        run: |
+          pytest tests/bundle/ui/ -v --tb=short
