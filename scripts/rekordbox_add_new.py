@@ -14,8 +14,10 @@ import argparse
 import contextlib
 import json
 import os
+import platform
 import shutil
 import sys
+import unicodedata
 from datetime import datetime
 from pathlib import Path
 
@@ -33,8 +35,18 @@ AUDIO_EXTENSIONS = {
 
 
 def normalize_path(p):
-    """Normalise to forward slashes + lowercase for Windows case-insensitive comparison."""
-    return str(p).replace("\\", "/").lower()
+    """Normalise to forward slashes + lowercase for case-insensitive comparison.
+
+    On macOS, also NFC-normalise so DB-stored paths (NFC, written by Rekordbox)
+    match disk-walk paths (NFD on HFS+ or as-stored on APFS) for accented
+    characters. Same rationale as cleanup.py / relocate.py — issue #109.
+    Without this, a Mac user's library with accented filenames (Café, Mötley,
+    音楽, etc.) sees add_new re-add tracks the DB already contains.
+    """
+    s = str(p).replace("\\", "/").lower()
+    if platform.system() == "Darwin":
+        s = unicodedata.normalize("NFC", s)
+    return s
 
 
 def _first(val):
