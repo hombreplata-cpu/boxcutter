@@ -7,6 +7,8 @@ here — never duplicate them in individual scripts.
 """
 
 import contextlib
+import os
+import platform
 import sys
 
 
@@ -25,6 +27,25 @@ def configure_io() -> None:
             # Detached/closed streams (some test harnesses) — swallow.
             with contextlib.suppress(Exception):
                 reconfigure(encoding="utf-8", errors="replace")
+
+
+def normalize_path_for_compare(path: str) -> str:
+    """Normalise a path string for case-insensitive equality / startswith
+    comparison on case-insensitive filesystems.
+
+    Windows + Linux: delegates to ``os.path.normcase`` — bit-for-bit
+    identical to historical behaviour. On Windows that lowercases AND
+    converts forward slashes to backslashes; on Linux it is identity.
+
+    macOS: explicit ``.lower()``. ``os.path.normcase`` is a no-op on all
+    Unix platforms (including Darwin) per ``posixpath.normcase``, but
+    APFS / HFS+ are case-insensitive by default — so a stored path that
+    differs from the on-disk path only by case must be treated as equal.
+    Issue #104 has the full diagnosis.
+    """
+    if platform.system() == "Darwin":
+        return path.lower()
+    return os.path.normcase(path)
 
 
 EXT_TO_FILETYPE = {

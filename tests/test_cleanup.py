@@ -10,9 +10,12 @@ Covers the core safety invariants:
 - DELETE folder is created if it doesn't exist
 """
 
+import platform
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -223,3 +226,46 @@ def test_collision_renamed_not_overwritten(tmp_path):
     # The new file should exist under a suffixed name
     renamed = delete_dir / "track-1.flac"
     assert renamed.exists(), "Colliding file should be moved as track-1.flac"
+
+
+# ---------------------------------------------------------------------------
+# Mac case-insensitive comparison (Issue #104)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.skipif(
+    platform.system() != "Darwin",
+    reason=(
+        "Issue #104 integration test relies on real Darwin os.path.join "
+        "behaviour (forward slashes); cannot be faithfully simulated on "
+        "Windows or Linux runners with mocking alone. CI matrix includes "
+        "macos-latest, so this still executes in CI."
+    ),
+)
+def test_case_renamed_file_not_misclassified_as_orphan_on_mac(tmp_path):
+    """Issue #104: on Mac (case-insensitive APFS by default), a file
+    whose disk path differs from the DB-stored path only in case must
+    not be treated as an orphan. Before normalize_path_for_compare
+    landed, posixpath.normcase was a no-op on Darwin and the active_paths
+    set lookup missed — flagging the file as unreferenced and moving
+    it to DELETE. This test verifies the file stays put."""
+    scan_root = tmp_path / "music"
+    delete_dir = tmp_path / "DELETE"
+    scan_root.mkdir()
+
+    # File on disk is lowercase; DB-stored path uses mixed case.
+    on_disk = scan_root / "track.mp3"
+    on_disk.write_bytes(b"x" * 256)
+    db_stored_path = str(scan_root / "Track.mp3")
+
+    db = _mock_db_with_paths([db_stored_path])
+
+    with patch("scripts.rekordbox_cleanup.MasterDatabase", return_value=db):
+        run(_make_args(scan_root, delete_dir))
+
+    # The file must stay in scan_root (not flagged as orphan) and not
+    # be moved to DELETE.
+    assert on_disk.exists(), "Case-renamed file should not be moved on Mac"
+    assert not (delete_dir / "track.mp3").exists(), (
+        "Case-renamed file should not appear in DELETE folder on Mac"
+    )
