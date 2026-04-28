@@ -148,9 +148,7 @@ def test_paths_match_for_skip_strips_trailing_slash():
 
 def test_paths_match_for_skip_different_paths_not_equal():
     with patch("scripts.rekordbox_relocate.platform.system", return_value="Windows"):
-        assert not paths_match_for_skip(
-            "D:/Music/Track1.mp3", "D:/Music/Track2.mp3"
-        )
+        assert not paths_match_for_skip("D:/Music/Track1.mp3", "D:/Music/Track2.mp3")
 
 
 # ---------------------------------------------------------------------------
