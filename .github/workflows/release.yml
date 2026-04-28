@@ -167,16 +167,23 @@ jobs:
       - name: Ad-hoc codesign .app
         # Unsigned PyInstaller bundles on macOS 14+/15 have child execs
         # (the bootloader's _MEIPASS extract+re-exec) silently killed by
-        # Gatekeeper, even after the user approves the security dialog —
-        # producing the exact "approved but app does nothing, no logs"
-        # symptom v1.1 Mac users reported. Ad-hoc signing (`-` identity)
-        # does not require an Apple Developer account and clears this
-        # class of rejection. Proper Developer ID + notarytool is a
-        # follow-up. --options runtime is required for hardened-runtime
-        # compatibility on recent macOS. Verification step below fails
-        # the build if the signature didn't take.
+        # Gatekeeper, producing the "approved but app does nothing, no
+        # logs" symptom v1.1 Mac users reported. Ad-hoc signing (`-`
+        # identity) does not require an Apple Developer account and
+        # clears that class of rejection.
+        #
+        # IMPORTANT: do NOT add --options runtime here. Hardened runtime
+        # is required for notarization, but it also requires entitlements
+        # granting Python the right to allocate executable memory
+        # (com.apple.security.cs.allow-unsigned-executable-memory,
+        # com.apple.security.cs.allow-jit). Without those entitlements,
+        # the kernel kills the bundle at exec time before launcher.py
+        # runs — exactly the silent-bounce-and-die we are fixing. Since
+        # we are not notarizing (no Developer ID), plain ad-hoc signing
+        # without runtime hardening is the correct setting. Proper
+        # Developer ID + notarytool + entitlements is a follow-up.
         run: |
-          codesign --deep --force --options runtime --sign - dist/BoxCutter.app
+          codesign --deep --force --sign - dist/BoxCutter.app
           codesign --verify --deep --strict --verbose=2 dist/BoxCutter.app
 
       - name: Create DMG
