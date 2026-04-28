@@ -22,6 +22,7 @@ from scripts.rekordbox_relocate import (  # noqa: E402
     lookup_stem,
     normalize_stem,
     path_is_under,
+    paths_match_for_skip,
     run,
     strip_numeric_prefix,
 )
@@ -100,6 +101,56 @@ def test_path_is_under_true_mac():
 
 def test_path_is_under_false_mac():
     assert not path_is_under("/Users/dj/Music/MP3/track.mp3", "/Users/dj/Music/FLAC")
+
+
+# ---------------------------------------------------------------------------
+# paths_match_for_skip — case-insensitive comparison on Windows + macOS
+# (R-09 / issue #101)
+# ---------------------------------------------------------------------------
+
+
+@patch("scripts.rekordbox_relocate.platform.system", return_value="Windows")
+def test_paths_match_for_skip_windows_case_insensitive(mock_platform):
+    assert paths_match_for_skip("D:/Music/Track.mp3", "D:/music/track.mp3")
+
+
+@patch("scripts.rekordbox_relocate.platform.system", return_value="Darwin")
+def test_paths_match_for_skip_darwin_case_insensitive(mock_platform):
+    """Mac APFS is case-insensitive by default; rows differing from
+    disk only in case must be skipped, same as on Windows. Without
+    this the relocate script wastes DB writes that invalidate
+    Rekordbox track analysis."""
+    assert paths_match_for_skip(
+        "/Users/dj/Music/Track.mp3",
+        "/Users/dj/music/track.mp3",
+    )
+
+
+@patch("scripts.rekordbox_relocate.platform.system", return_value="Linux")
+def test_paths_match_for_skip_linux_case_sensitive(mock_platform):
+    """Linux ext4 is case-sensitive; do not collapse case there."""
+    assert not paths_match_for_skip(
+        "/home/dj/Music/Track.mp3",
+        "/home/dj/music/track.mp3",
+    )
+
+
+def test_paths_match_for_skip_normalises_separators():
+    """Backslash/forward-slash differences alone should not block skip."""
+    with patch("scripts.rekordbox_relocate.platform.system", return_value="Windows"):
+        assert paths_match_for_skip("D:\\Music\\Track.mp3", "D:/Music/Track.mp3")
+
+
+def test_paths_match_for_skip_strips_trailing_slash():
+    with patch("scripts.rekordbox_relocate.platform.system", return_value="Windows"):
+        assert paths_match_for_skip("D:/Music/Track.mp3/", "D:/Music/Track.mp3")
+
+
+def test_paths_match_for_skip_different_paths_not_equal():
+    with patch("scripts.rekordbox_relocate.platform.system", return_value="Windows"):
+        assert not paths_match_for_skip(
+            "D:/Music/Track1.mp3", "D:/Music/Track2.mp3"
+        )
 
 
 # ---------------------------------------------------------------------------

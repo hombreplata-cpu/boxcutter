@@ -141,6 +141,35 @@ def path_is_under(path, root):
     return os.path.normcase(path).startswith(os.path.normcase(root))
 
 
+def paths_match_for_skip(stored: str, candidate: str) -> bool:
+    """Return True if a stored DB path and a freshly-matched candidate
+    refer to the same file, accounting for path-separator and case
+    differences on case-insensitive filesystems.
+
+    Used to suppress unnecessary DB writes when the row's path is
+    already correct — writing it again would invalidate Rekordbox's
+    cached track analysis for no benefit.
+
+    Both Windows (NTFS) and macOS (default APFS / HFS+) are
+    case-insensitive, so case differences must be treated as equal on
+    those platforms. Trailing slash differences are also normalised.
+    Linux is not a supported BoxCutter platform; this helper still
+    behaves correctly there (case-sensitive comparison) for anyone
+    who runs the script on Linux directly.
+
+    Note: os.path.normcase is NOT used here because on Darwin Python
+    treats it as a no-op (per posixpath.normcase docs), which would
+    leave Mac users with the same case-sensitivity bug this helper
+    exists to fix. Issue #101 has the full diagnosis.
+    """
+    a = stored.replace("\\", "/").rstrip("/")
+    b = candidate.rstrip("/")
+    if platform.system() in ("Windows", "Darwin"):
+        a = a.lower()
+        b = b.lower()
+    return a == b
+
+
 def build_target_index(target_root, extensions):
     """Recursively index all audio files in target_root."""
     exact_index = defaultdict(list)
@@ -415,16 +444,9 @@ def run(args):
             new_path_stored = new_path.replace("\\", "/")
 
             # Never touch a row whose path is already correct — avoids
-            # invalidating Rekordbox analysis on tracks that don't need updating.
-            # Windows is case-insensitive: "D:/X/y.flac" and "d:/x/y.flac"
-            # refer to the same file. Trailing slash differences are also
-            # treated as equal. (R-09)
-            existing_normalised = raw_path.replace("\\", "/").rstrip("/")
-            new_normalised = new_path_stored.rstrip("/")
-            if platform.system() == "Windows":
-                existing_normalised = existing_normalised.lower()
-                new_normalised = new_normalised.lower()
-            if existing_normalised == new_normalised:
+            # invalidating Rekordbox analysis on tracks that don't need
+            # updating. (R-09 / issue #101)
+            if paths_match_for_skip(raw_path, new_path_stored):
                 already_correct += 1
                 continue
 
