@@ -8,6 +8,7 @@ Covers:
 - run() integration via mocked MasterDatabase
 """
 
+import os.path
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -119,18 +120,22 @@ def test_path_is_under_darwin_case_insensitive(mock_platform):
 
 
 @patch("scripts.utils.platform.system", return_value="Windows")
-def test_path_is_under_windows_case_insensitive(mock_platform):
-    """Windows NTFS is case-insensitive; case-mismatched paths must
-    still match. Behaviour unchanged from pre-#106 (was correct via
-    os.path.normcase, still correct via the helper's Windows branch)."""
-    assert path_is_under("C:\\Music\\FLAC\\track.flac", "c:\\music\\flac")
+def test_path_is_under_windows_delegates_to_normcase(mock_platform):
+    """Windows branch delegates to os.path.normcase — bit-for-bit
+    unchanged from pre-#106. Asserted against direct os.path.normcase
+    calls so the test is portable across CI runners (on a Windows
+    runner os.path.normcase lowercases; on Mac/Linux it is identity —
+    either way both sides match)."""
+    p = "C:\\Music\\FLAC\\track.flac"
+    r = "c:\\music\\flac"
+    assert path_is_under(p, r) == os.path.normcase(p).startswith(os.path.normcase(r))
 
 
-# Note: a Linux-platform variant of this test cannot be portable across
-# CI runners — the helper's non-Darwin branch delegates to os.path.normcase,
-# which is OS-native and cannot be faithfully simulated on a Windows
-# runner. Linux is not a supported BoxCutter platform; helper behaviour
-# there is documented in scripts/utils.py:normalize_path_for_compare.
+# Note: no Linux-platform variant. The helper's non-Darwin branch
+# delegates to os.path.normcase, which is OS-native; a Linux mock on a
+# Windows runner exercises Windows normcase semantics, not Linux. Linux
+# is not a supported BoxCutter platform; helper behaviour there is
+# documented in scripts/utils.py:normalize_path_for_compare.
 
 
 # ---------------------------------------------------------------------------
