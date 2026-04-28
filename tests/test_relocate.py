@@ -8,6 +8,7 @@ Covers:
 - run() integration via mocked MasterDatabase
 """
 
+import os.path
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -101,6 +102,40 @@ def test_path_is_under_true_mac():
 
 def test_path_is_under_false_mac():
     assert not path_is_under("/Users/dj/Music/MP3/track.mp3", "/Users/dj/Music/FLAC")
+
+
+# ---------------------------------------------------------------------------
+# path_is_under — case-insensitive on Windows + macOS (Issue #106)
+# ---------------------------------------------------------------------------
+
+
+@patch("scripts.utils.platform.system", return_value="Darwin")
+def test_path_is_under_darwin_case_insensitive(mock_platform):
+    """Mac APFS is case-insensitive by default. A source-root argument
+    that differs in case from the DB-stored path must still match.
+    Issue #106: before normalize_path_for_compare landed here,
+    posixpath.normcase was a no-op on Darwin and this returned False —
+    silently breaking --source-root narrowing on Mac."""
+    assert path_is_under("/Users/dj/Music/FLAC/track.flac", "/Users/DJ/MUSIC/flac")
+
+
+@patch("scripts.utils.platform.system", return_value="Windows")
+def test_path_is_under_windows_delegates_to_normcase(mock_platform):
+    """Windows branch delegates to os.path.normcase — bit-for-bit
+    unchanged from pre-#106. Asserted against direct os.path.normcase
+    calls so the test is portable across CI runners (on a Windows
+    runner os.path.normcase lowercases; on Mac/Linux it is identity —
+    either way both sides match)."""
+    p = "C:\\Music\\FLAC\\track.flac"
+    r = "c:\\music\\flac"
+    assert path_is_under(p, r) == os.path.normcase(p).startswith(os.path.normcase(r))
+
+
+# Note: no Linux-platform variant. The helper's non-Darwin branch
+# delegates to os.path.normcase, which is OS-native; a Linux mock on a
+# Windows runner exercises Windows normcase semantics, not Linux. Linux
+# is not a supported BoxCutter platform; helper behaviour there is
+# documented in scripts/utils.py:normalize_path_for_compare.
 
 
 # ---------------------------------------------------------------------------
