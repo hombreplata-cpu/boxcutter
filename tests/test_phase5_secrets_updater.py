@@ -145,9 +145,9 @@ def test_download_aborts_at_size_cap(tmp_path):
         resp = c.get("/api/download_update", query_string={"url": VALID_INSTALLER_URL})
         body = resp.get_data(as_text=True)
 
-    assert (
-        "exceeded" in body and "cap" in body
-    ), f"Expected oversized abort message in stream, got: {body[:300]}"
+    assert "exceeded" in body and "cap" in body, (
+        f"Expected oversized abort message in stream, got: {body[:300]}"
+    )
     # The state must NOT have been populated with the partial file
     assert flask_app._update_state.get("path") is None
 
@@ -225,9 +225,9 @@ def test_missing_manifest_aborts_before_download():
         resp = c.get("/api/download_update", query_string={"url": VALID_INSTALLER_URL})
         body = resp.get_data(as_text=True)
 
-    assert (
-        "integrity" in body.lower() or "manifest" in body.lower()
-    ), f"Expected integrity/manifest error, got: {body[-300:]}"
+    assert "integrity" in body.lower() or "manifest" in body.lower(), (
+        f"Expected integrity/manifest error, got: {body[-300:]}"
+    )
     assert "%%DONE%%" not in body
     assert flask_app._update_state.get("path") is None
     assert installer_calls == []
@@ -236,9 +236,7 @@ def test_missing_manifest_aborts_before_download():
 def test_fetch_expected_sha256_parses_standard_format():
     """Parser handles the canonical sha256sum output: '<64hex>  <filename>'."""
     expected = "a" * 64
-    manifest = (
-        f"{expected}  BoxCutter-Setup-1.1.0.exe\n" f"{'b' * 64}  boxcutter-mac.dmg\n"
-    ).encode()
+    manifest = (f"{expected}  BoxCutter-Setup-1.1.0.exe\n{'b' * 64}  boxcutter-mac.dmg\n").encode()
 
     fake = MagicMock()
     fake.read.return_value = manifest

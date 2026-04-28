@@ -25,9 +25,9 @@ def test_strip_comments_streams_output_and_completes(page, live_server, tmp_path
     _run_dry(page, live_server, tmp_path)
 
     assert page.locator("#status").inner_text() == "Done"
-    assert (
-        page.locator("#crash-banner").count() == 0
-    ), "Crash banner appeared — script exited non-zero"
+    assert page.locator("#crash-banner").count() == 0, (
+        "Crash banner appeared — script exited non-zero"
+    )
 
 
 def test_strip_comments_sse_console_receives_output(page, live_server, tmp_path):

@@ -52,7 +52,7 @@ def main():
         engine = db.engine
 
         for table in ["djmdMyTag", "djmdSongMyTag"]:
-            print(f"\n{'='*60}")
+            print(f"\n{'=' * 60}")
             print(f"TABLE: {table}")
             print("=" * 60)
             dump_table(engine, table)
@@ -60,7 +60,7 @@ def main():
         # Also show total counts if tables exist
         inspector = inspect(engine)
         tables = inspector.get_table_names()
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print("COUNTS")
         print("=" * 60)
         with engine.connect() as conn:

@@ -459,9 +459,7 @@ def _request_needs_token() -> bool:
     if request.method in ("POST", "PUT", "PATCH", "DELETE"):
         return True
     # SSE GETs that side-effect (run scripts / download installers).
-    if request.path.startswith("/api/run/") or request.path == "/api/download_update":
-        return True
-    return False
+    return request.path.startswith("/api/run/") or request.path == "/api/download_update"
 
 
 def _request_has_valid_token() -> bool:

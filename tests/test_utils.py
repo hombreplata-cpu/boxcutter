@@ -86,16 +86,16 @@ def test_all_filetype_integers_have_labels():
     """Every FileType integer written to the DB must be human-readable in the UI."""
     used_types = set(EXT_TO_FILETYPE.values())
     for ft in used_types:
-        assert (
-            ft in FILETYPE_LABELS
-        ), f"FileType {ft} used in EXT_TO_FILETYPE but missing from FILETYPE_LABELS"
+        assert ft in FILETYPE_LABELS, (
+            f"FileType {ft} used in EXT_TO_FILETYPE but missing from FILETYPE_LABELS"
+        )
 
 
 def test_filetype_labels_are_nonempty_strings():
     for ft, label in FILETYPE_LABELS.items():
-        assert (
-            isinstance(label, str) and label.strip()
-        ), f"FILETYPE_LABELS[{ft}] is empty or not a string"
+        assert isinstance(label, str) and label.strip(), (
+            f"FILETYPE_LABELS[{ft}] is empty or not a string"
+        )
 
 
 # ---------------------------------------------------------------------------

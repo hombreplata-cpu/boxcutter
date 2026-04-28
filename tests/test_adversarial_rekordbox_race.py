@@ -73,9 +73,9 @@ def test_every_write_route_blocks_when_rekordbox_running(auth_client, method, ur
     body_json = resp.get_json()
     assert body_json is not None
     # Error message must mention Rekordbox so the user knows what to do
-    assert "Rekordbox" in body_json.get(
-        "error", ""
-    ), f"{method} {url} 409 response does not mention 'Rekordbox' in error message"
+    assert "Rekordbox" in body_json.get("error", ""), (
+        f"{method} {url} 409 response does not mention 'Rekordbox' in error message"
+    )
 
 
 # ---------------------------------------------------------------------------
