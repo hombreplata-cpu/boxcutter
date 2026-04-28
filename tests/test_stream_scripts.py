@@ -200,8 +200,8 @@ def _run_playlist_tracks_main(playlist, rows, contents):
     db = MagicMock()
     db.get_playlist.return_value.filter_by.return_value.first.return_value = playlist
     db.session.execute.return_value.fetchall.return_value = rows
-    db.get_content.return_value.filter_by.return_value.first.side_effect = (
-        lambda: contents.pop(0) if contents else None
+    db.get_content.return_value.filter_by.return_value.first.side_effect = lambda: (
+        contents.pop(0) if contents else None
     )
 
     captured = StringIO()

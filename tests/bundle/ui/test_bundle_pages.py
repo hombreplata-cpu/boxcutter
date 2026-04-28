@@ -82,9 +82,9 @@ def test_quit_form_carries_csrf_token_when_frozen(page, live_server, is_frozen_t
     form_count = page.locator("#quit-form").count()
 
     if not is_frozen_target:
-        assert (
-            form_count == 0
-        ), "Quit form rendered in source mode — is_frozen template guard broken"
+        assert form_count == 0, (
+            "Quit form rendered in source mode — is_frozen template guard broken"
+        )
         return
 
     assert form_count == 1, "Quit form not rendered in frozen bundle"
@@ -94,9 +94,9 @@ def test_quit_form_carries_csrf_token_when_frozen(page, live_server, is_frozen_t
         "REG-002: Quit form missing csrf_token hidden input — "
         "DOM form submission to /shutdown will 403"
     )
-    assert (
-        form_token == meta_token
-    ), f"REG-002: Quit form token {form_token!r} != meta token {meta_token!r}"
+    assert form_token == meta_token, (
+        f"REG-002: Quit form token {form_token!r} != meta token {meta_token!r}"
+    )
 
 
 def test_primary_pages_load_with_token_meta(page, live_server):

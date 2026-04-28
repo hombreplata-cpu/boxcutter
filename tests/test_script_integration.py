@@ -160,11 +160,11 @@ def test_relocate_updates_folder_path_for_matched_track(tmp_path):
     db2.close()
 
     assert updated.FolderPath != original_path, (
-        f"FolderPath was not updated for track {track.ID!r} — " f"still {updated.FolderPath!r}"
+        f"FolderPath was not updated for track {track.ID!r} — still {updated.FolderPath!r}"
     )
-    assert str(match_file).replace("\\", "/") in updated.FolderPath.replace(
-        "\\", "/"
-    ), f"FolderPath does not point at the new file: {updated.FolderPath!r}"
+    assert str(match_file).replace("\\", "/") in updated.FolderPath.replace("\\", "/"), (
+        f"FolderPath does not point at the new file: {updated.FolderPath!r}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -218,9 +218,9 @@ def test_fix_metadata_corrects_wrong_filetype(tmp_path):
     updated = db2.get_content().filter_by(ID=track.ID).first()
     db2.close()
 
-    assert (
-        updated.FileType == 6
-    ), f"FileType not corrected for track {track.ID!r} — got {updated.FileType!r}, expected 6"
+    assert updated.FileType == 6, (
+        f"FileType not corrected for track {track.ID!r} — got {updated.FileType!r}, expected 6"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -290,6 +290,6 @@ def test_cleanup_moves_orphan_in_live_run(tmp_path):
 
     assert not orphan.exists(), "Orphan was not moved out of scan_root after live run"
     moved_files = list(delete_dir.rglob("*.mp3"))
-    assert (
-        len(moved_files) == 1
-    ), f"Expected 1 file in DELETE folder, found {len(moved_files)}: {moved_files}"
+    assert len(moved_files) == 1, (
+        f"Expected 1 file in DELETE folder, found {len(moved_files)}: {moved_files}"
+    )
