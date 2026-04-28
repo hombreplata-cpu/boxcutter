@@ -81,6 +81,45 @@ These paths are saved locally and pre-filled on every future launch.
 
 ---
 
+## Test builds (bleeding edge — not for production)
+
+Every push to `main` automatically builds a Windows installer and a macOS `.dmg` from the latest source. These are **unverified test builds**. They have not been through release-gate testing and may contain bugs that the official releases do not. For day-to-day use, always download from the [Releases page](https://github.com/hombreplata-cpu/boxcutter/releases) instead.
+
+Use a test build only when:
+
+- You want to try a feature or fix that has not yet shipped in a formal release
+- A maintainer asks you to test a build before tagging
+- You are contributing code and want to verify your change against a real installer
+
+### Where to find them
+
+1. Open the [latest test-build runs on `main`](https://github.com/hombreplata-cpu/boxcutter/actions/workflows/build-test-artifacts.yml?query=branch%3Amain).
+2. Click the topmost entry with a **green check** (a successful build).
+3. Scroll to the bottom of the run page to the **Artifacts** section.
+4. Download the artifact for your platform:
+   - Windows: `BoxCutter-Setup-0.0.0-main-<sha>.exe`
+   - macOS: `BoxCutter-0.0.0-main-<sha>.dmg`
+
+The version stamp in the filename (`0.0.0-main-<short-sha>`) identifies the commit a build came from — useful when reporting a bug.
+
+### Two limits to know
+
+- **You must be signed into GitHub.** Anonymous users cannot download workflow artifacts, even from public repositories.
+- **Artifacts expire after 14 days.** If you need an older build, ask a maintainer to re-run that workflow.
+
+### Installing a test build
+
+Same install steps as the Releases-page version of your platform:
+
+- **Windows** — run the `.exe` installer. The SmartScreen warning is expected for unsigned binaries; click **More info → Run anyway**.
+- **macOS** — drag `BoxCutter.app` to `/Applications`, then run the quarantine-clearing command in Terminal before first launch:
+  ```bash
+  xattr -dr com.apple.quarantine /Applications/BoxCutter.app
+  ```
+  (See [macOS Option A](#option-a--packaged-dmg-no-python-required) for why.)
+
+---
+
 ## Tools
 
 | Tool | What it does |
