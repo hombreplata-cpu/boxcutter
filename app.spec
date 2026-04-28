@@ -17,6 +17,13 @@ if sys.platform == "win32":
     # pythonnet's `clr` module is the .NET bridge pywebview uses to render
     # the native window on Windows. Without this the GUI fails at start().
     _PYWEBVIEW_TRANSITIVE += ["clr", "clr_loader"]
+if sys.platform == "darwin":
+    # pyobjc is the Cocoa bridge pywebview uses to render the native window
+    # on macOS. collect_submodules('webview') does not reliably pull these in
+    # transitively, so list them explicitly. Without this, webview.create_window()
+    # raises ImportError deep in webview.platforms.cocoa at runtime — the
+    # bundle launches, the trace file is written, but the GUI never appears.
+    _PYWEBVIEW_TRANSITIVE += ["objc", "Foundation", "AppKit", "WebKit"]
 
 a = Analysis(
     ["launcher.py"],

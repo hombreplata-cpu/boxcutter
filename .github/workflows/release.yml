@@ -4,6 +4,13 @@ on:
   push:
     tags:
       - 'v*'
+  # Manual trigger for testing release artifacts off any branch without
+  # cutting a real version tag. Use the Actions tab → Release → Run workflow.
+  # Artifacts are produced exactly as for a tag run; the only difference is
+  # softprops/action-gh-release uploads are no-ops without a tag context, so
+  # nothing publishes to the Releases page. Download the .dmg / .exe from the
+  # run's "Artifacts" section at the bottom of the run page.
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -14,6 +21,12 @@ concurrency:
 
 jobs:
   build-windows:
+    # Skip on workflow_dispatch — the only reason to dispatch this workflow
+    # manually is to test a Mac .dmg fix without cutting a real release tag.
+    # Building Windows for a non-tag run would also fail at the version
+    # stamp step (which assumes a v* tag). bundle-smoke-windows and
+    # publish-manifest depend on this job and skip transitively.
+    if: github.event_name != 'workflow_dispatch'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v6
@@ -98,9 +111,18 @@ jobs:
           python-version: '3.11'
 
       - name: Stamp version
+        # On a tag push, github.ref_name is e.g. "v1.1.0" — strip leading v
+        # for the canonical version string. On workflow_dispatch (branch run
+        # for testing a Mac fix), there is no tag — stamp 0.0.0-dev so the
+        # build still produces a working artifact without colliding with any
+        # real released version. version.py and VERSION env stay in sync.
         run: |
-          ver="${{ github.ref_name }}"
-          ver="${ver#v}"
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            ver="${{ github.ref_name }}"
+            ver="${ver#v}"
+          else
+            ver="0.0.0-dev"
+          fi
           echo "__version__ = '$ver'" > version.py
           echo "VERSION=$ver" >> "$GITHUB_ENV"
 
@@ -111,21 +133,51 @@ jobs:
         run: brew install sqlcipher
 
       - name: Build sqlcipher3
-        env:
-          SQLCIPHER_PATH: /usr/local/opt/sqlcipher
-        run: pip install sqlcipher3
+        # Use brew --prefix so we resolve correctly on both Apple Silicon
+        # (/opt/homebrew/opt/sqlcipher) and Intel (/usr/local/opt/sqlcipher)
+        # macOS runners. macos-latest is now ARM64; the prior hard-coded
+        # /usr/local/opt path was Intel-only and only worked via pkg-config
+        # fallback. Making this explicit removes a build-env variable.
+        run: |
+          export SQLCIPHER_PATH="$(brew --prefix sqlcipher)"
+          echo "SQLCIPHER_PATH=$SQLCIPHER_PATH"
+          pip install sqlcipher3
 
       - name: Verify pywebview imports cleanly (build-time guard)
+        # Mirrors the Windows guard above. webview's Cocoa backend depends on
+        # pyobjc — if any of these imports fail, the bundle would launch but
+        # webview.create_window() would raise ImportError at runtime, leaving
+        # the user with a "silent" failure (Flask up, no window). Fail loudly
+        # here instead of shipping a broken .dmg.
         run: |
           python -c "import webview; print('webview import OK')"
           python -c "import proxy_tools; print('proxy_tools OK')"
           python -c "import bottle; print('bottle OK')"
+          python -c "import objc; print('objc OK')"
+          python -c "import Foundation; print('Foundation OK')"
+          python -c "import AppKit; print('AppKit OK')"
+          python -c "import WebKit; print('WebKit OK')"
 
       - name: Generate macOS icon
         run: iconutil -c icns assets/icons/icon.iconset -o static/boxcutter.icns
 
       - name: Build app bundle
         run: pyinstaller --clean app.spec
+
+      - name: Ad-hoc codesign .app
+        # Unsigned PyInstaller bundles on macOS 14+/15 have child execs
+        # (the bootloader's _MEIPASS extract+re-exec) silently killed by
+        # Gatekeeper, even after the user approves the security dialog —
+        # producing the exact "approved but app does nothing, no logs"
+        # symptom v1.1 Mac users reported. Ad-hoc signing (`-` identity)
+        # does not require an Apple Developer account and clears this
+        # class of rejection. Proper Developer ID + notarytool is a
+        # follow-up. --options runtime is required for hardened-runtime
+        # compatibility on recent macOS. Verification step below fails
+        # the build if the signature didn't take.
+        run: |
+          codesign --deep --force --options runtime --sign - dist/BoxCutter.app
+          codesign --verify --deep --strict --verbose=2 dist/BoxCutter.app
 
       - name: Create DMG
         run: |
@@ -142,6 +194,11 @@ jobs:
           if-no-files-found: error
 
       - name: Upload DMG (Release asset)
+        # Only on a tag push — workflow_dispatch runs have no associated
+        # GitHub Release to attach to and would error here. The .dmg is
+        # still available as a workflow artifact (release-macos-dmg) for
+        # download from the run page in either case.
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           files: dist/boxcutter-mac.dmg
@@ -304,6 +361,62 @@ jobs:
           BOXCUTTER_BUNDLE_EXE: ${{ env.BOXCUTTER_EXE }}
           BOXCUTTER_TESTING: "1"
         run: pytest tests/bundle/ui/ -v --tb=short
+
+      - name: Layer 4 — GUI-path launch (no BOXCUTTER_TESTING)
+        # The v1.1 Mac silent-failure happened because the .app's bootloader
+        # was killed by Gatekeeper before launcher.py:29-37 could write the
+        # trace file. This layer launches the bundle WITHOUT the testing
+        # bypass — i.e. the same code path users hit on double-click — and
+        # confirms (a) the trace file is written (proving the interpreter
+        # ran past line 29), (b) Flask actually serves on the bind host,
+        # (c) the process stays alive long enough to hand off to webview.
+        # Cannot exercise webview.start() itself (CI has no display), but
+        # everything UP TO webview.start() — including pyobjc backend
+        # imports inside webview.create_window — is exercised.
+        run: |
+          set -euo pipefail
+          rm -f /tmp/boxcutter-launcher-trace.txt
+          # Pick a free port so we don't collide with Layer 3's leftovers.
+          port=$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1]); s.close()')
+          echo "Using port $port"
+          # Launch the bundle in the background. Without BOXCUTTER_TESTING,
+          # launcher.py reaches `import webview` + create_window. webview.start()
+          # would block forever on a real display; in headless CI it raises
+          # immediately, which the launcher's excepthook will log. Either way,
+          # we get past the Gatekeeper-killable section and prove the bundle
+          # is live.
+          BOXCUTTER_PORT="$port" "$BOXCUTTER_EXE" &
+          bundle_pid=$!
+          # Poll for trace + HTTP readiness. 30s budget — Flask cold start
+          # on macOS runners is slow.
+          ready=0
+          for i in $(seq 1 30); do
+            if [ -f /tmp/boxcutter-launcher-trace.txt ] && \
+               curl -sfo /dev/null "http://127.0.0.1:$port/api/rekordbox_status"; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          # Always print the trace file if it exists (diagnostics on failure).
+          if [ -f /tmp/boxcutter-launcher-trace.txt ]; then
+            echo "--- launcher trace ---"
+            cat /tmp/boxcutter-launcher-trace.txt
+            echo "----------------------"
+          else
+            echo "ERROR: /tmp/boxcutter-launcher-trace.txt not written —"
+            echo "  the bundle's Python interpreter never ran. This is the"
+            echo "  v1.1 Mac silent-failure symptom; codesign / Gatekeeper"
+            echo "  fix did not take."
+          fi
+          # Clean up the bundle process whether we're passing or failing.
+          kill "$bundle_pid" 2>/dev/null || true
+          wait "$bundle_pid" 2>/dev/null || true
+          if [ "$ready" -ne 1 ]; then
+            echo "ERROR: Layer 4 did not reach a serving state within 30s."
+            exit 1
+          fi
+          echo "Layer 4 OK — bundle launched, trace written, Flask served."
 
   publish-manifest:
     # R-03: hash all release assets in one Linux job and publish SHA256SUMS so
