@@ -506,6 +506,29 @@
       padding: 14px 20px 6px;
     }
 
+    .as-tag-cat {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 20px 6px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--dim);
+      cursor: pointer;
+      user-select: none;
+    }
+    .as-tag-cat:active { background: var(--hover); }
+    .as-tag-cat .chev {
+      font-size: 10px;
+      transition: transform 0.15s ease;
+      display: inline-block;
+    }
+    .as-tag-cat.collapsed .chev { transform: rotate(-90deg); }
+    .as-tag-children { display: block; }
+    .as-tag-cat.collapsed + .as-tag-children { display: none; }
+    .as-tag-children .as-row { padding-left: 32px; }
+
     /* Stars */
     .as-stars {
       display: flex;
@@ -1661,20 +1684,40 @@ async function setStar(star) {
 }
 
 // Tags
+const LISTEN_TAGS_COLLAPSED_KEY = 'bcListenTagsCollapsed';
+function loadCollapsedCats() {
+  try { return new Set(JSON.parse(localStorage.getItem(LISTEN_TAGS_COLLAPSED_KEY)) || []); }
+  catch { return new Set(); }
+}
+function saveCollapsedCats(set) {
+  try { localStorage.setItem(LISTEN_TAGS_COLLAPSED_KEY, JSON.stringify([...set])); } catch {}
+}
+function toggleTagCategory(catId) {
+  const collapsed = loadCollapsedCats();
+  if (collapsed.has(String(catId))) collapsed.delete(String(catId));
+  else collapsed.add(String(catId));
+  saveCollapsedCats(collapsed);
+  const header = document.querySelector(`[data-cat-id="${catId}"]`);
+  if (header) header.classList.toggle('collapsed');
+}
+
 function renderTagsList() {
   const assignedIds = new Set(trackTags.map(a => String(a.tag_id)));
-  // Categories have no parent (parent_id is null); leaf tags point to their category.
-  const parents  = allMyTags.filter(t => !t.parent_id);
-  const children = allMyTags.filter(t =>  t.parent_id);
+  // A node is a category iff some other node points to it as parent.
+  // This is robust regardless of Rekordbox's root sentinel value.
+  const childParentIds = new Set(allMyTags.map(t => String(t.parent_id)));
+  const isCategory = (t) => childParentIds.has(String(t.id));
+  const categories = allMyTags.filter(isCategory);
+  const leaves     = allMyTags.filter(t => !isCategory(t));
 
-  if (!children.length) {
+  if (!leaves.length) {
     document.getElementById('as-tags-list').innerHTML = '<div class="as-empty">No My Tags found.</div>';
     return;
   }
 
-  // Group children by parent ID
+  // Group leaves by parent_id
   const byParent = {};
-  for (const c of children) {
+  for (const c of leaves) {
     const pid = String(c.parent_id);
     if (!byParent[pid]) byParent[pid] = [];
     byParent[pid].push(c);
@@ -1689,21 +1732,30 @@ function renderTagsList() {
     </div>`;
   }
 
+  const collapsed = loadCollapsedCats();
   let html = '';
-  // Render each parent category with its children
-  for (const parent of parents.sort((a, b) => (a.seq || 0) - (b.seq || 0))) {
-    const kids = byParent[String(parent.id)];
+  // Render each category with its children
+  for (const cat of categories.sort((a, b) => (a.seq || 0) - (b.seq || 0))) {
+    const kids = byParent[String(cat.id)];
     if (!kids || !kids.length) continue;
-    html += `<div class="as-section-label">${esc(parent.name)}</div>`;
+    const isCollapsed = collapsed.has(String(cat.id));
+    html += `<div class="as-tag-cat${isCollapsed ? ' collapsed' : ''}" data-cat-id="${esc(cat.id)}" onclick="toggleTagCategory('${esc(cat.id)}')">
+      <span class="chev">▼</span><span>${esc(cat.name)}</span>
+    </div>`;
+    html += '<div class="as-tag-children">';
     for (const tag of kids.sort((a, b) => (a.seq || 0) - (b.seq || 0))) {
       html += tagRow(tag);
     }
+    html += '</div>';
   }
 
-  // Any orphaned children whose parent wasn't found
-  const parentIds = new Set(parents.map(p => String(p.id)));
-  for (const tag of children.filter(c => !parentIds.has(String(c.parent_id)))) {
-    html += tagRow(tag);
+  // Orphaned leaves whose parent isn't a known category — render flat at end.
+  const categoryIds = new Set(categories.map(c => String(c.id)));
+  const orphans = leaves.filter(c => !categoryIds.has(String(c.parent_id)));
+  if (orphans.length) {
+    html += '<div class="as-tag-children">';
+    for (const tag of orphans) html += tagRow(tag);
+    html += '</div>';
   }
 
   document.getElementById('as-tags-list').innerHTML = html || '<div class="as-empty">No My Tags found.</div>';
