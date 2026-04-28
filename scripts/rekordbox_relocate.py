@@ -60,7 +60,7 @@ from datetime import datetime
 from pathlib import Path
 
 from pyrekordbox import Rekordbox6Database as MasterDatabase
-from utils import EXT_TO_FILETYPE, configure_io
+from utils import EXT_TO_FILETYPE, configure_io, normalize_path_for_compare
 
 DEFAULT_EXTENSIONS = {"mp3", "flac", "wav", "aiff", "aif", "ogg", "m4a", "alac", "wma"}
 NUMERIC_PREFIX_RE = re.compile(r"^[\d]+\s*-\s*")
@@ -135,10 +135,17 @@ def normalize_path(raw):
 
 
 def path_is_under(path, root):
-    """Return True if path is inside root (case-insensitive)."""
+    """Return True if path is inside root (case-insensitive on
+    case-insensitive filesystems — Windows + macOS).
+
+    Uses normalize_path_for_compare from scripts/utils.py rather than
+    os.path.normcase directly, because posixpath.normcase is a no-op
+    on Darwin (issue #106). Windows behaviour is preserved bit-for-bit:
+    the helper's Windows branch delegates to os.path.normcase.
+    """
     if not path or not root:
         return False
-    return os.path.normcase(path).startswith(os.path.normcase(root))
+    return normalize_path_for_compare(path).startswith(normalize_path_for_compare(root))
 
 
 def paths_match_for_skip(stored: str, candidate: str) -> bool:

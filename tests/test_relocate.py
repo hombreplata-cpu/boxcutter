@@ -104,6 +104,36 @@ def test_path_is_under_false_mac():
 
 
 # ---------------------------------------------------------------------------
+# path_is_under — case-insensitive on Windows + macOS (Issue #106)
+# ---------------------------------------------------------------------------
+
+
+@patch("scripts.utils.platform.system", return_value="Darwin")
+def test_path_is_under_darwin_case_insensitive(mock_platform):
+    """Mac APFS is case-insensitive by default. A source-root argument
+    that differs in case from the DB-stored path must still match.
+    Issue #106: before normalize_path_for_compare landed here,
+    posixpath.normcase was a no-op on Darwin and this returned False —
+    silently breaking --source-root narrowing on Mac."""
+    assert path_is_under("/Users/dj/Music/FLAC/track.flac", "/Users/DJ/MUSIC/flac")
+
+
+@patch("scripts.utils.platform.system", return_value="Windows")
+def test_path_is_under_windows_case_insensitive(mock_platform):
+    """Windows NTFS is case-insensitive; case-mismatched paths must
+    still match. Behaviour unchanged from pre-#106 (was correct via
+    os.path.normcase, still correct via the helper's Windows branch)."""
+    assert path_is_under("C:\\Music\\FLAC\\track.flac", "c:\\music\\flac")
+
+
+# Note: a Linux-platform variant of this test cannot be portable across
+# CI runners — the helper's non-Darwin branch delegates to os.path.normcase,
+# which is OS-native and cannot be faithfully simulated on a Windows
+# runner. Linux is not a supported BoxCutter platform; helper behaviour
+# there is documented in scripts/utils.py:normalize_path_for_compare.
+
+
+# ---------------------------------------------------------------------------
 # paths_match_for_skip — case-insensitive comparison on Windows + macOS
 # (R-09 / issue #101)
 # ---------------------------------------------------------------------------
