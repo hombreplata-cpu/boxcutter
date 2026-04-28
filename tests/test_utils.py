@@ -4,14 +4,25 @@ Tests for scripts/utils.py
 Locks down EXT_TO_FILETYPE, FILETYPE_LABELS, and MUSIC_EXTENSIONS so that
 any accidental edit or omission fails loudly rather than silently corrupting
 FileType values written to the Rekordbox database.
+
+Also covers normalize_path_for_compare — the case-insensitive path
+comparison helper that fixes the Mac no-op bug in os.path.normcase
+(issue #104).
 """
 
+import os.path
 import sys
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from scripts.utils import EXT_TO_FILETYPE, FILETYPE_LABELS, MUSIC_EXTENSIONS  # noqa: E402
+from scripts.utils import (  # noqa: E402
+    EXT_TO_FILETYPE,
+    FILETYPE_LABELS,
+    MUSIC_EXTENSIONS,
+    normalize_path_for_compare,
+)
 
 # ---------------------------------------------------------------------------
 # EXT_TO_FILETYPE — every supported extension must map to its exact integer
@@ -112,3 +123,36 @@ def test_music_extensions_are_lowercase_with_dot():
     for ext in MUSIC_EXTENSIONS:
         assert ext.startswith("."), f"{ext!r} missing leading dot"
         assert ext == ext.lower(), f"{ext!r} is not lowercase"
+
+
+# ---------------------------------------------------------------------------
+# normalize_path_for_compare — case-insensitive path comparison helper
+# (Issue #104 — os.path.normcase is a no-op on Darwin, breaking cleanup.py)
+# ---------------------------------------------------------------------------
+
+
+@patch("scripts.utils.platform.system", return_value="Darwin")
+def test_normalize_path_for_compare_darwin_lowercases(mock_platform):
+    """Mac APFS is case-insensitive by default; lowercase so case-renamed
+    files still match the DB-stored path. (Issue #104)"""
+    assert normalize_path_for_compare("/Users/DJ/Music/Track.mp3") == "/users/dj/music/track.mp3"
+
+
+@patch("scripts.utils.platform.system", return_value="Windows")
+def test_normalize_path_for_compare_windows_unchanged_from_normcase(mock_platform):
+    """Windows behaviour must be bit-for-bit identical to today —
+    delegate to os.path.normcase (lowercase + slash conversion on
+    Windows runners, identity on non-Windows runners running this test
+    against the mocked branch)."""
+    p = "D:/Music/Track.mp3"
+    assert normalize_path_for_compare(p) == os.path.normcase(p)
+
+
+@patch("scripts.utils.platform.system", return_value="Linux")
+def test_normalize_path_for_compare_linux_identity(mock_platform):
+    """Linux ext4 is case-sensitive; do not collapse case there."""
+    p = "/home/dj/Music/Track.mp3"
+    # os.path.normcase is identity on Unix; on a Windows test runner it
+    # would lowercase, but the Linux branch in our helper still calls
+    # os.path.normcase, so the runner-side behaviour matches.
+    assert normalize_path_for_compare(p) == os.path.normcase(p)

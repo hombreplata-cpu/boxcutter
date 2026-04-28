@@ -35,7 +35,7 @@ import unicodedata
 from pathlib import Path
 
 from pyrekordbox import Rekordbox6Database as MasterDatabase
-from utils import configure_io
+from utils import configure_io, normalize_path_for_compare
 
 DEFAULT_EXTENSIONS = {"mp3", "flac", "wav", "aiff", "aif", "ogg", "m4a", "alac", "wma"}
 
@@ -91,7 +91,7 @@ def run(args):
         raw = content.FolderPath or ""
         plain = normalize_path(raw)
         if plain:
-            active_paths.add(os.path.normcase(plain))
+            active_paths.add(normalize_path_for_compare(plain))
     print(
         f"[db] Found {len(contents):,} active tracks in Rekordbox ({len(active_paths):,} with valid paths)."
     )
@@ -100,14 +100,14 @@ def run(args):
     # within the scan root — helps identify tracks removed from RB that weren't cleaned up.
     ghost_tracks = []
     if args.dry_run:
-        scan_root_norm = os.path.normcase(str(scan_root))
+        scan_root_norm = normalize_path_for_compare(str(scan_root))
         deleted_contents = db.get_content().filter_by(rb_local_deleted=1).all()
         for c in deleted_contents:
             raw = c.FolderPath or ""
             plain = normalize_path(raw)
             if not plain:
                 continue
-            norm = os.path.normcase(plain)
+            norm = normalize_path_for_compare(plain)
             if not norm.startswith(scan_root_norm):
                 continue
             if os.path.isfile(plain):
@@ -132,7 +132,9 @@ def run(args):
             d
             for d in dirs
             if not any(
-                os.path.normcase(os.path.join(dirpath, d)).startswith(os.path.normcase(exc))
+                normalize_path_for_compare(os.path.join(dirpath, d)).startswith(
+                    normalize_path_for_compare(exc)
+                )
                 for exc in excludes
             )
         ]
@@ -148,7 +150,7 @@ def run(args):
                     flush=True,
                 )
             full_path = os.path.join(dirpath, fname)
-            if os.path.normcase(full_path) not in active_paths:
+            if normalize_path_for_compare(full_path) not in active_paths:
                 unreferenced.append(full_path)
 
     print(f"[scan] Scanned {total_scanned:,} audio files.")
