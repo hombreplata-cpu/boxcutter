@@ -1,18 +1,24 @@
 """
-Script integration tests using a real Rekordbox DB backup fixture.
+Script integration tests using a synthetic unencrypted Rekordbox DB.
 
 These tests copy tests/fixtures/master_test.db to a tmp directory and run
 the actual scripts against it — no mocks. They catch bugs that unit tests
 with mocked DBs can't: wrong SQL, broken pyrekordbox field access, crashes
-on real-world data.
+on real-world data, and any Mac-specific quirk that shows up only when the
+scripts actually mutate a pyrekordbox-managed DB.
 
-SETUP (one-time, local only):
-    Copy an old BoxCutter backup to tests/fixtures/master_test.db:
-        cp "C:/Users/Shane/Dropbox/DJ MUSIC SYNCING/rekordbox/master_backup_20260419_211336.db" \
-           tests/fixtures/master_test.db
+The fixture is generated programmatically by
+``tests/fixtures/generate_master_test_db.py`` from pyrekordbox's own ORM
+schema — no real Rekordbox install required, no SQLCipher key required,
+no personal data committed. CI runs the generator before pytest in
+``.github/workflows/ci.yml``; locally the ``_ensure_fixture_exists`` autouse
+fixture below regenerates it on first pytest invocation if missing.
 
-    The file is gitignored (personal data, 71 MB). These tests skip automatically
-    in CI where the fixture is absent.
+The fixture is unencrypted, so an autouse monkeypatch overrides
+``Rekordbox6Database.__init__`` to default ``unlock=False`` for the duration
+of these tests — script code that constructs ``MasterDatabase`` with the
+production default of ``unlock=True`` reaches the fixture without needing
+any production-script changes.
 """
 
 import shutil
@@ -25,13 +31,45 @@ import pytest
 
 FIXTURE = Path(__file__).parent / "fixtures" / "master_test.db"
 
-pytestmark = pytest.mark.skipif(
-    not FIXTURE.exists(),
-    reason="master_test.db not present — copy a DB backup to tests/fixtures/ to run these",
-)
-
 sys.path.insert(0, str(Path(__file__).parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _ensure_fixture_exists():
+    """Regenerate the fixture DB if it doesn't exist. Belt for local
+    devs who haven't run the generator manually; CI always runs the
+    generator step explicitly before pytest."""
+    if not FIXTURE.exists():
+        from tests.fixtures import generate_master_test_db
+
+        generate_master_test_db.main()
+
+
+@pytest.fixture(autouse=True)
+def _bypass_pyrekordbox_unlock():
+    """Force Rekordbox6Database to open the fixture as a plain SQLite file
+    (no SQLCipher key extraction). Production scripts construct it with
+    unlock=True by default; in integration tests the fixture is unencrypted
+    so we override that default for the duration of each test.
+
+    Manual setattr/teardown rather than pytest's monkeypatch because
+    monkeypatch refuses to set magic methods like __init__. The original
+    method is captured in the fixture closure and restored on teardown,
+    so the patch never leaks into other tests."""
+    from pyrekordbox.db6 import Rekordbox6Database
+
+    original_init = Rekordbox6Database.__init__
+
+    def patched(self, *args, **kwargs):
+        kwargs.setdefault("unlock", False)
+        return original_init(self, *args, **kwargs)
+
+    Rekordbox6Database.__init__ = patched
+    try:
+        yield
+    finally:
+        Rekordbox6Database.__init__ = original_init
 
 
 def _copy_db(tmp_path: Path) -> Path:
@@ -42,13 +80,18 @@ def _copy_db(tmp_path: Path) -> Path:
 
 
 def _open_db(db_path: Path):
-    """Open a MasterDatabase, skipping the test if the key is unavailable."""
-    try:
-        from pyrekordbox import MasterDatabase
+    """Open a Rekordbox6Database, skipping the test if pyrekordbox can't open it.
 
-        return MasterDatabase(path=str(db_path))
+    The autouse `_bypass_pyrekordbox_unlock` fixture has already overridden
+    `__init__` to default `unlock=False`, so the call below opens the
+    fixture as a plain SQLite file.
+    """
+    try:
+        from pyrekordbox import Rekordbox6Database
+
+        return Rekordbox6Database(path=str(db_path))
     except Exception as exc:
-        pytest.skip(f"Could not open DB (pyrekordbox key unavailable?): {exc}")
+        pytest.skip(f"Could not open DB: {exc}")
 
 
 # ---------------------------------------------------------------------------
@@ -111,23 +154,27 @@ def test_relocate_updates_folder_path_for_matched_track(tmp_path):
     db_path = _copy_db(tmp_path)
     db = _open_db(db_path)
 
-    # Find first track that has both Title and Artist
-    track = None
+    # Find first track that has both Title and Artist. Capture all
+    # attributes we need BEFORE closing the session, so subsequent access
+    # doesn't hit DetachedInstanceError.
+    track_id = None
+    title = ""
+    artist_name = ""
+    original_path = ""
     for t in db.get_content().filter_by(rb_local_deleted=0).all():
-        title = (t.Title or "").strip()
-        artist_name = (t.Artist.Name if t.Artist else "").strip()
-        if title and artist_name:
-            track = t
+        t_title = (t.Title or "").strip()
+        t_artist_name = (t.Artist.Name if t.Artist else "").strip()
+        if t_title and t_artist_name:
+            track_id = t.ID
+            title = t_title
+            artist_name = t_artist_name
+            original_path = t.FolderPath
             break
 
     db.close()
 
-    if track is None:
+    if track_id is None:
         pytest.skip("No track with both Title and Artist found in fixture DB")
-
-    title = track.Title.strip()
-    artist_name = track.Artist.Name.strip()
-    original_path = track.FolderPath
 
     # Create the matching file in target_root
     target = tmp_path / "music"
@@ -146,7 +193,7 @@ def test_relocate_updates_folder_path_for_matched_track(tmp_path):
         all_tracks=True,  # relocate even tracks that exist at their current path
         missing_only=False,
         extensions=None,
-        ids=str(track.ID),
+        ids=str(track_id),
         verbose=False,
     )
 
@@ -156,14 +203,15 @@ def test_relocate_updates_folder_path_for_matched_track(tmp_path):
 
     # Re-open DB copy and verify the path was updated
     db2 = _open_db(db_path)
-    updated = db2.get_content().filter_by(ID=track.ID).first()
+    updated = db2.get_content().filter_by(ID=track_id).first()
+    updated_folder_path = updated.FolderPath
     db2.close()
 
-    assert updated.FolderPath != original_path, (
-        f"FolderPath was not updated for track {track.ID!r} — still {updated.FolderPath!r}"
+    assert updated_folder_path != original_path, (
+        f"FolderPath was not updated for track {track_id!r} — still {updated_folder_path!r}"
     )
-    assert str(match_file).replace("\\", "/") in updated.FolderPath.replace("\\", "/"), (
-        f"FolderPath does not point at the new file: {updated.FolderPath!r}"
+    assert str(match_file).replace("\\", "/") in updated_folder_path.replace("\\", "/"), (
+        f"FolderPath does not point at the new file: {updated_folder_path!r}"
     )
 
 
@@ -201,6 +249,9 @@ def test_fix_metadata_corrects_wrong_filetype(tmp_path):
     # Rewrite the track to point at our fake .flac with the wrong FileType
     track.FolderPath = str(fake_flac).replace("\\", "/")
     track.FileType = 1  # deliberately wrong
+    # Capture identity before closing — once db is closed, the ORM instance
+    # detaches and attribute access raises DetachedInstanceError.
+    track_id = track.ID
     db.commit()
     db.close()
 
@@ -215,11 +266,12 @@ def test_fix_metadata_corrects_wrong_filetype(tmp_path):
         run(args)
 
     db2 = _open_db(db_path)
-    updated = db2.get_content().filter_by(ID=track.ID).first()
+    updated = db2.get_content().filter_by(ID=track_id).first()
+    updated_filetype = updated.FileType
     db2.close()
 
-    assert updated.FileType == 6, (
-        f"FileType not corrected for track {track.ID!r} — got {updated.FileType!r}, expected 6"
+    assert updated_filetype == 6, (
+        f"FileType not corrected for track {track_id!r} — got {updated_filetype!r}, expected 6"
     )
 
 

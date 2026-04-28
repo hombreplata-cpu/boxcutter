@@ -18,16 +18,25 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 # inside scripts when they are imported as `scripts.rekordbox_xxx` in tests).
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 
-# Stub out pyrekordbox before any script imports it.
-# pyrekordbox has Windows-specific C extensions (anlz) that are unavailable
-# in the CI ubuntu runner used by the Security/Lint jobs. All DB calls in
-# tests are mocked anyway, so the real package is never needed at test time.
-_pyrekordbox_stub = MagicMock()
-sys.modules.setdefault("pyrekordbox", _pyrekordbox_stub)
-sys.modules.setdefault("pyrekordbox.db6", _pyrekordbox_stub)
-sys.modules.setdefault("pyrekordbox.db6.tables", MagicMock())
-sys.modules.setdefault("pyrekordbox.db6.smartlist", MagicMock())
-sys.modules.setdefault("pyrekordbox.anlz", _pyrekordbox_stub)
+# Try to import the real pyrekordbox first; fall back to a MagicMock stub
+# only if pyrekordbox or its C extensions aren't available (some Linux CI
+# environments). Most existing unit tests patch the per-script
+# `MasterDatabase` alias locally and don't depend on whether pyrekordbox
+# itself is real or stubbed at sys.modules level. The integration tests in
+# tests/test_script_integration.py REQUIRE the real package — they bootstrap
+# a synthetic master.db via pyrekordbox.db6.tables and open it via
+# Rekordbox6Database(unlock=False). See issue #102.
+try:  # noqa: SIM105
+    import pyrekordbox  # noqa: F401
+    import pyrekordbox.db6  # noqa: F401
+    import pyrekordbox.db6.tables  # noqa: F401
+except ImportError:
+    _pyrekordbox_stub = MagicMock()
+    sys.modules.setdefault("pyrekordbox", _pyrekordbox_stub)
+    sys.modules.setdefault("pyrekordbox.db6", _pyrekordbox_stub)
+    sys.modules.setdefault("pyrekordbox.db6.tables", MagicMock())
+    sys.modules.setdefault("pyrekordbox.db6.smartlist", MagicMock())
+    sys.modules.setdefault("pyrekordbox.anlz", _pyrekordbox_stub)
 
 
 @pytest.fixture

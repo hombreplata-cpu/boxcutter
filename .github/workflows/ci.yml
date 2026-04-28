@@ -163,6 +163,14 @@ jobs:
       - name: Install all dependencies
         run: pip install --no-cache-dir -r requirements.txt -r requirements-dev.txt
 
+      - name: Generate integration test fixture
+        # Bootstraps tests/fixtures/master_test.db from pyrekordbox's own
+        # schema definitions — no Rekordbox install required, no SQLCipher
+        # key required, no personal data committed. Lets
+        # test_script_integration.py run on every CI runner instead of
+        # silently skipping. Required for Mac script-write coverage (#102).
+        run: python tests/fixtures/generate_master_test_db.py
+
       - name: Run pytest
         # tests/bundle/ exercises the FROZEN bundle and runs in a separate
         # bundle-smoke workflow (PR 6). Excluded here so this fast unit-test
