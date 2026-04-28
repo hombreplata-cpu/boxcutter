@@ -77,6 +77,11 @@ REQUIREMENTS_IMPORTS = [
 BUNDLE_ONLY_IMPORTS = []
 if sys.platform == "win32":
     BUNDLE_ONLY_IMPORTS.extend(["clr", "clr_loader"])
+if sys.platform == "darwin":
+    # pyobjc Cocoa bridge — pywebview's webview.platforms.cocoa imports these
+    # at create_window() time. If the bundle is missing them, the GUI fails
+    # silently after Flask comes up. Lock them into the contract.
+    BUNDLE_ONLY_IMPORTS.extend(["objc", "Foundation", "AppKit", "WebKit"])
 
 # Submodules the production code collectively touches. PyInstaller does NOT
 # bundle these unless collect_submodules() is used in app.spec, so this list

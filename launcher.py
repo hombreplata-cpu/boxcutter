@@ -99,10 +99,59 @@ def _resolve_port() -> int:
 PORT = _resolve_port()
 
 
-def _already_running(port: int) -> bool:
+def _resolve_bind_host() -> str:
+    """Resolve the host Flask should bind to.
+
+    Honours BOXCUTTER_BIND env var so Tailscale-on-Mac users can opt into
+    0.0.0.0 explicitly (which on macOS triggers the firewall prompt). On
+    macOS, default to 127.0.0.1 because the firewall prompt may be silently
+    denied for unsigned bundles, leaving the webview pointed at a server
+    that never comes up. Windows + Linux keep 0.0.0.0 as before so existing
+    Tailscale flows are unaffected.
+    """
+    override = os.environ.get("BOXCUTTER_BIND", "").strip()
+    if override:
+        return override
+    if sys.platform == "darwin":
+        return "127.0.0.1"
+    return "0.0.0.0"  # noqa: S104  # nosec B104 — intentional on win/linux for Tailscale
+
+
+BIND_HOST = _resolve_bind_host()
+
+
+def _port_in_use(port: int) -> bool:
     """Return True if something is already accepting connections on port."""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         return s.connect_ex(("127.0.0.1", port)) == 0
+
+
+def _is_our_boxcutter(port: int) -> bool:
+    """Return True if the listener on port is a running BoxCutter instance.
+
+    Uses /api/rekordbox_status (a stable BoxCutter-specific JSON endpoint)
+    as a fingerprint. Any other response — 404, non-JSON, connection reset,
+    timeout — means the port is squatted by a different process and we
+    should not silently exit.
+    """
+    try:
+        with urllib.request.urlopen(  # noqa: S310  # nosec B310 — always http://localhost
+            f"http://127.0.0.1:{port}/api/rekordbox_status", timeout=1
+        ) as resp:
+            if resp.status != 200:
+                return False
+            ctype = resp.headers.get("Content-Type", "")
+            return "json" in ctype.lower()
+    except (urllib.error.URLError, OSError, TimeoutError):
+        return False
+
+
+def _free_port() -> int:
+    """Ask the OS for a free ephemeral port. Used when the configured port
+    is squatted by a non-BoxCutter process."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
 
 
 # Daemon-thread exceptions don't trigger sys.excepthook, so a Flask startup
@@ -114,7 +163,7 @@ _flask_error: dict = {"exc": None}
 
 def _start_flask():
     try:
-        app.run(host="0.0.0.0", port=PORT, debug=False, use_reloader=False)  # noqa: S104  # nosec B104 — intentional: Tailscale requires binding to all interfaces
+        app.run(host=BIND_HOST, port=PORT, debug=False, use_reloader=False)  # noqa: S104  # nosec B104 — host is platform-resolved (127.0.0.1 on mac, 0.0.0.0 elsewhere); BOXCUTTER_BIND opt-in for Tailscale-on-mac
     except Exception as exc:
         body = "".join(__import__("traceback").format_exception(type(exc), exc, exc.__traceback__))
         write_crash_log("startup", body, context={"phase": "flask_thread"})
@@ -143,17 +192,25 @@ def _wait_for_server():
 
 
 if __name__ == "__main__":
-    # Single-instance guard: if BoxCutter is already running, exit silently.
-    # The existing window is already open — no need to open anything new.
-    if _already_running(PORT):
-        sys.exit(0)
+    # Port-collision handling, in order:
+    #   1. Port free      → use it.
+    #   2. Port in use, looks like our own BoxCutter → exit silently
+    #      (single-instance guard; the existing window is already open).
+    #   3. Port in use by something else → fall back to an OS-assigned
+    #      ephemeral port. Without this, an unrelated process squatting on
+    #      5000 (AirPlay, another Flask dev server, etc.) would either
+    #      cause us to silently exit or to crash on bind with no log.
+    if _port_in_use(PORT):
+        if _is_our_boxcutter(PORT):
+            sys.exit(0)
+        PORT = _free_port()
 
     # Test/headless mode: BOXCUTTER_TESTING=1 means no pywebview, no native
     # window, just Flask on the main thread. Required for bundle-smoke
     # (CI runners have no display) and useful for any non-GUI launch
     # (Tailscale-only listener mode, etc.).
     if os.environ.get("BOXCUTTER_TESTING") == "1":
-        app.run(host="0.0.0.0", port=PORT, debug=False, use_reloader=False)  # noqa: S104
+        app.run(host=BIND_HOST, port=PORT, debug=False, use_reloader=False)  # noqa: S104  # nosec B104 — see _resolve_bind_host
         sys.exit(0)
 
     import webview

@@ -137,21 +137,95 @@ jobs:
         run: brew install sqlcipher
 
       - name: Build sqlcipher3
-        env:
-          SQLCIPHER_PATH: /usr/local/opt/sqlcipher
-        run: pip install sqlcipher3
+        # Use brew --prefix so we resolve correctly on both Apple Silicon
+        # (/opt/homebrew/opt/sqlcipher) and Intel (/usr/local/opt/sqlcipher)
+        # macOS runners. macos-latest is now ARM64.
+        run: |
+          export SQLCIPHER_PATH="$(brew --prefix sqlcipher)"
+          echo "SQLCIPHER_PATH=$SQLCIPHER_PATH"
+          pip install sqlcipher3
 
       - name: Verify pywebview imports cleanly (build-time guard)
+        # objc/Foundation/AppKit/WebKit are pyobjc — pywebview's Cocoa backend
+        # depends on them. If any fail to import here, the bundle would launch
+        # but webview.create_window() would raise ImportError at runtime,
+        # producing a "silent" failure (Flask up, no window). Fail loudly here.
         run: |
           python -c "import webview; print('webview import OK')"
           python -c "import proxy_tools; print('proxy_tools OK')"
           python -c "import bottle; print('bottle OK')"
+          python -c "import objc; print('objc OK')"
+          python -c "import Foundation; print('Foundation OK')"
+          python -c "import AppKit; print('AppKit OK')"
+          python -c "import WebKit; print('WebKit OK')"
 
       - name: Generate macOS icon
         run: iconutil -c icns assets/icons/icon.iconset -o static/boxcutter.icns
 
       - name: Build app bundle
         run: pyinstaller --clean app.spec
+
+      - name: Ad-hoc codesign .app
+        # Unsigned PyInstaller bundles on macOS 14+/15 have child execs (the
+        # bootloader's _MEIPASS extract+re-exec) silently killed by Gatekeeper,
+        # producing the "approved but app does nothing, no logs" symptom v1.1
+        # Mac users reported. Ad-hoc signing (`-` identity) does not require
+        # an Apple Developer account and clears that class of rejection.
+        #
+        # IMPORTANT: do NOT add --options runtime here. Hardened runtime is
+        # required for notarization, but it also requires entitlements
+        # granting Python the right to allocate executable memory
+        # (com.apple.security.cs.allow-unsigned-executable-memory,
+        # com.apple.security.cs.allow-jit). Without those entitlements, the
+        # kernel kills the bundle at exec time before launcher.py runs —
+        # exactly the silent-bounce-and-die that this fix is meant to solve.
+        # Since we are not notarizing (no Developer ID), plain ad-hoc
+        # signing without runtime hardening is the correct setting.
+        run: |
+          codesign --deep --force --sign - dist/BoxCutter.app
+          codesign --verify --deep --strict --verbose=2 dist/BoxCutter.app
+
+      - name: Smoke-test .app launches and serves
+        # The v1.1 silent-failure happened because the .app's bootloader was
+        # killed by Gatekeeper before launcher.py:29-37 could write the trace
+        # file. Launch the bundle WITHOUT BOXCUTTER_TESTING — the real user
+        # double-click code path — and confirm (a) the trace file appears
+        # (proves Python interpreter ran past line 37), (b) Flask actually
+        # serves on the bind host. Cannot exercise webview.start() (no display
+        # in CI), but everything UP TO it including pyobjc backend imports is
+        # exercised by webview.create_window before start() is reached.
+        run: |
+          set -euo pipefail
+          rm -f /tmp/boxcutter-launcher-trace.txt
+          port=$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1]); s.close()')
+          echo "Using port $port"
+          BOXCUTTER_PORT="$port" "dist/BoxCutter.app/Contents/MacOS/BoxCutter" &
+          bundle_pid=$!
+          ready=0
+          for i in $(seq 1 30); do
+            if [ -f /tmp/boxcutter-launcher-trace.txt ] && \
+               curl -sfo /dev/null "http://127.0.0.1:$port/api/rekordbox_status"; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          if [ -f /tmp/boxcutter-launcher-trace.txt ]; then
+            echo "--- launcher trace ---"
+            cat /tmp/boxcutter-launcher-trace.txt
+            echo "----------------------"
+          else
+            echo "ERROR: /tmp/boxcutter-launcher-trace.txt not written —"
+            echo "  the bundle's Python interpreter never ran. Codesign /"
+            echo "  Gatekeeper fix did not take."
+          fi
+          kill "$bundle_pid" 2>/dev/null || true
+          wait "$bundle_pid" 2>/dev/null || true
+          if [ "$ready" -ne 1 ]; then
+            echo "ERROR: Smoke test did not reach a serving state within 30s."
+            exit 1
+          fi
+          echo "Smoke OK — bundle launched, trace written, Flask served."
 
       - name: Create DMG
         run: |
