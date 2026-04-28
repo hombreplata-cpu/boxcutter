@@ -140,9 +140,22 @@ def main() -> int:
             tables.AgentRegistry, registry_id="localUpdateCount", int_1=0
         )
 
+        # One regular playlist (Attribute=0). Required by add_new.run which
+        # calls db.get_playlist(ID=...) before deciding what to add — without
+        # this, integration tests that exercise add_new fail at the playlist
+        # lookup, before reaching the code path under test. Issue #109.
+        playlist = _make_with_defaults(
+            tables.DjmdPlaylist,
+            ID="1",
+            Name="Test Playlist",
+            Attribute=0,
+            ParentID="root",
+        )
+
         session.add_all(artists)
         session.add_all(contents)
         session.add(registry_row)
+        session.add(playlist)
         session.commit()
 
     engine.dispose()

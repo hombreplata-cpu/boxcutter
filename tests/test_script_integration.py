@@ -21,8 +21,10 @@ production default of ``unlock=True`` reaches the fixture without needing
 any production-script changes.
 """
 
+import platform
 import shutil
 import sys
+import unicodedata
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -344,4 +346,90 @@ def test_cleanup_moves_orphan_in_live_run(tmp_path):
     moved_files = list(delete_dir.rglob("*.mp3"))
     assert len(moved_files) == 1, (
         f"Expected 1 file in DELETE folder, found {len(moved_files)}: {moved_files}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Add New — NFC normalisation on Mac (Issue #109)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.skipif(
+    platform.system() != "Darwin",
+    reason=(
+        "Issue #109 integration test requires real Darwin filesystem semantics "
+        "(NFD filenames written to disk round-tripping through os.walk). Cannot "
+        "be faithfully simulated on Windows. CI matrix includes macos-latest, so "
+        "this still executes in CI."
+    ),
+)
+def test_add_new_does_not_duplicate_nfd_filenames_on_mac(tmp_path):
+    """Issue #109: on Mac, a disk file with an NFD-encoded filename must
+    not be treated as new when the DB already has an NFC-encoded entry
+    for it. Before this fix, normalize_path lowercased and slashed but
+    didn't NFC-normalise, so the set-membership check missed and add_new
+    would re-add the track — duplicate row.
+
+    The test asserts that with the fix in place, db.add_content is never
+    called: the file is correctly identified as already-in-DB by the
+    set-membership check at add_new.py:222."""
+    from scripts.rekordbox_add_new import run
+
+    db_path = _copy_db(tmp_path)
+    db = _open_db(db_path)
+
+    # Set up a DB row whose FolderPath is the NFC form of an accented
+    # filename inside the watch dir.
+    nfc_name = "café - beat.mp3"
+    nfd_name = unicodedata.normalize("NFD", nfc_name)
+    assert nfc_name != nfd_name, "Test fixture invariant: NFC and NFD differ"
+
+    watch_dir = tmp_path / "watch"
+    watch_dir.mkdir()
+    nfc_path_str = str(watch_dir / nfc_name).replace("\\", "/")
+
+    track = db.get_content().filter_by(rb_local_deleted=0).first()
+    track.FolderPath = nfc_path_str
+    db.commit()
+    db.close()
+
+    # Write the file to disk under the NFD form. The OS may or may not
+    # normalise the name itself depending on filesystem; either way, what
+    # matters is what os.walk returns when add_new scans.
+    on_disk = watch_dir / nfd_name
+    on_disk.write_bytes(b"x" * 256)
+
+    args = SimpleNamespace(
+        db_path=str(db_path),
+        watch_dir=str(watch_dir),
+        playlist_id="1",  # seeded by tests/fixtures/generate_master_test_db.py
+        dry_run=False,
+    )
+
+    # Patch db.add_content to detect any attempt to add a "new" track.
+    # If the NFC normalisation fix is working, the set-membership check
+    # at add_new.py:222 correctly identifies the disk file as already-
+    # in-DB, and add_content is never reached. If the fix is missing,
+    # add_content fires and the assertion below catches it.
+    add_content_calls: list = []
+
+    def _track_add_content(self, *args, **kwargs):
+        add_content_calls.append((args, kwargs))
+        # Return something so add_new doesn't crash trying to use the result.
+        return type("FakeContent", (), {"ID": "999"})()
+
+    with (
+        patch("scripts.rekordbox_add_new.shutil.copy2"),
+        patch.object(
+            __import__("pyrekordbox.db6", fromlist=["Rekordbox6Database"]).Rekordbox6Database,
+            "add_content",
+            _track_add_content,
+        ),
+    ):
+        run(args)
+
+    assert add_content_calls == [], (
+        f"add_new called add_content {len(add_content_calls)} time(s) for an "
+        f"NFD-on-disk file that has an NFC entry in the DB — duplicate would "
+        f"have been written. Issue #109 NFC normalisation regression."
     )

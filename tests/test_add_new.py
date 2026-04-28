@@ -12,6 +12,7 @@ Covers:
 """
 
 import sys
+import unicodedata
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -92,6 +93,31 @@ def test_normalize_path_converts_backslashes():
 def test_normalize_path_is_lowercase():
     result = normalize_path(Path("C:/Music/TRACK.FLAC"))
     assert result == result.lower()
+
+
+# ---------------------------------------------------------------------------
+# normalize_path NFC normalisation on macOS (Issue #109)
+# ---------------------------------------------------------------------------
+
+
+@patch("scripts.rekordbox_add_new.platform.system", return_value="Darwin")
+def test_normalize_path_nfc_normalises_on_darwin(mock_platform):
+    """On Mac, NFD-encoded paths from a disk walk must round-trip to the
+    same NFC string the DB stores. Without this the set-membership check
+    in add_new.run misses and tracks get duplicated. Issue #109."""
+    nfc = "café - beat.mp3"
+    nfd = unicodedata.normalize("NFD", nfc)
+    assert nfd != nfc, "Test fixture invariant: NFD differs from NFC"
+    assert normalize_path(nfd) == nfc
+
+
+@patch("scripts.rekordbox_add_new.platform.system", return_value="Windows")
+def test_normalize_path_no_nfc_on_windows(mock_platform):
+    """Windows behaviour unchanged from pre-#109 — no NFC step. Asserts
+    by patching unicodedata.normalize and confirming it wasn't called."""
+    with patch("scripts.rekordbox_add_new.unicodedata.normalize") as mock_normalize:
+        normalize_path("C:/Music/Track.mp3")
+        assert not mock_normalize.called
 
 
 # ---------------------------------------------------------------------------
