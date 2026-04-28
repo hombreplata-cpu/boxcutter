@@ -43,9 +43,14 @@ start.bat     ← run anytime to launch
 
 1. Go to the [Releases page](https://github.com/hombreplata-cpu/boxcutter/releases) and download **`BoxCutter-<version>.dmg`**.
 2. Open the `.dmg` and drag **BoxCutter** to your Applications folder.
-3. Double-click to launch. Your browser will open at `http://localhost:5000` automatically.
+3. **Required first-launch step** — open Terminal and run:
+   ```bash
+   xattr -dr com.apple.quarantine /Applications/BoxCutter.app
+   ```
+   This removes macOS's "downloaded from the internet" tag. Without it the app will bounce in the Dock once and silently fail to open. You only need to do this once per download.
+4. Double-click **BoxCutter** in Applications to launch. Your browser will open at `http://localhost:5000` automatically.
 
-> **macOS Gatekeeper warning:** Because the app is unsigned, macOS may block it on first launch. Go to **System Settings → Privacy & Security**, scroll down to the blocked app notice, and click **Open Anyway**.
+> **Why the Terminal step?** BoxCutter is ad-hoc signed but not notarized (notarization requires a paid Apple Developer account). Without notarization, macOS quarantines the bundle on download and blocks it from launching until the quarantine flag is cleared. The `xattr` command removes that flag — it is **not** running BoxCutter or installing anything, just clearing one OS attribute.
 
 #### Option B — Run from source (requires Python)
 
