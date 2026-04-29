@@ -1,10 +1,17 @@
 name: CI
 
 on:
-  push:
-    branches: ["**"]
   pull_request:
     branches: [main]
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'CONTEXT.md'
+      - 'BUILD_LOOP.md'
+      - '.gitignore'
+      - 'assets/screenshots/**'
 
 # Cancel in-progress runs for the same branch/PR when a new commit arrives.
 concurrency:
@@ -14,12 +21,13 @@ concurrency:
 jobs:
 
   # ---------------------------------------------------------------------------
-  # Lint — Ruff linter + format check
-  # No install needed; runs on ubuntu-latest for speed.
-  # Violations appear as inline annotations on the PR diff.
+  # Lint + Security — combined into one Ubuntu job to halve fixed overhead
+  # (checkout + Python setup) compared to running them as separate jobs.
+  # Runs ruff (lint + format check), pip-audit, bandit medium+, and the
+  # bandit low-severity regression gate sequentially.
   # ---------------------------------------------------------------------------
-  lint:
-    name: Lint (Ruff)
+  lint-security:
+    name: Lint + Security
     runs-on: ubuntu-latest
 
     steps:
@@ -30,8 +38,12 @@ jobs:
           python-version: "3.11"
           cache: pip
 
-      - name: Install Ruff
-        run: pip install ruff==0.15.12
+      - name: Install tools
+        # bandit pinned to 1.9.4 — same major version as the CI baseline file.
+        # If you bump this, also regenerate tools/bandit-baseline.json with the
+        # new version (different versions produce different finding IDs and
+        # the baseline match would silently break).
+        run: pip install ruff==0.15.12 pip-audit==2.7.3 "bandit[toml]==1.9.4"
 
       - name: Ruff — lint check
         run: ruff check . --output-format github
@@ -39,36 +51,10 @@ jobs:
       - name: Ruff — format check
         run: ruff format --check .
 
-  # ---------------------------------------------------------------------------
-  # Security — pip-audit CVE scan + Bandit SAST
-  # pip-audit: hard fail on any known CVE in deps or their transitive tree.
-  # Bandit: starts with --exit-zero for initial triage; remove it after triage
-  #         to turn it into a hard gate.
-  # ---------------------------------------------------------------------------
-  security:
-    name: Security (pip-audit + Bandit)
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v6
-
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.11"
-          cache: pip
-
-      - name: Install security tools
-        # bandit pinned to 1.9.4 — same major version as the CI baseline file.
-        # If you bump this, also regenerate tools/bandit-baseline.json with the
-        # new version (different versions produce different finding IDs and
-        # the baseline match would silently break).
-        run: pip install pip-audit==2.7.3 "bandit[toml]==1.9.4"
-
       - name: pip-audit — dependency CVE scan
         run: pip-audit -r requirements.txt --progress-spinner off
 
       - name: Bandit — SAST scan (medium+ severity, hard fail)
-        # Any medium-or-higher severity finding fails the job.
         run: |
           bandit -r app.py scripts/ -ll -f json -o bandit-report.json
           bandit -r app.py scripts/ -ll
@@ -87,67 +73,19 @@ jobs:
         with:
           name: bandit-report
           path: bandit-report.json
-          retention-days: 30
+          retention-days: 7
 
   # ---------------------------------------------------------------------------
-  # Build — dependency install + syntax check
-  # Runs on both windows-latest and macos-latest.
-  # --no-deps avoids transitive dep failures while still proving the packages
-  # exist on PyPI and version constraints resolve.
-  # py_compile verifies every .py file has valid syntax.
-  # ---------------------------------------------------------------------------
-  build:
-    name: Build (install + syntax check) [${{ matrix.os }}]
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [windows-latest, macos-latest]
-
-    steps:
-      - uses: actions/checkout@v6
-
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.11"
-          cache: pip
-
-      - name: Upgrade pip
-        run: python -m pip install --upgrade pip
-
-      - name: Install direct dependencies
-        run: pip install --no-deps -r requirements.txt
-
-      - name: Syntax check — compile all Python files (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $files = Get-ChildItem -Recurse -Filter "*.py" | Select-Object -ExpandProperty FullName
-          foreach ($f in $files) {
-            python -m py_compile $f
-            if ($LASTEXITCODE -ne 0) {
-              Write-Error "Syntax error in: $f"
-              exit 1
-            }
-          }
-          Write-Host "All $($files.Count) Python files passed syntax check."
-
-      - name: Syntax check — compile all Python files (macOS/Linux)
-        if: runner.os != 'Windows'
-        run: |
-          find . -name "*.py" -not -path "./.venv/*" | xargs -I{} python -m py_compile {}
-
-  # ---------------------------------------------------------------------------
-  # Test — pytest unit + integration tests
-  # Runs on both windows-latest and macos-latest.
+  # Test — pytest unit + integration tests, plus an early syntax check.
+  # Windows-only on PR / main pushes. macOS coverage is exercised by
+  # build-test-artifacts.yml + bundle-smoke.yml during pre-release (cut
+  # via workflow_dispatch) and on tag push — that's where the historical
+  # Mac regressions (#102, #109) are caught.
   # pyrekordbox DB calls are mocked so no real master.db is needed.
   # ---------------------------------------------------------------------------
   test:
-    name: Test (pytest) [${{ matrix.os }}]
-    needs: build
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [windows-latest, macos-latest]
+    name: Test (pytest) [windows-latest]
+    runs-on: windows-latest
 
     steps:
       - uses: actions/checkout@v6
@@ -163,27 +101,40 @@ jobs:
       - name: Install all dependencies
         run: pip install --no-cache-dir -r requirements.txt -r requirements-dev.txt
 
+      - name: Syntax check — compile all Python files
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem -Recurse -Filter "*.py" | Select-Object -ExpandProperty FullName
+          foreach ($f in $files) {
+            python -m py_compile $f
+            if ($LASTEXITCODE -ne 0) {
+              Write-Error "Syntax error in: $f"
+              exit 1
+            }
+          }
+          Write-Host "All $($files.Count) Python files passed syntax check."
+
       - name: Generate integration test fixture
         # Bootstraps tests/fixtures/master_test.db from pyrekordbox's own
         # schema definitions — no Rekordbox install required, no SQLCipher
         # key required, no personal data committed. Lets
         # test_script_integration.py run on every CI runner instead of
-        # silently skipping. Required for Mac script-write coverage (#102).
+        # silently skipping.
         run: python tests/fixtures/generate_master_test_db.py
 
       - name: Run pytest
         # tests/bundle/ exercises the FROZEN bundle and runs in a separate
-        # bundle-smoke workflow (PR 6). Excluded here so this fast unit-test
-        # job stays fast and doesn't try to start a Flask server.
+        # bundle-smoke workflow. Excluded here so this fast unit-test job
+        # stays fast and doesn't try to start a Flask server.
         run: pytest tests/ --ignore=tests/e2e --ignore=tests/bundle -v --tb=short --cov=scripts --cov-report=xml
 
       - name: Upload coverage
         uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: coverage-${{ matrix.os }}
+          name: coverage-windows
           path: coverage.xml
-          retention-days: 30
+          retention-days: 7
 
   # ---------------------------------------------------------------------------
   # E2E — Playwright browser tests against a real running Flask server.
@@ -194,7 +145,6 @@ jobs:
   # ---------------------------------------------------------------------------
   e2e:
     name: E2E (Playwright)
-    needs: build
     runs-on: ubuntu-latest
 
     steps:
