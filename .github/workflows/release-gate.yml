@@ -23,14 +23,11 @@ concurrency:
 
 jobs:
   preflight:
-    name: Preflight (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        # Ubuntu covers the full unit + e2e suite. Windows additionally
-        # exercises the installer-spec smoke that ships only on Win.
-        os: [ubuntu-latest, windows-latest]
+    name: Preflight (windows-latest)
+    # Windows-only — the installer-spec smoke that ships only on Windows is
+    # the unique value of this gate. Unit + e2e are covered by ci.yml on PR.
+    # Ubuntu leg removed 2026-04-29 to reduce Actions minutes.
+    runs-on: windows-latest
 
     steps:
       - uses: actions/checkout@v6
@@ -45,10 +42,6 @@ jobs:
 
       - name: Install all dependencies
         run: pip install --no-cache-dir -r requirements.txt -r requirements-dev.txt
-
-      - name: Install Playwright browsers
-        if: runner.os == 'Linux'
-        run: playwright install --with-deps chromium
 
       - name: Run release preflight
         run: python tools/release_preflight.py

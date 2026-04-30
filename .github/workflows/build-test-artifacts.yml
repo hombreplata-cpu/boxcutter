@@ -1,15 +1,14 @@
 name: Build Test Artifacts
 
-# Pre-emptive .exe and .dmg builds for sideloading / hardware testing.
-# Runs on every push to main (auto) and on manual dispatch.
+# Pre-release release-candidate builds for sideloading / hardware testing.
+# Runs on manual dispatch ONLY — the auto-on-push trigger was removed
+# (2026-04-29) to bring GitHub Actions usage under budget. To cut an RC,
+# trigger this workflow from the Actions tab with an explicit version + ref.
 # Artifacts are NOT attached to GitHub Releases — they live in the workflow
-# artifact store with 14-day retention. Real releases continue to flow through
+# artifact store with 7-day retention. Real releases continue to flow through
 # release.yml on tag push.
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
     inputs:
       version:
@@ -97,7 +96,7 @@ jobs:
         with:
           name: BoxCutter-Setup-${{ env.VERSION }}.exe
           path: installer\windows\Output\BoxCutter-Setup-${{ env.VERSION }}.exe
-          retention-days: 14
+          retention-days: 7
           if-no-files-found: error
 
       # Unpacked PyInstaller bundle. Used by bundle-smoke jobs so smoke can
@@ -109,7 +108,7 @@ jobs:
         with:
           name: BoxCutter-bundle-windows-${{ env.VERSION }}
           path: dist/BoxCutter
-          retention-days: 14
+          retention-days: 7
           if-no-files-found: error
 
   build-mac:
@@ -238,7 +237,7 @@ jobs:
         with:
           name: BoxCutter-${{ env.VERSION }}.dmg
           path: dist/BoxCutter-${{ env.VERSION }}.dmg
-          retention-days: 14
+          retention-days: 7
           if-no-files-found: error
 
       # Unpacked .app bundle. Used by bundle-smoke jobs so smoke can run
@@ -248,5 +247,5 @@ jobs:
         with:
           name: BoxCutter-bundle-macos-${{ env.VERSION }}
           path: dist/BoxCutter.app
-          retention-days: 14
+          retention-days: 7
           if-no-files-found: error
