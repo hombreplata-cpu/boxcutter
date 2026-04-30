@@ -9,6 +9,7 @@ Covers:
 """
 
 import json
+import os
 import sys
 from pathlib import Path
 from unittest.mock import patch
@@ -50,6 +51,29 @@ def test_clean_path_none_returns_none():
 
 def test_clean_path_plain_path_unchanged():
     assert flask_app.clean_path("C:\\Music\\FLAC") == "C:\\Music\\FLAC"
+
+
+def test_clean_path_expands_tilde_home():
+    raw = "~/Library/Application Support/Pioneer/rekordbox/master.db"
+    assert flask_app.clean_path(raw) == os.path.expanduser(raw)
+    assert not flask_app.clean_path(raw).startswith("~")
+
+
+def test_clean_path_expands_tilde_after_quote_strip():
+    raw = '"~/Library/foo"'
+    assert flask_app.clean_path(raw) == os.path.expanduser("~/Library/foo")
+
+
+def test_clean_path_absolute_mac_path_unchanged():
+    assert flask_app.clean_path("/Users/dj/Music") == "/Users/dj/Music"
+
+
+def test_clean_path_windows_path_unchanged():
+    assert flask_app.clean_path("C:\\Music\\FLAC") == "C:\\Music\\FLAC"
+
+
+def test_clean_path_short_non_path_string_unchanged():
+    assert flask_app.clean_path("flac") == "flac"
 
 
 # ---------------------------------------------------------------------------

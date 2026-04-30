@@ -11,6 +11,7 @@ attempts to break clean_path with input the typical user would never type.
 """
 
 import json
+import os
 from unittest.mock import patch
 
 import pytest
@@ -76,6 +77,16 @@ def test_clean_path_path_traversal_passes_through():
     This test documents the boundary: clean_path is purely cosmetic."""
     assert flask_app.clean_path("..\\..\\..\\Windows\\System32") == "..\\..\\..\\Windows\\System32"
     assert flask_app.clean_path("/etc/../etc/passwd") == "/etc/../etc/passwd"
+
+
+def test_clean_path_tilde_traversal_expands_but_does_not_normalize():
+    """Contract: clean_path expands a leading ``~`` but does not canonicalize.
+    A ``..`` segment after the home dir must survive verbatim — collapsing it
+    would silently change the security surface for downstream callers."""
+    raw = "~/../etc/passwd"
+    result = flask_app.clean_path(raw)
+    assert result == os.path.expanduser(raw)
+    assert "/../" in result or "\\..\\" in result
 
 
 # ---------------------------------------------------------------------------
