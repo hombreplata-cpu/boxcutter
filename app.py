@@ -323,10 +323,20 @@ def _listen_authed():
 
 
 def clean_path(raw):
-    """Strip surrounding whitespace and quotes that Windows 'Copy as path' adds."""
+    """Strip surrounding whitespace/quotes and expand a leading ``~``.
+
+    Strips the wrapping that Windows "Copy as path" adds, then expands
+    ``~`` / ``~user`` so macOS users can type ``~/Library/...`` in Setup
+    and have it resolve to an absolute path. ``expanduser`` is a no-op
+    on inputs that don't start with ``~``, so Windows paths and non-path
+    strings (file extensions, id lists) are untouched.
+    """
     if not raw:
         return raw
-    return raw.strip().strip('"').strip("'").strip()
+    cleaned = raw.strip().strip('"').strip("'").strip()
+    if cleaned.startswith("~"):
+        cleaned = os.path.expanduser(cleaned)
+    return cleaned
 
 
 def get_rekordbox_backup_dir(db_path=""):
