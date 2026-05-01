@@ -84,8 +84,12 @@ jobs:
   # pyrekordbox DB calls are mocked so no real master.db is needed.
   # ---------------------------------------------------------------------------
   test:
-    name: Test (pytest) [windows-latest]
-    runs-on: windows-latest
+    name: Test (pytest) [${{ matrix.os }}]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
 
     steps:
       - uses: actions/checkout@v6
@@ -102,17 +106,24 @@ jobs:
         run: pip install --no-cache-dir -r requirements.txt -r requirements-dev.txt
 
       - name: Syntax check — compile all Python files
-        shell: pwsh
+        shell: bash
         run: |
-          $files = Get-ChildItem -Recurse -Filter "*.py" | Select-Object -ExpandProperty FullName
-          foreach ($f in $files) {
-            python -m py_compile $f
-            if ($LASTEXITCODE -ne 0) {
-              Write-Error "Syntax error in: $f"
-              exit 1
-            }
-          }
-          Write-Host "All $($files.Count) Python files passed syntax check."
+          python - <<'PY'
+          import pathlib, py_compile, sys
+          failed = []
+          for p in pathlib.Path('.').rglob('*.py'):
+              if '.venv' in p.parts:
+                  continue
+              try:
+                  py_compile.compile(str(p), doraise=True)
+              except py_compile.PyCompileError as e:
+                  failed.append(f"{p}: {e}")
+          if failed:
+              for f in failed:
+                  print(f"SYNTAX ERROR: {f}")
+              sys.exit(1)
+          print(f"All Python files passed syntax check.")
+          PY
 
       - name: Generate integration test fixture
         # Bootstraps tests/fixtures/master_test.db from pyrekordbox's own
@@ -132,7 +143,7 @@ jobs:
         uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: coverage-windows
+          name: coverage-${{ matrix.os }}
           path: coverage.xml
           retention-days: 7
 
