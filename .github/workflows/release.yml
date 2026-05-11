@@ -244,7 +244,7 @@ jobs:
         shell: pwsh
 
       - name: Download unpacked Windows bundle
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: release-windows-bundle
           path: bundle
@@ -311,7 +311,7 @@ jobs:
           playwright install chromium
 
       - name: Download unpacked .app bundle
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: release-macos-app
           path: bundle
