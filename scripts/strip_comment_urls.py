@@ -63,6 +63,21 @@ BOILERPLATE_PATTERNS = [
     re.compile(rf"^{_SERVICES}$", re.IGNORECASE),
 ]
 
+# Store call-to-action lead-ins injected ahead of a URL ("Visit https://...").
+# After the URL is stripped, an orphaned lead-in is left at the START of a
+# comment (e.g. "Visit  /* PreParty / Groove */"). _LEADING_CTA matches only
+# when the lead-in is the ENTIRE cleaned head, so a real sentence ("Visit the
+# booth", "Buy at full price", "Available on Friday") is left untouched.
+_LEADIN = (
+    r"(?:visit|download(?:ed)?\s+from|buy\s+(?:at|on|from)"
+    r"|stream\s+(?:on|at)|get\s+it\s+(?:at|on|from)|available\s+(?:on|at))"
+)
+_LEADING_CTA = re.compile(rf"^{_LEADIN}[ \t]*$", re.IGNORECASE)
+
+# rekordbox stores curated tags inside a /* ... */ block. Everything from the
+# first "/*" onward is the user's own data and must never be altered.
+_BLOCK_MARKER = "/*"
+
 
 def is_boilerplate_line(line: str) -> bool:
     """Return True if the entire stripped line matches a known boilerplate pattern."""
@@ -70,11 +85,25 @@ def is_boilerplate_line(line: str) -> bool:
     return any(p.match(stripped) for p in BOILERPLATE_PATTERNS)
 
 
+def _clean_head(line: str) -> str:
+    """Strip URL(s) and an orphaned store lead-in from the text BEFORE the first
+    rekordbox /* ... */ block. The block (and anything after it) is preserved
+    byte-for-byte — a URL-looking token inside the block is never touched."""
+    idx = line.find(_BLOCK_MARKER)
+    head, block = (line[:idx], line[idx:]) if idx != -1 else (line, "")
+    head = URL_PATTERN.sub("", head).strip()
+    head = _LEADING_CTA.sub("", head).strip()
+    if head and block:
+        return f"{head} {block}"
+    return head or block
+
+
 def clean_text(text: str) -> str:
-    """Strip URLs and drop whole boilerplate lines. Returns cleaned text (may be empty)."""
+    """Strip URLs + orphaned lead-ins (outside any /* ... */ block) and drop
+    whole boilerplate lines. Returns cleaned text (may be empty)."""
     cleaned = []
     for line in text.splitlines():
-        line = URL_PATTERN.sub("", line).strip()
+        line = _clean_head(line)
         if line and is_boilerplate_line(line):
             continue
         cleaned.append(line)
@@ -82,10 +111,15 @@ def clean_text(text: str) -> str:
 
 
 def needs_cleaning(text: str) -> bool:
-    """Return True if text contains a URL or any whole-line boilerplate."""
-    if URL_PATTERN.search(text):
-        return True
-    return any(is_boilerplate_line(line) for line in text.splitlines())
+    """Return True if cleaning would change the text: a URL or orphaned lead-in
+    outside the /* ... */ block, or a whole-line boilerplate match. Whitespace-
+    only differences do NOT count, so untouched files are never rewritten."""
+    for line in text.splitlines():
+        if _clean_head(line) != line.strip():
+            return True
+        if is_boilerplate_line(line):
+            return True
+    return False
 
 
 # Kept for backward compatibility

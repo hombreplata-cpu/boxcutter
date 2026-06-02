@@ -549,3 +549,90 @@ def test_clean_text_url_then_boilerplate_line():
     assert "http" not in result
     assert "Beatport" not in result
     assert result == ""
+
+
+# ---------------------------------------------------------------------------
+# Orphaned store lead-in removal ("Visit" etc.) — must preserve the rekordbox
+# /* ... */ tag block byte-for-byte. See scripts/strip_comment_urls.py:_clean_head.
+# ---------------------------------------------------------------------------
+
+
+def test_clean_text_strips_leading_visit_before_block():
+    """The real-world leftover: URL already gone, dangling 'Visit' before tags."""
+    assert clean_text("Visit  /* Peak / Driving / pulse */") == "/* Peak / Driving / pulse */"
+    assert clean_text("Visit /* Afters / Spacey / pulse */") == "/* Afters / Spacey / pulse */"
+
+
+def test_clean_text_strips_standalone_visit():
+    assert clean_text("Visit") == ""
+
+
+def test_clean_text_strips_visit_with_url_and_block():
+    assert clean_text("Visit https://x.com/a /* Peak */") == "/* Peak */"
+
+
+def test_clean_text_strips_visit_with_url_no_block():
+    assert clean_text("Visit https://beatport.com/x") == ""
+
+
+def test_clean_text_strips_each_leadin_standalone():
+    """Every supported lead-in, standalone, must reduce to empty (Test Coverage Rule)."""
+    for leadin in (
+        "Download from",
+        "Downloaded from",
+        "Buy at",
+        "Buy on",
+        "Buy from",
+        "Stream on",
+        "Stream at",
+        "Get it at",
+        "Get it on",
+        "Get it from",
+        "Available on",
+        "Available at",
+    ):
+        assert clean_text(leadin) == "", f"{leadin!r} should be stripped to empty"
+
+
+def test_clean_text_strips_each_leadin_before_block():
+    for leadin in ("Download from", "Buy at", "Stream on", "Get it at", "Available on"):
+        assert clean_text(f"{leadin}  /* WarmUp / Groove */") == "/* WarmUp / Groove */"
+
+
+def test_clean_text_leadin_false_positives_preserved():
+    """A real sentence that merely starts with a lead-in word is left untouched."""
+    for text in (
+        "Visit the booth",
+        "Available on Friday",
+        "Stream on repeat /* loved it */",
+        "Visitor notes",
+        "Buy at full price next week",
+    ):
+        assert clean_text(text) == text, f"{text!r} must be preserved"
+
+
+def test_clean_text_block_protected_byte_for_byte():
+    """HARD CONSTRAINT: nothing inside /* ... */ is altered, even a URL token."""
+    assert clean_text("/* Peak / www.foo.com / pulse */") == "/* Peak / www.foo.com / pulse */"
+    assert clean_text("Visit  /* keep www.foo.com here */") == "/* keep www.foo.com here */"
+    assert (
+        clean_text("/* see https://example.com inside */")
+        == "/* see https://example.com inside */"
+    )
+
+
+def test_clean_text_bought_at_url_preserves_verb():
+    """Regression: 'Bought' is not a lead-in ('Buy' is) — verb stays, URL goes."""
+    assert clean_text("Bought at https://beatport.com/track/123") == "Bought at"
+
+
+def test_needs_cleaning_leading_visit():
+    assert needs_cleaning("Visit  /* Peak */")
+    assert needs_cleaning("Visit")
+    assert needs_cleaning("Download from /* x */")
+
+
+def test_needs_cleaning_clean_block_not_reflagged():
+    """A comment that is only the user's /* ... */ block must NOT be re-flagged."""
+    assert not needs_cleaning("/* Peak / pulse */")
+    assert not needs_cleaning("/* Peak / www.foo.com / pulse */")
