@@ -76,7 +76,7 @@ if getattr(sys, "frozen", False):
         runpy.run_path(script_path, run_name="__main__")
         sys.exit(0)
 
-from app import app  # noqa: E402
+from app import app, load_config  # noqa: E402
 
 
 def _resolve_port() -> int:
@@ -102,17 +102,31 @@ PORT = _resolve_port()
 def _resolve_bind_host() -> str:
     """Resolve the host Flask should bind to.
 
-    Honours BOXCUTTER_BIND env var so Tailscale-on-Mac users can opt into
-    0.0.0.0 explicitly (which on macOS triggers the firewall prompt). On
-    macOS, default to 127.0.0.1 because the firewall prompt may be silently
-    denied for unsigned bundles, leaving the webview pointed at a server
-    that never comes up. Windows + Linux keep 0.0.0.0 as before so existing
-    Tailscale flows are unaffected.
+    Precedence:
+    1. BOXCUTTER_BIND env var — explicit override, returned verbatim.
+    2. macOS — PIN-gated. Bind 0.0.0.0 (reachable over Tailscale) only when a
+       listener PIN is configured, i.e. the user has opted into remote
+       streaming; otherwise stay on 127.0.0.1. The localhost default avoids the
+       macOS firewall prompt (which may be silently denied for unsigned
+       bundles) for users who never stream remotely. Any error reading config
+       falls back to 127.0.0.1 — never break launch over a missing/corrupt
+       config.
+    3. Windows + Linux — always 0.0.0.0, as before, so existing Tailscale flows
+       are unaffected.
+
+    The bind is resolved once at launch; setting a PIN in a running app takes
+    effect only after quitting and reopening BoxCutter.
     """
     override = os.environ.get("BOXCUTTER_BIND", "").strip()
     if override:
         return override
     if sys.platform == "darwin":
+        try:
+            pin_set = bool(load_config().get("listen_pin", ""))
+        except Exception:  # noqa: BLE001 — config read must never block launch
+            pin_set = False
+        if pin_set:
+            return "0.0.0.0"  # noqa: S104  # nosec B104 — opt-in via listener PIN for Tailscale-on-mac
         return "127.0.0.1"
     return "0.0.0.0"  # noqa: S104  # nosec B104 — intentional on win/linux for Tailscale
 

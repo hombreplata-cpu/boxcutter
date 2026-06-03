@@ -1586,6 +1586,7 @@ def listen_setup():
         tailscale_ip=ts_ip,
         port=server_port,
         rb_running=rekordbox_is_running(),
+        is_mac=platform.system() == "Darwin",
     )
 
 
