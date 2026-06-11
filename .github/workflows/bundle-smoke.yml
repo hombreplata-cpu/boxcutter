@@ -120,7 +120,7 @@ jobs:
       # bundle directly is what catches REG-001-class regressions.
       # Installer behaviour gets its own dedicated job in the future.
       - name: Download unpacked Windows bundle
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: BoxCutter-bundle-windows-*
           path: bundle
@@ -253,7 +253,7 @@ jobs:
       # Smoke against the unpacked .app bundle, not via DMG mount. Faster
       # and bypasses any DMG-mount quirks.
       - name: Download unpacked macOS bundle
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: BoxCutter-bundle-macos-*
           path: bundle
