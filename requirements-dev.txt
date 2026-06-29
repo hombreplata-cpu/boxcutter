@@ -1,6 +1,6 @@
-pytest>=9.0.3
+pytest>=9.1.1
 pytest-cov>=7.1.0
-ruff==0.15.12
-pip-audit==2.10.0
+ruff==0.15.20
+pip-audit==2.10.1
 bandit[toml]==1.9.4
-playwright>=1.59.0
+playwright>=1.61.0
